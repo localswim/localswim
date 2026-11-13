@@ -276,6 +276,7 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
     for (const summary of workspace?.boards ?? []) {
       if (
         selectedId !== null &&
+        summary.id !== selectedId &&
         summary.last_card_edit_at !== null &&
         (lastCardEdit === null || summary.last_card_edit_at > lastCardEdit)
       ) {
@@ -300,7 +301,15 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
         row = makeRow(summary.id);
         rows.set(summary.id, row);
       }
-      updateRow(row, summary, summary.id === selectedId, pinned);
+      const displaySummary =
+        summary.id === selectedId && selectedView
+          ? {
+              ...summary,
+              attention: selectedView.attention,
+              last_card_edit_at: selectedView.last_card_edit_at,
+            }
+          : summary;
+      updateRow(row, displaySummary, summary.id === selectedId, pinned);
       row.pin.setAttribute("aria-disabled", String(!canToggle));
       row.reorder.hidden = !pinned;
       row.reorder.setAttribute("aria-disabled", String(!canReorder));

@@ -1,11 +1,11 @@
 .lsw-approve-lane-status,
-.lsw-ticket-order-status {
+.lsw-board-success-status {
   position: fixed;
   z-index: 40;
   bottom: 16px;
   left: 50%;
   width: max-content;
-  max-width: min(460px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   box-sizing: border-box;
   margin: 0;
   padding: 10px 16px;
@@ -19,6 +19,6 @@
 }
 
 .lsw-approve-lane-status:empty,
-.lsw-ticket-order-status:empty {
+.lsw-board-success-status:empty {
   display: none;
 }

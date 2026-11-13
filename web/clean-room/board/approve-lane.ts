@@ -1,4 +1,12 @@
-import type { CardDto, EntityTag, LaneDto, SessionDto, Uuid, UuidV7 } from "../api-types.js";
+import type {
+  CardDto,
+  EntityTag,
+  LaneDto,
+  SessionDto,
+  Timestamp,
+  Uuid,
+  UuidV7,
+} from "../api-types.js";
 import type { BoardData } from "../contracts.js";
 import {
   apiPrefix,
@@ -28,12 +36,22 @@ interface ApprovalWork {
   status: ApprovalStatus;
   intent: ApprovalIntent | null;
   message: string;
+  receipt?: ConfirmedApproval;
+}
+
+export interface ConfirmedApproval {
+  readonly baseTag: EntityTag;
+  readonly revision: number;
+  readonly at: Timestamp;
+  readonly fromLaneId: Uuid;
+  readonly toLaneId: Uuid;
+  readonly cardIds: readonly Uuid[];
 }
 
 interface ApprovalCallbacks {
   readonly current: () => ApprovalContext | null;
   readonly selectedBoard: () => Uuid | null;
-  readonly refresh: (boardId: Uuid, approvedRevision?: number) => void;
+  readonly refresh: (boardId: Uuid, receipt?: ConfirmedApproval) => void;
   readonly onStateChange: () => void;
 }
 
@@ -183,7 +201,7 @@ async function prepareApproval(scope: ApprovalScope, signal: AbortSignal): Promi
   };
 }
 
-function validateReceipt(intent: ApprovalIntent, value: unknown): UuidV7 {
+function validateReceipt(intent: ApprovalIntent, value: unknown): ConfirmedApproval {
   const { scope, body } = intent;
   if (
     !isRecord(value) ||
@@ -245,7 +263,14 @@ function validateReceipt(intent: ApprovalIntent, value: unknown): UuidV7 {
       changeIds.add(change.id);
     }
   }
-  return body.id;
+  return {
+    baseTag: scope.boardTag,
+    revision: scope.boardRevision + 1,
+    at: value.at,
+    fromLaneId: body.lane_id,
+    toLaneId: scope.completed.id,
+    cardIds: body.cards.map(({ card_id }) => card_id),
+  };
 }
 
 function submitApproval(intent: ApprovalIntent, beforeDispatch: (session: SessionDto) => void) {
@@ -256,27 +281,26 @@ function submitApproval(intent: ApprovalIntent, beforeDispatch: (session: Sessio
     body: intent.body,
     beforeDispatch,
     validate(data, headers) {
-      const id = validateReceipt(intent, data);
+      const receipt = validateReceipt(intent, data);
       if (
         entityTag(headers, "X-Board-ETag") === intent.scope.boardTag ||
-        headers.get("Location") !== `${apiPrefix}/approvals/${id}`
+        headers.get("Location") !== `${apiPrefix}/approvals/${intent.body.id}`
       ) {
         return invalidResponse();
       }
-      return id;
+      return receipt;
     },
   });
 }
 
-async function inspectApproval(intent: ApprovalIntent): Promise<boolean> {
+async function inspectApproval(intent: ApprovalIntent): Promise<ConfirmedApproval | null> {
   try {
     const { data, headers } = await readJson(`/approvals/${intent.body.id}`);
-    validateReceipt(intent, data);
     entityTag(headers);
-    return true;
+    return validateReceipt(intent, data);
   } catch {
     // A missing receipt can race an in-flight writer, so it also leaves the outcome unknown.
-    return false;
+    return null;
   }
 }
 
@@ -289,7 +313,9 @@ function setStatus(work: ApprovalWork, status: ApprovalStatus, message = ""): vo
 
 async function checkWork(work: ApprovalWork, intent: ApprovalIntent): Promise<void> {
   setStatus(work, "checking", "Checking approval status…");
-  if (await inspectApproval(intent)) {
+  const receipt = await inspectApproval(intent);
+  if (receipt !== null) {
+    work.receipt = receipt;
     setStatus(work, "committed");
   } else {
     setStatus(
@@ -338,6 +364,7 @@ async function runApproval(
   }
   switch (result.outcome) {
     case "committed":
+      work.receipt = result.value;
       setStatus(work, "committed");
       return;
     case "not_applied": {
@@ -377,7 +404,7 @@ export function createLaneApproval(host: HTMLElement | ShadowRoot, callbacks: Ap
         ? `Approved ${work.scope.cards.length} review card(s), moving to Completed.`
         : work.message;
     if (work.status === "committed" || work.status === "failed" || work.status === "unknown") {
-      callbacks.refresh(id, work.status === "committed" ? work.scope.boardRevision + 1 : undefined);
+      callbacks.refresh(id, work.receipt);
     }
     if (work.status === "committed" || work.status === "failed") {
       hideStatus = window.setTimeout(() => {

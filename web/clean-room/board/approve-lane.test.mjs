@@ -41,6 +41,8 @@ await test("lane approval checks exact active membership and recovers a lost res
   let writes = 0;
   let inspections = 0;
   let refreshes = 0;
+  /** @type {import("./approve-lane.ts").ConfirmedApproval | undefined} */
+  let confirmedApproval;
   let selected = data.view.board.id;
   /** @type {{ id: string; card_ids: string[] } | undefined} */
   let receipt;
@@ -157,7 +159,8 @@ await test("lane approval checks exact active membership and recovers a lost res
     {
       current: () => ({ data: { ...data, view }, session }),
       selectedBoard: () => selected,
-      refresh: () => {
+      refresh: (_boardId, approval) => {
+        confirmedApproval = approval;
         refreshes += 1;
       },
       onStateChange() {},
@@ -191,6 +194,10 @@ await test("lane approval checks exact active membership and recovers a lost res
   assert.equal(inspections, 3);
   assert.equal(writes, 1);
   assert.equal(refreshes, 2);
+  assert.equal(confirmedApproval?.baseTag, data.boardEtag);
+  assert.equal(confirmedApproval?.revision, data.view.board.revision + 1);
+  assert.equal(confirmedApproval?.fromLaneId, review.id);
+  assert.equal(confirmedApproval?.cardIds.length, 2);
   assert.equal(status.textContent, "Approved 2 review card(s), moving to Completed.");
 });
 

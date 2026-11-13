@@ -25,13 +25,25 @@ interface TicketOrder {
   readonly changed: boolean;
 }
 
-const pendingOrders = new Map<string, TicketOrder>();
+export interface ConfirmedTicketOrder {
+  readonly baseTag: EntityTag;
+  readonly revision: number;
+  readonly assignments: readonly Assignment[];
+}
+
+const pendingOrders = new Map<string, TicketOrder & { readonly requestId: Uuid }>();
+const applyingOrders = new Set<string>();
 
 export function pendingTicketOrderLanes(boardId: Uuid): readonly Uuid[] {
   const prefix = `${boardId}:`;
   return Array.from(pendingOrders.keys())
     .filter((key) => key.startsWith(prefix))
     .map((key) => key.slice(prefix.length));
+}
+
+export function ticketOrderInFlight(boardId: Uuid): boolean {
+  const prefix = `${boardId}:`;
+  return Array.from(applyingOrders).some((key) => key.startsWith(prefix));
 }
 
 function positiveInteger(value: unknown): value is number {
@@ -166,7 +178,7 @@ interface TicketOrderCallbacks {
   readonly getBoard: () => BoardData | null;
   readonly getSession: () => SessionDto | null;
   readonly onClose: () => void;
-  readonly onApplied: (changedCount: number) => void;
+  readonly onApplied: (changedCount: number, order: ConfirmedTicketOrder) => void;
   readonly onRefresh: () => void;
 }
 
@@ -330,7 +342,11 @@ export function openTicketOrder(
       (entry, index) => entry.card_id !== order.current[index]?.card_id,
     ).length;
     dispose();
-    callbacks.onApplied(changedCount);
+    callbacks.onApplied(changedCount, {
+      baseTag: order.etag,
+      revision: order.revision + 1,
+      assignments: order.proposed,
+    });
     callbacks.onClose();
   }
 
@@ -411,7 +427,11 @@ export function openTicketOrder(
     status.textContent = "Checking the board for the new ticket order…";
     update();
     const result = await inspectOrder(path, boardId, laneId, original, signal);
-    if (signal.aborted) return;
+    const released = applyingOrders.delete(key);
+    if (signal.aborted) {
+      if (released) callbacks.onRefresh();
+      return;
+    }
     busy = false;
     if (result === "committed") {
       clearPending(original);
@@ -448,8 +468,10 @@ export function openTicketOrder(
     status.textContent = "Applying ticket order…";
     update();
     let dispatched = false;
+    const requestId = crypto.randomUUID();
     const result = await mutateJson(path, {
       method: "PUT",
+      requestId,
       body: {
         board_id: boardId,
         expected_board_etag: original.etag,
@@ -469,13 +491,18 @@ export function openTicketOrder(
         )
           return invalidResponse();
         dispatched = true;
-        pending = original;
-        pendingOrders.set(key, original);
+        pending = { ...original, requestId };
+        pendingOrders.set(key, pending);
+        applyingOrders.add(key);
       },
       signal,
     });
-    if (dispatched && result.outcome !== "unknown") clearPending(original);
-    if (signal.aborted) return;
+    if (dispatched && (result.outcome !== "unknown" || signal.aborted)) applyingOrders.delete(key);
+    if (dispatched && result.outcome !== "unknown" && pending !== null) clearPending(pending);
+    if (signal.aborted) {
+      if (dispatched) callbacks.onRefresh();
+      return;
+    }
     busy = false;
     if (!dispatched) {
       status.textContent = "The board could not be verified. Refresh the preview before applying.";
@@ -489,7 +516,8 @@ export function openTicketOrder(
       return;
     }
     if (result.outcome === "unknown") {
-      await inspect(original);
+      if (pending !== null) await inspect(pending);
+      if (!signal.aborted && pending !== null) callbacks.onRefresh();
       return;
     }
     plan = null;
@@ -498,6 +526,7 @@ export function openTicketOrder(
       callbacks.onRefresh();
     } else {
       status.textContent = "The ticket order could not be applied.";
+      callbacks.onRefresh();
     }
     update();
   }

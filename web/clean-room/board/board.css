@@ -408,6 +408,10 @@
     flex-basis: 100%;
   }
 
+  .lsw-board-lane[data-role="needs_input"] .lsw-board-lane-title {
+    padding-right: 22px;
+  }
+
   .lsw-board-lane-create {
     margin-left: auto;
     margin-right: 2px;

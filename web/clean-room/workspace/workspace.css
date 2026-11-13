@@ -495,7 +495,7 @@
       "build build latest clock clock";
     grid-template-rows: 26px 18px;
     row-gap: 6px;
-    padding-block: 8px 9px;
+    padding-block: 8px 13px;
   }
 
   .lsw-workspace-latest {

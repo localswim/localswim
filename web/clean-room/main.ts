@@ -1,7 +1,8 @@
 import type { ServiceDto, SessionDto, Uuid } from "./api-types.js";
 import { readBoard } from "./board/read.js";
 import { mountBoard } from "./board/render.js";
-import { createLaneApproval } from "./board/approve-lane.js";
+import { createLaneApproval, type ConfirmedApproval } from "./board/approve-lane.js";
+import { applyConfirmedBoardWrite } from "./board/confirmed-write.js";
 import { cardSearchQuery, projectCards, readCardMatches } from "./board/filter.js";
 import {
   inspectCardMove,
@@ -10,7 +11,12 @@ import {
   type MoveIntent,
   type PreparedCardMove,
 } from "./board/move.js";
-import { openTicketOrder, pendingTicketOrderLanes } from "./board/ticket-order.js";
+import {
+  openTicketOrder,
+  pendingTicketOrderLanes,
+  ticketOrderInFlight,
+  type ConfirmedTicketOrder,
+} from "./board/ticket-order.js";
 import type {
   BoardData,
   BoardProps,
@@ -99,7 +105,7 @@ function start(host: HTMLElement): void {
   let identityReadEpoch = 0;
   let minimumWorkspaceRevision = 0;
   const minimumBoardRevisions = new Map<Uuid, number>();
-  const approvedRevisions = new Map<Uuid, number>();
+  let confirmedPresentation: Confirmed<BoardData> | null = null;
   let searchRead: AbortController | undefined;
   let drawerRead: AbortController | undefined;
   let drawerData: ReadState<DrawerData> = { status: "loading", previous: null };
@@ -125,10 +131,10 @@ function start(host: HTMLElement): void {
   const notice = document.createElement("div");
   notice.className = "lsw-operation-notice";
   notice.setAttribute("role", "status");
-  const orderNotice = document.createElement("p");
-  orderNotice.className = "lsw-ticket-order-status";
-  orderNotice.setAttribute("role", "status");
-  let orderNoticeTimer = 0;
+  const successNotice = document.createElement("p");
+  successNotice.className = "lsw-board-success-status";
+  successNotice.setAttribute("role", "status");
+  let successNoticeTimer = 0;
   const checkMove = document.createElement("button");
   checkMove.type = "button";
   checkMove.textContent = "Check move status";
@@ -141,7 +147,7 @@ function start(host: HTMLElement): void {
   const recovery = document.createElement("div");
   recovery.className = "lsw-operation-recovery";
   recovery.append(checkMove, checkCreate);
-  overlay.append(notice, orderNotice, recovery);
+  overlay.append(notice, successNotice, recovery);
   host.append(overlay);
   const live = startLive({
     refresh: refreshLive,
@@ -157,11 +163,9 @@ function start(host: HTMLElement): void {
       const data = currentBoard();
       return data !== null && session !== null ? { data, session } : null;
     },
-    refresh: (id, approvedRevision) => {
+    refresh: (id, receipt) => {
       if (!isSelected(id)) return;
-      if (approvedRevision !== undefined) {
-        approvedRevisions.set(id, Math.max(approvedRevision, approvedRevisions.get(id) ?? 0));
-      }
+      if (receipt) presentConfirmedWrite(id, receipt);
       void refreshBoard(id);
     },
     onStateChange: render,
@@ -173,6 +177,8 @@ function start(host: HTMLElement): void {
       (item) => item.id === id && item.availability === "open",
     );
     return board.status === "ready" &&
+      confirmedPresentation === null &&
+      (id === null || !ticketOrderInFlight(id)) &&
       workspace.status === "ready" &&
       session !== null &&
       connection === "connected" &&
@@ -233,7 +239,13 @@ function start(host: HTMLElement): void {
     if (route.kind === "board") {
       const id = route.boardId;
       const state = stateFor(id);
-      const data = last(board)?.value;
+      const data = (confirmedPresentation ?? last(board))?.value;
+      const presentation =
+        confirmedPresentation === null
+          ? board
+          : board.status === "unavailable"
+            ? { ...board, previous: confirmedPresentation }
+            : { status: "ready" as const, current: confirmedPresentation };
       const projection =
         data?.view.board.id === id
           ? projectCards(data.view, route.showCompleted, state.matching, Date.now())
@@ -242,7 +254,7 @@ function start(host: HTMLElement): void {
       selectedBoard = {
         liveMoveRevision,
         boardName: last(workspace)?.value.boards.find((item) => item.id === id)?.name ?? undefined,
-        data: board,
+        data: presentation,
         session,
         route,
         scroll: state.scroll,
@@ -438,6 +450,7 @@ function start(host: HTMLElement): void {
           epoch !== boardReadEpoch ||
           board.status !== "ready" ||
           approval.awaitsConfirmation(boardId) ||
+          ticketOrderInFlight(boardId) ||
           (state.confirmed?.value.view.board.revision ?? 0) > current.view.board.revision
         ) {
           drawerData = { status: "unavailable", previous, failure: { kind: "invalid_response" } };
@@ -566,12 +579,26 @@ function start(host: HTMLElement): void {
     closeCreate();
     notice.textContent = "";
     confirmedCreation = recovered ? receipt : undefined;
+    const { card } = receipt;
+    const lane = last(board)?.value.view.lanes.find(({ id }) => id === card.lane_id);
+    if (isSelected(card.board_id)) {
+      const actor = last(board)?.value.view.board.actor_presentation?.human?.label ?? "Terry";
+      showSuccess(
+        `created #${String(card.ticket).padStart(4, "0")} card-${card.id}${lane ? ` in ${lane.key}` : ""} (by ${actor.toLowerCase()})`,
+      );
+    }
     refreshSelected();
-    if (recovered) {
-      notice.textContent = `Created #${String(receipt.card.ticket).padStart(4, "0")}. The board is refreshing.`;
-    } else if (route.kind === "board" && route.boardId === receipt.card.board_id) {
+    if (!recovered && isSelected(card.board_id)) {
       openDrawer(receipt.card.id);
     }
+  }
+
+  function showSuccess(message: string): void {
+    clearTimeout(successNoticeTimer);
+    successNotice.textContent = message;
+    successNoticeTimer = window.setTimeout(() => {
+      successNotice.textContent = "";
+    }, 5000);
   }
 
   async function inspectCreate(): Promise<void> {
@@ -712,15 +739,14 @@ function start(host: HTMLElement): void {
         ordering = undefined;
         render();
       },
-      onApplied: (count) => {
-        clearTimeout(orderNoticeTimer);
-        orderNotice.textContent = `Reordered ${count} ticket ${count === 1 ? "number" : "numbers"}`;
-        orderNoticeTimer = window.setTimeout(() => {
-          orderNotice.textContent = "";
-        }, 5000);
+      onApplied: (count, receipt) => {
+        presentConfirmedWrite(data.view.board.id, receipt);
+        showSuccess(`Reordered ${count} ticket ${count === 1 ? "number" : "numbers"}`);
         refreshSelected();
       },
-      onRefresh: refreshSelected,
+      onRefresh: () => {
+        if (isSelected(data.view.board.id)) refreshSelected();
+      },
     });
     render();
   }
@@ -797,15 +823,23 @@ function start(host: HTMLElement): void {
   checkCreate.addEventListener("click", () => {
     void inspectCreate();
   });
-  function applyApprovalReplay(id: Uuid, value: BoardData): void {
-    const approved = approvedRevisions.get(id);
-    const { revision, last_card_edit_at: at } = value.view.board;
-    if (approved === undefined || revision < approved) return;
-    approvedRevisions.delete(id);
-    liveMoveRevision = revision;
-    if (revision === approved) {
+  function presentConfirmedWrite(
+    id: Uuid,
+    receipt: ConfirmedApproval | ConfirmedTicketOrder,
+  ): void {
+    if (!isSelected(id)) return;
+    const base = (confirmedPresentation ?? last(board))?.value;
+    if (!base || base.view.board.id !== id || base.view.board.revision >= receipt.revision) return;
+    minimumBoardRevisions.set(id, Math.max(receipt.revision, minimumBoardRevisions.get(id) ?? 0));
+    const next = applyConfirmedBoardWrite(base, receipt);
+    if (!next) return;
+    confirmedPresentation = confirmed(next);
+    lastActor = null;
+    lastActorAt = null;
+    if ("at" in receipt) {
+      liveMoveRevision = receipt.revision;
       lastActor = "human";
-      lastActorAt = at;
+      lastActorAt = receipt.at;
     }
   }
 
@@ -820,7 +854,7 @@ function start(host: HTMLElement): void {
     try {
       const value = await readBoard(id, attempt.signal);
       if (attempt.signal.aborted || epoch !== boardReadEpoch) return;
-      if (approval.awaitsConfirmation(id)) return;
+      if (approval.awaitsConfirmation(id) || ticketOrderInFlight(id)) return;
       if (value.view.board.revision < (minimumBoardRevisions.get(id) ?? 0)) {
         live.retry();
         return;
@@ -830,13 +864,16 @@ function start(host: HTMLElement): void {
         render();
         return;
       }
-      if (state.confirmed?.value.view.board.revision !== value.view.board.revision) {
+      if (
+        (confirmedPresentation ?? state.confirmed)?.value.view.board.revision !==
+        value.view.board.revision
+      ) {
         lastActor = null;
         lastActorAt = null;
       }
       state.confirmed = confirmed(value);
       board = { status: "ready", current: state.confirmed };
-      applyApprovalReplay(id, value);
+      confirmedPresentation = null;
       if (route.kind === "board" && route.boardId === id && state.search !== "") {
         changeSearch(state.search);
       }
@@ -864,8 +901,8 @@ function start(host: HTMLElement): void {
       board = { status: "unavailable", previous: state.confirmed, failure };
       if (
         connection === "connected" &&
-        failure.kind === "http" &&
-        failure.problem.status === 503 &&
+        ((failure.kind === "http" && failure.problem.status === 503) ||
+          (confirmedPresentation !== null && failure.kind !== "http")) &&
         last(workspace)?.value.boards.some((item) => item.id === id && item.availability === "open")
       ) {
         live.retry();
@@ -878,11 +915,11 @@ function start(host: HTMLElement): void {
     const was = route.kind === "board" ? route.boardId : null;
     const nextId = next.kind === "board" ? next.boardId : null;
     if (was !== nextId) {
-      if (was !== null) approvedRevisions.delete(was);
+      confirmedPresentation = null;
       liveMoveRevision = undefined;
       notice.textContent = "";
-      clearTimeout(orderNoticeTimer);
-      orderNotice.textContent = "";
+      clearTimeout(successNoticeTimer);
+      successNotice.textContent = "";
       for (const button of orderChecks.values()) button.remove();
       orderChecks.clear();
       lastActor = null;
@@ -1094,27 +1131,39 @@ function start(host: HTMLElement): void {
         if ("view" in value) {
           if (value.view.board.revision < (minimumBoardRevisions.get(route.boardId) ?? 0))
             return false;
-          const previous = state.confirmed?.value;
+          const previousBoard = state.confirmed?.value;
+          const previous = (confirmedPresentation ?? state.confirmed)?.value;
           if (
             (!previous || value.view.board.revision >= previous.view.board.revision) &&
-            !approval.awaitsConfirmation(route.boardId)
+            !approval.awaitsConfirmation(route.boardId) &&
+            !ticketOrderInFlight(route.boardId)
           ) {
             state.confirmed = confirmed(value);
             board = { status: "ready", current: state.confirmed };
-            if (previous && previous.view.board.revision < value.view.board.revision) {
+            confirmedPresentation = null;
+            if (previous && previous.view.board.revision < value.view.board.revision)
               liveMoveRevision = value.view.board.revision;
+            if (
+              previousBoard &&
+              previousBoard.view.board.revision < value.view.board.revision &&
+              !(
+                previous?.view.board.revision === value.view.board.revision && lastActor === "human"
+              )
+            ) {
               lastActor = null;
               lastActorAt = null;
               const writer = last(service)?.value.service_instance_id;
               if (writer) {
                 const updated = value.view.board;
-                void readLiveActor(previous.view.board, updated, writer, signal).then(
+                void readLiveActor(previousBoard.view.board, updated, writer, signal).then(
                   (actor) => {
                     if (
                       signal.aborted ||
                       route.kind !== "board" ||
                       route.boardId !== updated.id ||
-                      last(board)?.value.view.board.revision !== updated.revision
+                      (confirmedPresentation ?? last(board))?.value.view.board.revision !==
+                        updated.revision ||
+                      last(service)?.value.service_instance_id !== writer
                     )
                       return;
                     lastActor = actor;
@@ -1125,13 +1174,15 @@ function start(host: HTMLElement): void {
                 );
               }
             }
-            applyApprovalReplay(route.boardId, value);
             if (
               drawerKey !== null &&
               last(drawerData)?.value.boardRevision !== value.view.board.revision
             )
               openDrawer(drawerKey);
-            if (state.search !== "" && previous?.view.board.revision !== value.view.board.revision)
+            if (
+              state.search !== "" &&
+              previousBoard?.view.board.revision !== value.view.board.revision
+            )
               changeSearch(state.search);
           }
         } else {

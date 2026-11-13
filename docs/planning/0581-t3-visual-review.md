@@ -31,3 +31,8 @@ Reviewed the supplied `output/t3-v1` screenshots against `0582-observed-contract
 - The paired empty create forms align closely. The relationship draft captures have different card labels from earlier fixture edits. V2 still shows the disabled attachment control pending #0600.
 - The paired reconnect captures preserve the draft. Terry approved waiting for fresh state before enabling V2 submission. The original V2 outage capture predates the `REFRESHING` label correction.
 - Human creation captures both show updated ages and the same tab title. V1 shows a creation toast in its frame. V2 has no corresponding toast in the captured state. Fixture histories and timing differ. The Needs Terry heading still wraps differently, and the header has a small vertical offset at this viewport.
+
+The follow-up 1280×720 captures show both board boundaries at the same height
+and both Needs Terry headings on two lines. The follow-up V2 create capture
+shows the success toast after the service responds. The captured boards retain
+their separate test histories, including different card counts and ticket IDs.

@@ -23,7 +23,7 @@ guides map the browser and CLI/Bot sequences separately.
 | #0590 Lane approval | V1 uses a single click and shows the approval toast. In both versions a search matching one of two review cards left the action enabled with a count of two and the action moved both cards to Completed. A truncated success response in V2 was recovered through the original receipt. Native card 27 reached Completed at revision 38 with one approve activity and one approval comment. | Candidate review. |
 | #0591 Dependency order | Paired 19-card preview and Apply produced the same ticket mappings. V2 recovered a truncated success body and the native preview confirmed the settled 21-card order at revision 41. A stale Apply returned HTTP 412, asked for a refreshed preview, and left the 22-card proposal unapplied. | Hidden-old Completed scope if enabled for dependency ordering. V1 did not open a preview under a search filter in the observed fixture. |
 | #0592 Batch priority | The CLI used the dated V2 API. A live P4 batch advanced the board from revision 58 to 59. A P1 dependent kept its blocker at P1 and the other selected card became P4. A subsequent request with the original ETag returned HTTP 412 and native readback confirmed it left the card unchanged. | Candidate review. |
-| #0593 Live updates | Paired V1/V2 tests retained the same draft through a Bot edit, writer outage and reconnect. Terry approved guarding V2 submission until fresh state is confirmed. Both browsers updated the age and retained the same tab title after a Human edit. The V2 browser verified `REFRESHING`, confirmed Bot move replay and return to `CONNECTED`. | V1's creation toast appeared in one Human cue frame and V2 had no matching toast in that capture. V2 actor attribution requires scoped activity evidence and the catalog cannot distinguish every same-second background edit. |
+| #0593 Live updates | Paired V1/V2 tests retained the same draft through a Bot edit, writer outage and reconnect. Terry approved guarding V2 submission until fresh state is confirmed. Both browsers updated the age and retained the same tab title after a Human edit. V2 verified `REFRESHING`, confirmed Bot move replay, return to `CONNECTED`, and creation success feedback. | V2 actor attribution requires scoped activity evidence. The catalog cannot distinguish every same-second background edit. |
 
 Terry clarified that a pending write should leave the last confirmed view in
 place. A successful response is enough to show the change. Pin and reorder now
@@ -42,8 +42,13 @@ in the T4 scope.
 
 ## Review and build
 
-The final browser asset checks used candidate `d326d01fb425`. All 302 web tests
-passed on that candidate. The final evidence-only changes update this handoff.
+The browser replay and final form captures used `d326d01fb425`. The pin follow-up
+`bc9f03940868` also holds the confirmed pin order if a live update arrives before
+the write response. Later browser runs verified that an approval receipt moves
+the card even with the board read held, and a confirmed ticket number stays
+visible when the board read fails. The follow-up board read still governs write
+admission. All 302 web tests passed after these changes. The prior full suite
+passed with the same Go sources.
 
 - Fresh non-author Sol reviewers examined each story. Corrected findings
   include same-origin dispatch context, pending status reachability, stale-read

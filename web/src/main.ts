@@ -86,6 +86,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let boardState: ReturnType<typeof createBoardState> | undefined;
   let boardSnapshot: BoardStateView | undefined;
   let principal: BrowserPrincipal | null = null;
+  let principalRead: Promise<void> | undefined;
   let policy: BoardPolicyContext | null = null;
   let policyVersion = "";
   let drawer: ReturnType<typeof mountCardView> | undefined;
@@ -110,6 +111,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let relationships: ReturnType<typeof mountRelationships> | undefined;
   let previewsAllowed = false;
   let policyRefreshFrame = 0;
+  let publishingTag: string | null = null;
   let writesBlocked = true;
   let focusedTextConfirmed = false;
   let drawerNeedsConfirmation = false;
@@ -235,7 +237,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     void publishing.refresh();
   }
   function refreshPrincipal() {
-    void workspace
+    if (principalRead || signal.aborted) return;
+    principalRead = workspace
       .readWithSession(() => readBrowserPrincipal(context), signal)
       .then(
         (identity) => {
@@ -247,7 +250,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           refreshPolicy();
         },
         () => {},
-      );
+      )
+      .finally(() => {
+        principalRead = undefined;
+      });
   }
   refreshPrincipal();
 
@@ -526,6 +532,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
 
   function renderBoard(state: BoardStateView) {
     boardSnapshot = state;
+    if (principal === null && state.connection === "connected") refreshPrincipal();
     refreshPolicy();
     const { availability, connection, data, name, readiness, retryAvailable, writesFenced } = state;
     if (!writesBlocked && writesFenced) search?.suspend();
@@ -642,6 +649,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       });
     if (!writesFenced && data && state.confirmedEtag === data.etag) {
       search?.update(data.lanes, data.board.revision);
+      if (boardTools.open && publishingTag !== state.confirmedEtag) {
+        publishingTag = state.confirmedEtag;
+        void publishing?.refresh();
+      }
     }
     updateDrawerTools();
     if (!writesFenced && drawerNeedsConfirmation) {
@@ -865,7 +876,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     boardTools.addEventListener(
       "toggle",
       () => {
-        if (boardTools.open) void publishing?.refresh();
+        if (boardTools.open) {
+          publishingTag = boardSnapshot?.confirmedEtag ?? null;
+          void publishing?.refresh();
+        }
       },
       { signal },
     );
@@ -1001,6 +1015,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   }
   const retryLoad = () => {
     drawerNeedsConfirmation = true;
+    refreshPrincipal();
     void workspace.refresh().then(() => boardState?.retry());
   };
   retry.addEventListener("click", retryLoad);

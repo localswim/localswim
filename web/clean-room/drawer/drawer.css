@@ -2,6 +2,7 @@
   position: fixed;
   z-index: 10;
   inset: 0;
+  pointer-events: none;
 }
 
 .lsw-drawer-shade::before,
@@ -9,6 +10,12 @@
   position: absolute;
   background: rgb(17 27 60 / 45%);
   content: "";
+  pointer-events: auto;
+}
+
+.lsw-drawer-shade[inert]::before,
+.lsw-drawer-shade[inert]::after {
+  pointer-events: none;
 }
 
 .lsw-drawer-shade::before {

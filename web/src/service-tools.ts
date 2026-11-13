@@ -114,7 +114,7 @@ function serviceRevision(instanceId: string, etag: string) {
   const prefix = `"${instanceId}-`;
   if (!etag.startsWith(prefix) || !etag.endsWith('"')) return undefined;
   const digits = etag.slice(prefix.length, -1);
-  if (!/^[1-9]\d{0,19}$/.test(digits)) return undefined;
+  if (!/^(?:0|[1-9]\d{0,19})$/.test(digits)) return undefined;
   const revision = BigInt(digits);
   return revision <= 0xffff_ffff_ffff_ffffn ? revision : undefined;
 }

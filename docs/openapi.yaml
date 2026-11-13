@@ -13,6 +13,9 @@ info:
     Empty collections return an empty array. The next_cursor field retains its pagination meaning.
     JSON member names, path parameter identifiers, and query parameter names use snake_case.
     Standard HTTP header names retain their standard spelling. Values retain their defined spelling.
+    See [Browser workflows](browser-workflows.md) and [CLI/Bot workflows](cli-workflows.md)
+    for interface-specific API sequences and implementation status. These guides describe supported
+    usage; security and x-authorization remain the operation authorization contract.
     Ordinary writes to existing boards check the durable snapshot against the accepted state of the addressed board.
     A missing, unreadable, or divergent snapshot returns 503 with code unavailable and outcome
     not_applied. The board catalog distinguishes unavailable and divergent snapshots. Other boards

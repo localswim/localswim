@@ -7,6 +7,11 @@
   and explicitly authorizes every turn-N card to move to Ready for Review.
 - The UI Lead sends the exact candidate commits, scoped changes, checks, technical
   review and Terra evidence for that review. Corrections remain in the current turn.
+- T3 entry requires the Architect to verify that the integrated candidate meets
+  all applicable standards documented in Git, including the TypeScript quality
+  standard and UI source and release standards. Implementation, passing checks
+  and independent review evidence must establish compliance before T3 opens.
+  Maintain that standard throughout subsequent turns.
 - Terry retains control of Completed. Owner demos follow technical handoff.
 - The UI Lead owns execution, the Architect owns acceptance, and Terry owns
   production cutover approval. After all T1-T9 cards reach RFR, the Architect
@@ -46,6 +51,10 @@
   text exactly without silent replacement, trimming, or normalization.
 - Run `.\check.ps1` before handoff. Keep the strict compiler and lint gates enabled,
   fix findings at their source, and justify any narrowly scoped suppression.
+- Follow the approved [TypeScript quality standard](docs/typescript-standard.md)
+  for compiler options, Oxlint rules, formatting and qualification evidence.
+- Follow the approved [UI source and release standards](docs/ui-standards.md)
+  for optimized assets, image sizing, debugging artifacts and release verification.
 - Use `YYYY-MM-DD HH:MM:SS+00:00` for application timestamps, normalized to UTC
   and whole seconds. Preserve revision ordering for edits within the same second.
 - Immutable comments and user records store and expose only `created_at`. Keep `updated_at` on

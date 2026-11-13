@@ -1,6 +1,6 @@
 {
   "title": "Epic #0581 clean-room V1-identical TypeScript UI",
-  "status": "T1 accepted into RFR. T2 implementation and paired evidence complete for PR review; T3 awaits Architect squash merge/release and Terry visual confirmation.",
+  "status": "T1 accepted into RFR. T2 implementation and corrected paired evidence complete for PR review; T3 awaits Architect squash merge/release and Terry visual confirmation.",
   "assignment_revision": 5,
   "story_references_are_ticket_numbers": false,
   "source_policy": {
@@ -1805,7 +1805,7 @@
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T1 accepted. T2 implementation/source/visual review complete; awaiting Architect PR review.",
+          "readiness": "T1 accepted. T2 correction/source/visual review complete; awaiting Architect PR review.",
           "ticket": 583,
           "scope": "Epic0581/R02",
           "author": {
@@ -1835,7 +1835,7 @@
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T1 accepted. T2 implementation/source/visual review complete; awaiting Architect PR review.",
+          "readiness": "T1 accepted. T2 correction/source/visual review complete; awaiting Architect PR review.",
           "ticket": 584,
           "scope": "Epic0581/R03",
           "author": {

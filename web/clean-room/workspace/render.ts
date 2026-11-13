@@ -150,7 +150,9 @@ function makeRow(id: Uuid): BoardRow {
   const pin = element("button", "lsw-workspace-pin");
   pin.type = "button";
   pin.disabled = true;
-  pin.append(element("span", "lsw-workspace-pin-mark"));
+  const mark = element("span", "lsw-workspace-pin-mark");
+  mark.setAttribute("aria-hidden", "true");
+  pin.append(mark);
   container.append(select, pin);
   return { container, select, title, counts, pin };
 }

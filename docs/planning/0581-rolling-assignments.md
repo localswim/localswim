@@ -1,6 +1,6 @@
 # Epic #0581 current rolling assignments, revision 5
 
-T1 #0582 reached Ready for Review after Architect acceptance. T2 remains In Progress while the Architect reviews the implementation PR. Revision 4 is retained in the JSON plan.
+T1 #0582 reached Ready for Review after Architect acceptance. T2 remains In Progress while the Architect reviews the corrected implementation PR. Revision 4 is retained in the JSON plan.
 
 Each assignment uses its named epic #0581 story as scope. Sol Medium is GPT-6.1 Sol with medium reasoning, Sol High is GPT-6.1 Sol with high reasoning, and Terra Medium is GPT-6.1 Terra with medium reasoning. The UI Lead and Architect use Sol High.
 

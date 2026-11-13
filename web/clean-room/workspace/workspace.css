@@ -271,7 +271,8 @@
 .lsw-workspace-board-list {
   flex: 1;
   min-height: 0;
-  padding-right: 15px;
+  margin-top: -3px;
+  padding: 3px 15px 0 0;
   overflow: auto;
 }
 
@@ -309,9 +310,12 @@
 }
 
 .lsw-workspace-board-select:focus-visible {
-  outline: 2px solid #405f9d;
-  border-radius: 6px;
-  outline-offset: -2px;
+  outline: none;
+}
+
+.lsw-workspace-board-row:has(.lsw-workspace-board-select:focus-visible) {
+  outline: 2px solid #244d88;
+  outline-offset: 0.667px;
 }
 
 .lsw-workspace-board-title {
@@ -362,41 +366,32 @@
 
 .lsw-workspace-pin-mark {
   position: relative;
-  box-sizing: border-box;
-  width: 9px;
-  height: 5px;
-  margin-top: 2px;
-  border: 1px solid currentColor;
-  border-radius: 3px 3px 0 0;
+  width: 12px;
+  height: 16px;
 }
 
 .lsw-workspace-pin-mark::before,
 .lsw-workspace-pin-mark::after {
   position: absolute;
-  left: 50%;
+  inset: 0;
+  background: currentColor;
   content: "";
-  transform: translateX(-50%);
 }
 
 .lsw-workspace-pin-mark::before {
-  bottom: 3px;
-  box-sizing: border-box;
-  width: 6px;
-  height: 6px;
-  border: 1px solid currentColor;
-  border-bottom: 0;
-  border-radius: 1px;
+  clip-path: path(
+    evenodd,
+    "M3.25 1 H8.75 Q9.4 1 9.4 1.8 L9 6 L10.8 8.6 Q11.1 9 11.1 9.5 V10.35 Q11.1 11.1 10.35 11.1 H7.6 L7.25 14.45 Q7.15 15.3 6 15.9 Q4.85 15.3 4.75 14.45 L4.4 11.1 H1.65 Q.9 11.1 .9 10.35 V9.5 Q.9 9 1.2 8.6 L3 6 L2.6 1.8 Q2.6 1 3.25 1 Z M3.95 2.25 L4.3 6.45 L2.2 9.35 V9.85 H5.55 L6 14.6 L6.45 9.85 H9.8 V9.35 L7.7 6.45 L8.05 2.25 Z"
+  );
 }
 
 .lsw-workspace-pin-mark::after {
-  top: 3px;
-  width: 1px;
-  height: 4px;
-  background: currentColor;
+  display: none;
+  clip-path: polygon(34% 40%, 66% 40%, 83% 62%, 17% 62%);
 }
 
-.lsw-workspace-pin[aria-pressed="true"] .lsw-workspace-pin-mark {
-  background: currentColor;
+.lsw-workspace-pin[aria-pressed="true"] .lsw-workspace-pin-mark::after {
+  display: block;
 }
 
 .lsw-workspace-sidebar-footer {
@@ -417,6 +412,9 @@
 }
 
 .lsw-workspace-cache {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -425,8 +423,11 @@
 }
 
 .lsw-workspace-cache::before {
-  margin-right: 4px;
-  content: "▸";
+  width: 6px;
+  height: 7px;
+  background: #20242d;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  content: "";
 }
 
 .lsw-workspace-sidebar-grip {
@@ -448,9 +449,13 @@
   overflow: hidden;
 }
 
+.lsw-workspace-main:has(.lsw-workspace-message:not([hidden])) {
+  overflow: auto;
+}
+
 .lsw-workspace-message {
   box-sizing: border-box;
-  min-width: 200px;
+  min-width: 198px;
   max-width: 620px;
   padding: 57px 40px 0;
 }
@@ -511,7 +516,12 @@
 
   .lsw-workspace-latest {
     grid-column: 2 / 7;
-    margin-left: 46px;
+    margin-left: 48px;
+    transform: translateY(2.833px);
+  }
+
+  .lsw-workspace-message:not(.lsw-workspace-message-loading) {
+    padding-top: 58.5px;
   }
 
   .lsw-workspace-clock {

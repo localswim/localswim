@@ -24,6 +24,10 @@
   display: none;
 }
 
+.lsw-board:has(.lsw-board-unavailable:not([hidden])) {
+  overflow: auto;
+}
+
 .lsw-board-loading {
   margin: 10px;
 }
@@ -31,6 +35,7 @@
 .lsw-board-unavailable {
   margin: 0;
   padding: 56px 40px;
+  min-width: 198px;
   max-width: 620px;
 }
 
@@ -230,7 +235,7 @@
 
 .lsw-board-lane-permissions {
   margin: 0;
-  padding: 4px 12px 7px;
+  padding: 4px 12px 7.833px;
   color: var(--lsw-board-lane-accent);
   font-size: 10px;
   letter-spacing: 0.2px;
@@ -242,7 +247,7 @@
 .lsw-board-card-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -257,7 +262,7 @@
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 8px 9px 9px;
+  padding: 8px 9px 8.5px;
   border: 0;
   border-radius: 6px;
   background: #fff;
@@ -318,7 +323,7 @@
 
 .lsw-board-card-title {
   position: relative;
-  top: 2px;
+  top: 1.5px;
   font-weight: 500;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -337,7 +342,7 @@
   color: #fff;
   font-size: 13px;
   font-weight: 700;
-  line-height: 19px;
+  line-height: 18px;
 }
 
 .lsw-board-icon-comment {

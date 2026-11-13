@@ -29,3 +29,20 @@ The final captures replaced the earlier files. The initial findings above are re
 ## Narrow Alpha capture closeout
 
 The corrected settled `390-alpha` V2 image now shows the narrow layout: the sidebar occupies approximately 312 px, with only the leading portion of Backlog visible and a horizontal scrollbar, as in the V1 frame. The parent reports a matching 894 px board scroll width from live measurements. This resolves the invalid-capture blocker above. The visible backlog card positions still drift slightly vertically; the V2 update timestamp appears while it is absent in the V1 frame, subject to the timing qualification above. The measured desktop differences remain for Architect and Terry to assess; this is not visual acceptance or a claim of pixel identity.
+
+## Independent corrected-frame assessment
+
+Reviewed all 18 corrected JPEGs and the accompanying V1 and final V2 browser measurements. This assessment is limited to those captures and does not constitute Terry's acceptance.
+
+- Desktop Alpha's visible sort, approval, pin and comment glyphs are recognizable and closely match their V1 counterparts. The captured Beta focus outline is rounded and blue at both widths, with closely matching placement. In narrow Alpha, however, V1 shows a complete blue top outline while the V2 top edge is absent; equivalent focus state is not established by the stills.
+- Desktop Beta loading shows the same message and position in both captures. The narrow empty and unavailable frames now show comparable overflow, wrapping and Retry placement. The measured empty body is at y=242.35 in V1 and y=242.33 in final V2, with approximately 118 px width in each.
+- The earlier desktop card drift is resolved in the supplied measurements: #0001 and #0007–#0011 have matching widths and heights, and y positions differ by approximately 0.01 px. This does not establish every card or interaction.
+- The update line is visible in both populated-board captures and absent in the two failure states. Its desktop position is close; at 390 px V2 visibly truncates `57 minutes ...` while V1 displays `2 hours ago`. The different values prevent a same-text truncation comparison. The previous assertion that V1 omitted the line is superseded by these corrected frames.
+
+Matching stills do not establish keyboard behavior, loading duration, recovery actions, pixel identity or visual approval. Confirm the narrow Alpha focus state and compare the update line with equivalent text before treating those remaining differences as resolved.
+
+## Final focus and loading closeout
+
+Rechecked the overwritten final V2 captures against V1. Narrow Alpha now has a complete rounded blue outline, resolving the missing top edge noted above. The V2 focused Alpha and Beta outlines extend slightly farther left and show an additional dark vertical stroke compared with the V1 captures; this remains a small visible difference. The current narrow update line displays the complete `1 hour ago` value, while V1 displays `2 hours ago`; the earlier truncation observation applied to a longer value and is not evidence of a persistent visibility mismatch.
+
+Desktop Beta loading retains the matching message and placement. The additional V2 Alpha loading image also shows a loading message; no corresponding V1 Alpha loading frame was supplied for a paired assessment. These observations do not establish pixel identity, interactions or Terry's acceptance.

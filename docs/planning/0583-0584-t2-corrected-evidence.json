@@ -1,0 +1,145 @@
+{
+  "ticket_numbers": [
+    583,
+    584
+  ],
+  "private_output": "C:/Users/TDO-XPS15-2024/.codex/visualizations/2026/11/13/01a1d4d6-5f2d-7d83-bacb-8b91564f53f8/output/t2-corrected",
+  "exact_v2_executable_sha256": "daab22293fb03a43428f456fbcbd8747289df3f016ef1c663d744f4cfdcd7bb3",
+  "device_pixel_ratio": 1,
+  "visual_viewport_scale": 1,
+  "images": [
+    {
+      "file": "v1-1366-alpha.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "ce690c6a6087307883070c6ffc641e9c3a6394be18528891121b44d7161fc35f"
+    },
+    {
+      "file": "v1-1366-beta-focus.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "cfe8383859417c1c300e6c52443ec08f8782bf77b76890eb77fa886fa348d402"
+    },
+    {
+      "file": "v1-1366-beta-loading.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "812c7ad9b6b3d7b9787204d312875fd1a40176ead639e3a48fd264208a3618de"
+    },
+    {
+      "file": "v1-1366-empty.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "5ffe5c1490cdc9ddb19d9ddabd416b692d9f249236319f19b987ec5a212f2952"
+    },
+    {
+      "file": "v1-1366-unavailable.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "39ced1c335ec1757ed9e4a49bc6180fbbe953b8d5488d836294a56a5a2b4a05f"
+    },
+    {
+      "file": "v1-390-alpha.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "176adbba5f3b16908d8e2cca75ac004407b0f035aea676325bea43687fd23a23"
+    },
+    {
+      "file": "v1-390-beta-focus.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "9a2d8cfaf3ca5136567e177ef65044c8f01d934889fdd254dd2aa6fc25b369ec"
+    },
+    {
+      "file": "v1-390-empty.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "67d08111e43283fd7d5b2f69641733e4d1b5d1407120af69aa21e4a35d2eb64c"
+    },
+    {
+      "file": "v1-390-unavailable.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "8c463d854becb94d87a0950c5899cefe68c5ffceff33cdccbfcdc10375bd4ba5"
+    },
+    {
+      "file": "v2-1366-alpha.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "034d93b2a40864f704cf36f95f383b9ab4ccf432128dd1fa245f8f4bb392f2b7"
+    },
+    {
+      "file": "v2-1366-beta-focus.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "a7362ba0ed88b18c0ba95f2996d40957c80e8ae083a2bdfe6c061b0203170b8e"
+    },
+    {
+      "file": "v2-1366-beta-loading.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "d169398b5074783b3c84b687ebd3518c858280e8e3dac8a85c341ae59f027891"
+    },
+    {
+      "file": "v2-1366-empty.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "01f53737055c59831f0c63682992642fea3d64d844d5b02bde4aaa43a445833b"
+    },
+    {
+      "file": "v2-1366-style-loading.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "9735979d0477cc0731f894ffcca82f42c9f9607b4ea88afba892495c84532a30"
+    },
+    {
+      "file": "v2-1366-unavailable.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "ad50d4ecc031189c905e8f968a091c411016c123b2b4666f3852f9757ab813a7"
+    },
+    {
+      "file": "v2-390-alpha.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "4475b2c7c15af6addad18f46d8777fa81ea52f1354875767edab6101177330bf"
+    },
+    {
+      "file": "v2-390-beta-focus.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "d0651b430c54de7d3b6d721ebbc75d6837bcbaa6ee280da0f26766053deed466"
+    },
+    {
+      "file": "v2-390-empty.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "06c0bb95bfee57c12240ef7de5235db11f95a36fa3b00e6a4c02bd417178522d"
+    },
+    {
+      "file": "v2-390-unavailable.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "878af6a0063b4acf0f7fae845dbdaef982844cedab020cff2b7f312fbdf117a3"
+    }
+  ]
+}

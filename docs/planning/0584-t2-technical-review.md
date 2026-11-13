@@ -26,3 +26,11 @@
 - The root now resolves the addressed board against its retained catalog on failed workspace setup. It aborts a pending board read and supplies the confirmed board as unavailable when the address still identifies a catalog entry.
 
 Source inspection used the fresh TypeScript and CSS, native V2 implementation and OpenAPI, and the rendered V1 evidence and observation ledger. The UI Lead owns the browser comparison, integrated checks, and final candidate verification.
+
+## PR #1 visual correction source review
+
+- The workspace row outline follows keyboard focus. The sidebar list reserves 3 px at its top and left edges for the outline while the compensating margins preserve row placement. The visible workspace message and selected-board failure pane can scroll at narrow widths, keeping Retry reachable. See [workspace focus and scroll](../../web/clean-room/workspace/workspace.css#L271), [workspace messages](../../web/clean-room/workspace/workspace.css#L452), and [board failure](../../web/clean-room/board/board.css#L27).
+- The board keeps its loading status visible when the native read resolves ahead of the baseline stylesheet. The card viewport stays hidden, and the board's custom stylesheet is applied only once the baseline request settles. The renderer then restores the available viewport's scroll and focus. See [stylesheet settlement](../../web/clean-room/board/render.ts#L311) and [read state](../../web/clean-room/board/render.ts#L363).
+- The pushpin and cache disclosure use local CSS geometry. The correction packet records that both shapes were drawn from V1 render crops. The pin graphic is decorative. Generated CSS and JavaScript contain the reviewed changes, and the Go web package embeds those assets. See [glyph styling](../../web/clean-room/workspace/workspace.css#L367), [pin markup](../../web/clean-room/workspace/render.ts#L150), [correction evidence](0583-0584-t2-correction.md), and [embedded assets](../../web/assets.go#L7).
+
+The correction passed independent source review after the focus, narrow recovery, and stylesheet ordering fixes. Browser comparison and the forced delayed-stylesheet check belong to the exact-candidate verification.

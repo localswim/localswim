@@ -119,7 +119,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   const listeners = { signal: lifetime.signal };
 
   const surface = document.createElement("div");
-  surface.style.cssText = "height: 100%; min-width: 0; min-height: 0; visibility: hidden";
+  surface.style.cssText = "height: 100%; min-width: 0; min-height: 0";
   const shadow = surface.attachShadow({ mode: "open" });
   const baseline = document.createElement("link");
   baseline.rel = "stylesheet";
@@ -310,7 +310,9 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
 
   function finishStyles(): void {
     stylesLoaded = true;
-    surface.style.visibility = "";
+    applyBoardStyles();
+    viewport.hidden = retainedData(props) === null;
+    loading.hidden = props.data.status !== "loading" || !viewport.hidden;
     if (!viewport.hidden) restoreScroll(props.scroll);
     restoreFocus();
   }
@@ -358,6 +360,14 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     listeners,
   );
 
+  function applyBoardStyles(): void {
+    const css = retainedData(props)?.view.board.user_css ?? "";
+    if (css === configuredCss) return;
+    configuredCss = css;
+    boardStyles.replaceSync(css);
+    shadow.adoptedStyleSheets = css === "" ? [] : [boardStyles];
+  }
+
   function update(next: BoardProps): void {
     const active = shadow.activeElement;
     const ownedFocus = active instanceof HTMLElement ? focusTargets.get(active) : undefined;
@@ -370,16 +380,10 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     const previouslyVisible = !viewport.hidden;
     props = next;
     const data = retainedData(next);
-    const css = data?.view.board.user_css ?? "";
-    if (css !== configuredCss) {
-      configuredCss = css;
-      boardStyles.replaceSync(css);
-      shadow.adoptedStyleSheets = css === "" ? [] : [boardStyles];
-    }
-    const pending = next.data.status === "loading";
-    viewport.hidden = data === null;
-    loading.hidden = !pending || data !== null;
+    if (stylesLoaded) applyBoardStyles();
+    viewport.hidden = data === null || !stylesLoaded;
     unavailable.hidden = next.data.status !== "unavailable";
+    loading.hidden = !unavailable.hidden || !viewport.hidden;
     unavailable.classList.toggle("lsw-board-unavailable-retained", data !== null);
     root.dataset.readState = next.data.status;
     if (!loading.hidden) setText(loading, `Loading ${next.boardName ?? "board"}...`);

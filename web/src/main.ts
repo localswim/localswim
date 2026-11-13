@@ -37,6 +37,8 @@ export function mount(root: HTMLElement): () => void {
   const linkSelection = linkedCard(view.location.search);
   let selection = linkSelection ?? restored?.selection ?? null;
   let pendingViewSave = false;
+  let pageActive = true;
+  let departureView = "";
   let title = "localswim";
   let totalAttention = 0;
   let board: ReturnType<typeof mountBoardView> | undefined;
@@ -130,7 +132,7 @@ export function mount(root: HTMLElement): () => void {
 
   function saveBoardView() {
     pendingViewSave = false;
-    if (!selectedBoardId || !board || !restored) return;
+    if (!pageActive || !selectedBoardId || !board || !restored) return;
     restored = { ...restored, ...board.captureViewport(), selection };
     views.save(selectedBoardId, restored);
   }
@@ -150,6 +152,7 @@ export function mount(root: HTMLElement): () => void {
     } else if (!selection && current) {
       drawer?.close(false);
     }
+    restored = currentView;
     board.restoreViewport({
       ...currentView,
       laneScroll: retainActiveLaneScroll(
@@ -184,8 +187,25 @@ export function mount(root: HTMLElement): () => void {
   }
 
   function rememberSelection(reference: typeof selection, explicit: boolean) {
+    if (!pageActive) return;
     selection = reference;
-    if (explicit) consumeCardLink();
+    if (explicit) {
+      consumeCardLink();
+    } else if (
+      reference &&
+      "id" in reference &&
+      linkSelection &&
+      "ticket" in linkSelection &&
+      view
+    ) {
+      const current = new URL(view.location.href);
+      if (current.searchParams.has("ticket")) {
+        current.searchParams.delete("ticket");
+        current.searchParams.set("card", reference.id);
+        const historyState: unknown = view.history.state;
+        view.history.replaceState(historyState, "", current);
+      }
+    }
     saveBoardView();
   }
 
@@ -387,6 +407,8 @@ export function mount(root: HTMLElement): () => void {
 
   function disposeOnExit(event: PageTransitionEvent) {
     saveBoardView();
+    departureView = JSON.stringify(restored);
+    pageActive = false;
     if (!event.persisted) {
       dispose();
       return;
@@ -397,12 +419,17 @@ export function mount(root: HTMLElement): () => void {
 
   function resumeOnReturn(event: PageTransitionEvent) {
     if (!event.persisted) return;
+    pageActive = true;
     void sidebar.resume();
     drafts.refresh();
     if (selectedBoardId) {
-      restored = views.load(selectedBoardId);
-      selection = linkedCard(view?.location.search ?? "") ?? restored.selection;
-      restoreBoardView();
+      const latest = views.read(selectedBoardId);
+      if (latest && JSON.stringify(latest) !== departureView) {
+        consumeCardLink();
+        restored = latest;
+        selection = latest.selection;
+        restoreBoardView();
+      }
     }
     drawerNeedsConfirmation = true;
     void workspace.refresh().then(() => boardState?.retry());

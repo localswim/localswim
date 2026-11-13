@@ -404,8 +404,7 @@ export function mountCardView(
       if (requestSignal.aborted) return;
       const missing = !cardConfirmed && cardUnavailable(error);
       if (missing && current.restored) {
-        onSelectionChange?.(null, true);
-        close(false);
+        close(false, true);
         return;
       }
       if (missing) onSelectionChange?.(null, true);
@@ -468,13 +467,13 @@ export function mountCardView(
     refresh();
   }
 
-  function close(focus = true) {
+  function close(focus = true, explicit = focus) {
     if (!selection) return;
     const { origin, opener, lifetime: currentLifetime } = selection;
     selection = undefined;
     currentLifetime.abort();
     panel.hidden = true;
-    onSelectionChange?.(null, focus);
+    onSelectionChange?.(null, explicit);
     onTextReadiness?.(false);
     onTextContext?.(null);
     if (!focus) return;

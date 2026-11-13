@@ -81,19 +81,21 @@ export function retainActiveLaneScroll(
 }
 
 export function createViewState(view: Pick<Window, "sessionStorage">) {
+  function read(boardId: string): BoardViewState | null {
+    if (!uuid.test(boardId)) return null;
+    try {
+      const raw = view.sessionStorage.getItem(storagePrefix + boardId.toLowerCase());
+      if (raw === null) return null;
+      const saved: unknown = JSON.parse(raw);
+      return decode(saved);
+    } catch {
+      return null;
+    }
+  }
+
   return {
-    load(boardId: string): BoardViewState {
-      if (uuid.test(boardId)) {
-        try {
-          const raw = view.sessionStorage.getItem(storagePrefix + boardId.toLowerCase());
-          const saved: unknown = raw === null ? null : JSON.parse(raw);
-          return decode(saved);
-        } catch {
-          // Navigation can continue when tab storage or its contents are unavailable.
-        }
-      }
-      return decode(null);
-    },
+    read,
+    load: (boardId: string): BoardViewState => read(boardId) ?? decode(null),
     save(boardId: string, state: BoardViewState): void {
       if (!uuid.test(boardId)) return;
       try {

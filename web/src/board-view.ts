@@ -480,9 +480,11 @@ export function mountBoardView(
   const listenerOptions = { signal: lifetime.signal };
   let restore = new AbortController();
   let restoreFrame = 0;
+  let pendingScroll: Pick<BoardViewport, "horizontalScroll" | "laneScroll"> | undefined;
   function cancelViewportRestore() {
     restore.abort();
     view?.cancelAnimationFrame(restoreFrame);
+    pendingScroll = undefined;
   }
   for (const event of ["pointerdown", "keydown", "wheel"]) {
     shadow.addEventListener(event, cancelViewportRestore, listenerOptions);
@@ -548,22 +550,24 @@ export function mountBoardView(
     captureViewport(): BoardViewport {
       return {
         filter: filter.value,
-        horizontalScroll: strip.scrollLeft,
-        laneScroll: Object.fromEntries(
-          lanes.map(({ lane, scroll }) => [lane.id, scroll.scrollTop]),
-        ),
+        horizontalScroll: pendingScroll?.horizontalScroll ?? strip.scrollLeft,
+        laneScroll:
+          pendingScroll?.laneScroll ??
+          Object.fromEntries(lanes.map(({ lane, scroll }) => [lane.id, scroll.scrollTop])),
       };
     },
     restoreViewport({ filter: query, horizontalScroll, laneScroll }: BoardViewport) {
       cancelViewportRestore();
       restore = new AbortController();
       const restoreSignal = AbortSignal.any([lifetime.signal, restore.signal]);
+      pendingScroll = { horizontalScroll, laneScroll };
       filter.value = query;
       paintFilter();
       const restoreScroll = () => {
         if (restoreSignal.aborted) return;
         strip.scrollLeft = horizontalScroll;
         for (const { lane, scroll } of lanes) scroll.scrollTop = laneScroll[lane.id] ?? 0;
+        pendingScroll = undefined;
         onViewChange?.();
       };
       if (stylesheet.sheet) {

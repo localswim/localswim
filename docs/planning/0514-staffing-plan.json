@@ -1,0 +1,1358 @@
+{
+  "revision": "0514-staff-r1",
+  "epic": 514,
+  "board_id": "39b278e7-d1ac-4e5a-88fb-8eabf141dd4d",
+  "goal": "Fresh TypeScript UI with V1 look and workflows and current V2 browser capabilities.",
+  "primary": {
+    "role": "Integration and execution lead",
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high"
+  },
+  "limits": {
+    "max_direct_agents": 16,
+    "depth": 1,
+    "planned_peak_direct": 13,
+    "compiler_lease_owner": "primary",
+    "concurrent_go_commands": 1,
+    "concurrent_node_checks": 2
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "stories": [
+        548
+      ],
+      "authors": 1,
+      "planned_direct_peak": 3,
+      "largest_author_estimate_hours": 2.5,
+      "visual_reviewer": {
+        "name": "terra_medium_t01_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t01_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 2,
+      "stories": [
+        549,
+        550
+      ],
+      "authors": 2,
+      "planned_direct_peak": 4,
+      "largest_author_estimate_hours": 2.25,
+      "visual_reviewer": {
+        "name": "terra_medium_t02_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t02_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 3,
+      "stories": [
+        551,
+        552,
+        553
+      ],
+      "authors": 3,
+      "planned_direct_peak": 5,
+      "largest_author_estimate_hours": 2.25,
+      "visual_reviewer": {
+        "name": "terra_medium_t03_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t03_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 4,
+      "stories": [
+        554,
+        555
+      ],
+      "authors": 2,
+      "planned_direct_peak": 4,
+      "largest_author_estimate_hours": 2.5,
+      "visual_reviewer": {
+        "name": "terra_medium_t04_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t04_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 5,
+      "stories": [
+        556,
+        557,
+        558,
+        559,
+        560,
+        561,
+        562,
+        563,
+        564,
+        565,
+        566
+      ],
+      "authors": 11,
+      "planned_direct_peak": 13,
+      "largest_author_estimate_hours": 2.5,
+      "visual_reviewer": {
+        "name": "terra_medium_t05_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t05_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 6,
+      "stories": [
+        567,
+        568,
+        569,
+        570,
+        571,
+        572,
+        573
+      ],
+      "authors": 7,
+      "planned_direct_peak": 9,
+      "largest_author_estimate_hours": 2.5,
+      "visual_reviewer": {
+        "name": "terra_medium_t06_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t06_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 7,
+      "stories": [
+        574,
+        575,
+        576,
+        577
+      ],
+      "authors": 4,
+      "planned_direct_peak": 6,
+      "largest_author_estimate_hours": 2.25,
+      "visual_reviewer": {
+        "name": "terra_medium_t07_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t07_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 8,
+      "stories": [
+        578,
+        579
+      ],
+      "authors": 2,
+      "planned_direct_peak": 4,
+      "largest_author_estimate_hours": 2.25,
+      "visual_reviewer": {
+        "name": "terra_medium_t08_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t08_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    },
+    {
+      "turn": 9,
+      "stories": [
+        580
+      ],
+      "authors": 1,
+      "planned_direct_peak": 3,
+      "largest_author_estimate_hours": 2.5,
+      "visual_reviewer": {
+        "name": "terra_medium_t09_visual",
+        "model": "gpt-6.1-terra",
+        "reasoning_effort": "medium"
+      },
+      "check_runner": {
+        "name": "luna_light_t09_checks",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "low"
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "turn": 1,
+      "ticket": 548,
+      "key": "S01",
+      "title": "T1 - Open the compiled TypeScript shell",
+      "estimated_hours": 2.5,
+      "prerequisites": [],
+      "start_readiness": "Ready after epic kickoff",
+      "author": {
+        "name": "sol_medium_0548_shell",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0548_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/main.ts",
+        "web/src/model.ts",
+        "web/index.html",
+        "web/package.json",
+        "web/tsconfig.json",
+        "web/assets.go",
+        "internal/v2/browser.go"
+      ],
+      "integration_touchpoints": "Owns compilation and asset serving only; reuses api.mjs and current bootstrap. Go REST payloads, date conventions and CSP stay fixed.",
+      "demo": "Launch an isolated Go candidate with a seeded board. Open /, follow its board link and reload /boards/{board_id}; show the real board name and a recoverable missing-board state.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #548 under epic #0514",
+      "worktree": "codex/0514-0548",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 2,
+      "ticket": 549,
+      "key": "S02",
+      "title": "T2 - Scan the familiar board",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        548
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0549_board",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_medium_0549_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "owned_files": [
+        "web/src/board-view.ts",
+        "web/src/board.css",
+        "web/src/tokens.css"
+      ],
+      "integration_touchpoints": "Owns rendering and local filter state; consumes typed confirmed board data and current list/view contracts.",
+      "demo": "Open a dense seeded board through its ordinary URL, filter by ticket, clear with Escape, reveal older Completed cards and scroll two lanes independently.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #549 under epic #0514",
+      "worktree": "codex/0514-0549",
+      "review_model_rationale": "Bounded presentation or feature behavior over accepted shared contracts.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 2,
+      "ticket": 550,
+      "key": "S04",
+      "title": "T2 - See live workspace attention",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        548
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0550_attention",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0550_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/attention.ts",
+        "web/src/attention.css",
+        "web/src/workspace-state.ts"
+      ],
+      "integration_touchpoints": "Owns catalog state and event subscription wiring; reuses board-updates.mjs and workspace/catalog APIs.",
+      "demo": "Open the candidate workspace and one board. Change another board through Bot CLI, observe attention and tab changes, then interrupt and restore the connection.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #550 under epic #0514",
+      "worktree": "codex/0514-0550",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 3,
+      "ticket": 551,
+      "key": "S03",
+      "title": "T3 - Read a card in context",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        549
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0551_drawer",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_medium_0551_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "owned_files": [
+        "web/src/card-view.ts",
+        "web/src/drawer.css"
+      ],
+      "integration_touchpoints": "Owns drawer presentation and lifecycle; reuses card-prose.mjs and focused read APIs.",
+      "demo": "Open a card by keyboard, follow its archived child and a prose ticket link, read long content, switch boards with the drawer open and close back to a valid focus target.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #551 under epic #0514",
+      "worktree": "codex/0514-0551",
+      "review_model_rationale": "Bounded presentation or feature behavior over accepted shared contracts.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 3,
+      "ticket": 552,
+      "key": "S05",
+      "title": "T3 - Keep the selected board current safely",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        549,
+        550
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0552_live_state",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0552_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/board-state.ts"
+      ],
+      "integration_touchpoints": "Owns read arbitration and revision/ETag pairing; reuses createBoardRefresh/watchUpdates and current conditional reads.",
+      "demo": "Delay a board read, navigate to another board and release the old response. Disconnect, perform a Bot edit, reconnect and use Retry board update while checking the correct board remains displayed.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #552 under epic #0514",
+      "worktree": "codex/0514-0552",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 3,
+      "ticket": 553,
+      "key": "S06",
+      "title": "T3 - Pin boards and adjust the sidebar",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        550
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0553_pins",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0553_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/attention.ts",
+        "web/src/sidebar-state.ts",
+        "web/src/attention.css"
+      ],
+      "integration_touchpoints": "Owns pin and sidebar-control state; shares workspace ETag with publishing through the accepted context interface.",
+      "demo": "Pin two boards, reorder with both keyboard and pointer, introduce a concurrent pin edit, resolve it, then resize, collapse, reload and reopen the sidebar.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #553 under epic #0514",
+      "worktree": "codex/0514-0553",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": [
+        {
+          "ticket": 512,
+          "status": "completed",
+          "scope": "Accepted AAA navigation contrast"
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "ticket": 554,
+      "key": "S07",
+      "title": "T4 - Return to a board with its view intact",
+      "estimated_hours": 2,
+      "prerequisites": [
+        551,
+        552
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0554_navigation",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0554_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/view-state.ts"
+      ],
+      "integration_touchpoints": "Owns per-tab UI state schema and route restoration; service state remains authoritative.",
+      "demo": "Filter and scroll two boards differently, open a drawer, navigate through Back/Forward and reload; verify the correct per-board state and missing-card fallback.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #554 under epic #0514",
+      "worktree": "codex/0514-0554",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 4,
+      "ticket": 555,
+      "key": "S09",
+      "title": "T4 - Edit exact card text with recoverable drafts",
+      "estimated_hours": 2.5,
+      "prerequisites": [
+        551,
+        552
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0555_text_drafts",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0555_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/card-editor.ts",
+        "web/src/drafts.ts",
+        "web/src/operations.ts"
+      ],
+      "integration_touchpoints": "Owns reusable scoped submission/draft primitives and text-specific matching. Uses api.mjs; numeric revisions and HTTP ETags stay distinct.",
+      "demo": "Edit Unicode multiline text, cause a concurrent stale refusal, inspect saved state, then lose a write response and reload to inspect the original submission while preserving the draft.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #555 under epic #0514",
+      "worktree": "codex/0514-0555",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 556,
+      "key": "S08",
+      "title": "T5 - Show confirmed recent boards within a cache budget",
+      "estimated_hours": 2,
+      "prerequisites": [
+        552,
+        554
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0556_cache",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0556_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/recent-boards.ts",
+        "web/src/workspace-settings.ts"
+      ],
+      "integration_touchpoints": "Owns display-only cache and budget preference; consumes S05 confirming read state.",
+      "demo": "Set a small budget on Workspace, visit several boards to cause eviction, revisit a retained board offline, retry online and set budget to zero.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #556 under epic #0514",
+      "worktree": "codex/0514-0556",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 557,
+      "key": "S10",
+      "title": "T5 - Create a card from its lane",
+      "estimated_hours": 2.5,
+      "prerequisites": [
+        549,
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0557_create",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0557_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/create-card.ts",
+        "web/src/create-card.css"
+      ],
+      "integration_touchpoints": "Owns creation presentation and create-specific recovery; reuses S09 primitives and createCard contract.",
+      "demo": "Open New card from a permitted lane, select a nondefault owner and priority, enter a multiline description, and submit using Add card. Verify those fields in saved state, recover the selections after cancel/reopen, and inspect an uncertain creation without creating a duplicate.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #557 under epic #0514",
+      "worktree": "codex/0514-0557",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 558,
+      "key": "S11",
+      "title": "T5 - Move cards with pointer and keyboard",
+      "estimated_hours": 2,
+      "prerequisites": [
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0558_move",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0558_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/card-movement.ts",
+        "web/src/board-view.ts"
+      ],
+      "integration_touchpoints": "Owns movement state and drop handlers; consumes current policy grants and card patch contract.",
+      "demo": "Move with keyboard and drag, attempt a forbidden drop, then race a Bot move and inspect the saved destination.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #558 under epic #0514",
+      "worktree": "codex/0514-0558",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 559,
+      "key": "S12",
+      "title": "T5 - Assign owners and individual priorities",
+      "estimated_hours": 1.75,
+      "prerequisites": [
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0559_assignment",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0559_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/card-assignment.ts"
+      ],
+      "integration_touchpoints": "Owns owner/priority presentation; consumes member and priority domain values and existing card PATCH APIs.",
+      "demo": "Assign another member, raise priority, attempt a dependency-blocked demotion and verify exact saved owner/priority after a stale edit.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #559 under epic #0514",
+      "worktree": "codex/0514-0559",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 560,
+      "key": "S13",
+      "title": "T5 - Read and post comments and activity",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0560_comments",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0560_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/comments.ts",
+        "web/src/history.ts"
+      ],
+      "integration_touchpoints": "Owns comment/history presentation and comment-specific recovery; current list paging, IDs and timestamp formats stay fixed.",
+      "demo": "Enter a multiline comment using Shift+Enter, post with Enter, then simulate a lost response and reload to inspect the original comment without duplication. Verify composition does not submit, then open recent comments and history.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #560 under epic #0514",
+      "worktree": "codex/0514-0560",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 561,
+      "key": "S14",
+      "title": "T5 - Follow and maintain typed relationships",
+      "estimated_hours": 2,
+      "prerequisites": [
+        551,
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0561_relationships",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0561_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/relationships.ts"
+      ],
+      "integration_touchpoints": "Owns relationship editor and recovery; reuses current relationship endpoints and S09 submission primitives.",
+      "demo": "Add a blocking link, change a reference kind, follow an archived target, remove a link and inspect an addition whose response was lost.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #561 under epic #0514",
+      "worktree": "codex/0514-0561",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 562,
+      "key": "S16",
+      "title": "T5 - Find and restore active or archived work",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        551,
+        554,
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0562_search_archive",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0562_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/search.ts",
+        "web/src/archive.ts",
+        "web/src/view-state.ts"
+      ],
+      "integration_touchpoints": "Owns search/archive controls and view-state extension; server search ordering and archive contracts remain authoritative.",
+      "demo": "Search comment content in triage order, open an archived hit, restore it, archive another card and return through Back/Forward with the query intact.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #562 under epic #0514",
+      "worktree": "codex/0514-0562",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 563,
+      "key": "S19",
+      "title": "T5 - Preview and manage saved attachments",
+      "estimated_hours": 2,
+      "prerequisites": [
+        551,
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0563_attachment_read",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0563_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/attachments.ts"
+      ],
+      "integration_touchpoints": "Owns saved-file presentation and cover/detach handlers; reuses validated attachment APIs.",
+      "demo": "Download a binary and compare bytes, preview two images, set/clear a cover, then detach the selected image and observe the remaining fallback.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #563 under epic #0514",
+      "worktree": "codex/0514-0563",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 564,
+      "key": "S28",
+      "title": "T5 - Configure and inspect automatic publishing",
+      "estimated_hours": 2,
+      "prerequisites": [
+        550,
+        553,
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0564_publishing",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0564_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/publishing-settings.ts"
+      ],
+      "integration_touchpoints": "Owns settings/status UI; shared workspace ETag and existing publishing APIs remain authoritative.",
+      "demo": "Use a disposable Git-backed fixture, toggle board/workspace publishing, make an edit, observe publication and introduce a failed destination while preserving concurrent pins.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #564 under epic #0514",
+      "worktree": "codex/0514-0564",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 565,
+      "key": "S30",
+      "title": "T5 - Create, close and reopen boards",
+      "estimated_hours": 2,
+      "prerequisites": [
+        552,
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0565_board_lifecycle",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0565_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/board-lifecycle.ts",
+        "web/src/workspace-create.ts"
+      ],
+      "integration_touchpoints": "Owns board lifecycle UI; existing creation/availability APIs and publisher-drain behavior remain fixed.",
+      "demo": "Create a generic board from Workspace, add a draft, close it, use another board, then reopen the same URL and recover the draft; inspect a lost availability response.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #565 under epic #0514",
+      "worktree": "codex/0514-0565",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 5,
+      "ticket": 566,
+      "key": "S31",
+      "title": "T5 - Inspect and stop the service",
+      "estimated_hours": 2,
+      "prerequisites": [
+        552,
+        555
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0566_service_status",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0566_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/service-tools.ts"
+      ],
+      "integration_touchpoints": "Owns service status/stop UI; current administration grant, service ETag and lifecycle contracts remain fixed.",
+      "demo": "On an isolated candidate, inspect service/build status, cause a controlled flush refusal, resolve the fixture, save a final edit and request graceful stop; verify durable saved state.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #566 under epic #0514",
+      "worktree": "codex/0514-0566",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 6,
+      "ticket": 567,
+      "key": "S15",
+      "title": "T6 - Seed typed links during creation",
+      "estimated_hours": 1.5,
+      "prerequisites": [
+        557,
+        561
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0567_seed_links",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0567_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/create-card.ts",
+        "web/src/relationships.ts"
+      ],
+      "integration_touchpoints": "Owns seed-link integration only; atomicity remains in existing createCard/Go contract.",
+      "demo": "Create a card with two typed links, try an invalid seed and verify no card was created, then inspect a lost successful response.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #567 under epic #0514",
+      "worktree": "codex/0514-0567",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 6,
+      "ticket": 568,
+      "key": "S17",
+      "title": "T6 - Approve one reviewed card",
+      "estimated_hours": 1.75,
+      "prerequisites": [
+        555,
+        558,
+        560
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0568_approve",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0568_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/card-approval.ts"
+      ],
+      "integration_touchpoints": "Owns single-approval UI and receipt recovery; consumes existing approval API/UUIDv7 convention.",
+      "demo": "Approve one Ready for Review card, verify its comment/move receipt, then lose another approval response and inspect it after reload.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #568 under epic #0514",
+      "worktree": "codex/0514-0568",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 6,
+      "ticket": 569,
+      "key": "S20",
+      "title": "T6 - Upload files to an existing card",
+      "estimated_hours": 2.5,
+      "prerequisites": [
+        555,
+        563
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0569_upload",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0569_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/uploads.ts"
+      ],
+      "integration_touchpoints": "Owns live batch state and file handling; reuses current limits, hashes and upload contract.",
+      "demo": "Paste an image and pick a binary, reject an oversize item, switch cards while upload finishes, then inspect an original upload with a lost response.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #569 under epic #0514",
+      "worktree": "codex/0514-0569",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 6,
+      "ticket": 570,
+      "key": "S24",
+      "title": "T6 - Set batch priorities",
+      "estimated_hours": 1.75,
+      "prerequisites": [
+        555,
+        559,
+        562
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0570_batch_priority",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0570_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/batch-priority.ts"
+      ],
+      "integration_touchpoints": "Owns batch-priority controls; current transactional priority API and dependency rules remain fixed.",
+      "demo": "Select two ticket numbers, change priority, verify upstream effects, then submit an invalid/stale selection and confirm no partial change.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #570 under epic #0514",
+      "worktree": "codex/0514-0570",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 6,
+      "ticket": 571,
+      "key": "S25",
+      "title": "T6 - Preview and apply dependency ticket order",
+      "estimated_hours": 2,
+      "prerequisites": [
+        555,
+        562
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0571_ticket_order",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0571_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/ticket-order.ts"
+      ],
+      "integration_touchpoints": "Owns preview/apply presentation; current ordering endpoints and atomicity remain authoritative.",
+      "demo": "Preview a dependent lane, inspect proposed tickets, apply and verify stable card IDs; generate another preview, change a card and observe stale refusal.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #571 under epic #0514",
+      "worktree": "codex/0514-0571",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 6,
+      "ticket": 572,
+      "key": "S26",
+      "title": "T6 - Capture and download a native backup",
+      "estimated_hours": 2,
+      "prerequisites": [
+        555,
+        563
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0572_backup_capture",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0572_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/backup.ts"
+      ],
+      "integration_touchpoints": "Owns capture/download UI and state; existing backup IDs, digest and immutable snapshot contracts stay fixed.",
+      "demo": "Capture a board, edit another card while it runs, navigate away and return, then download and verify the older captured revision and file bytes.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #572 under epic #0514",
+      "worktree": "codex/0514-0572",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 6,
+      "ticket": 573,
+      "key": "S32",
+      "title": "T6 - Activate a staged build and reconnect",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        566
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0573_activation",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0573_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/service-tools.ts",
+        "web/src/session.ts"
+      ],
+      "integration_touchpoints": "Owns activation UI/session replacement wiring; current Go activation, receipt and capability semantics remain fixed.",
+      "demo": "Stage an isolated candidate build, activate through its ordinary Workspace controls, reconnect at the same board URL, inspect the original receipt and save a final card edit.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #573 under epic #0514",
+      "worktree": "codex/0514-0573",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 7,
+      "ticket": 574,
+      "key": "S18",
+      "title": "T7 - Approve a complete lane",
+      "estimated_hours": 2,
+      "prerequisites": [
+        568
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0574_bulk_approve",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0574_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/lane-approval.ts"
+      ],
+      "integration_touchpoints": "Owns bulk approval UI; existing atomic membership validation and receipt contract remain fixed.",
+      "demo": "Approve a complete lane, verify every affected card and comment, then change membership between render and submit and observe refusal.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #574 under epic #0514",
+      "worktree": "codex/0514-0574",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 7,
+      "ticket": 575,
+      "key": "S21",
+      "title": "T7 - Resume interrupted file batches",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        569
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0575_upload_recovery",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0575_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/uploads.ts",
+        "web/src/upload-recovery.ts"
+      ],
+      "integration_touchpoints": "Owns bounded persisted upload metadata and recovery interpretation; shares S09 inspection state.",
+      "demo": "Reload a partially successful batch, inspect pending IDs, reject a changed original, reselect the exact files and finish with one copy of each.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #575 under epic #0514",
+      "worktree": "codex/0514-0575",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 7,
+      "ticket": 576,
+      "key": "S27",
+      "title": "T7 - Restore a native backup",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        572
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0576_restore",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0576_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/restore.ts"
+      ],
+      "integration_touchpoints": "Owns restore UI and post-restore reconciliation; current restoration API/preconditions remain fixed.",
+      "demo": "Capture then edit a board, restore the earlier ZIP, verify attachments and retained draft, restore a version missing the open card and reject a damaged ZIP.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #576 under epic #0514",
+      "worktree": "codex/0514-0576",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 7,
+      "ticket": 577,
+      "key": "S29",
+      "title": "T7 - Publish a captured backup",
+      "estimated_hours": 1.75,
+      "prerequisites": [
+        572,
+        564
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0577_publish_backup",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0577_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/backup-publication.ts"
+      ],
+      "integration_touchpoints": "Owns publication UI; immutable backup publication API and UUIDv7/time conventions stay fixed.",
+      "demo": "Publish a captured backup, edit the live board meanwhile, navigate away/back, refresh the original job and verify the destination commit contains the captured bytes.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #577 under epic #0514",
+      "worktree": "codex/0514-0577",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 8,
+      "ticket": 578,
+      "key": "S22",
+      "title": "T8 - Stage attachments during card creation",
+      "estimated_hours": 1.75,
+      "prerequisites": [
+        557,
+        567,
+        575
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0578_create_files",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0578_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/create-card.ts",
+        "web/src/uploads.ts"
+      ],
+      "integration_touchpoints": "Owns staged-file handoff to confirmed creation; existing create and upload transaction boundaries stay fixed.",
+      "demo": "Create a card with two links and staged image/binary files, force the later upload to fail, reopen that saved card and resume the remaining file.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #578 under epic #0514",
+      "worktree": "codex/0514-0578",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 8,
+      "ticket": 579,
+      "key": "S23",
+      "title": "T8 - Maintain lane configuration",
+      "estimated_hours": 2.25,
+      "prerequisites": [
+        555,
+        574
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_medium_0579_lane_settings",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "medium"
+      },
+      "reviewer": {
+        "name": "sol_high_0579_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web/src/lane-settings.ts"
+      ],
+      "integration_touchpoints": "Owns lane administration UI; existing lane APIs, grants and protected Completed role remain authoritative.",
+      "demo": "Open Board settings, add and rename a lane, change its key, save custom approval text, reject nonempty retirement and retire it once empty.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #579 under epic #0514",
+      "worktree": "codex/0514-0579",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": []
+    },
+    {
+      "turn": 9,
+      "ticket": 580,
+      "key": "S33",
+      "title": "T9 - Qualify the complete candidate for handoff",
+      "estimated_hours": 2.5,
+      "prerequisites": [
+        556,
+        578,
+        579,
+        570,
+        571,
+        576,
+        577,
+        565,
+        573
+      ],
+      "start_readiness": "Await prerequisite acceptance",
+      "author": {
+        "name": "sol_high_0580_qualification",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "reviewer": {
+        "name": "sol_high_0580_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high"
+      },
+      "owned_files": [
+        "web tests and candidate verification report",
+        "web/assets.go",
+        "web/index.html",
+        "replacement capability ledger"
+      ],
+      "integration_touchpoints": "Parent owns integrated evidence, obsolete-asset removal decision and handoff. Accepted #0512 outcome is an external prerequisite; its acceptance is checked without adding a forward story dependency.",
+      "demo": "Launch the complete isolated Go candidate, execute a seeded create/edit/link/upload/approve/archive/restore chain and operations checks, then compare V1 and new screenshots at matching supported viewports.",
+      "current_lane": "ready_for_work",
+      "scope_reference": "Dev #580 under epic #0514",
+      "worktree": "codex/0514-0580",
+      "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
+      "external_prerequisites": [
+        {
+          "ticket": 512,
+          "status": "completed",
+          "scope": "Accepted AAA navigation contrast"
+        }
+      ]
+    }
+  ],
+  "rolling_window_turns": [
+    1,
+    2,
+    3
+  ],
+  "fga_consultation": {
+    "revision": "v1-workers-r67-t06-release-review",
+    "plan": "C:/Users/TDO-XPS15-2024/Documents/ChatGPT/FGA/rebaseline-v1-20261111/CURRENT.txt",
+    "roster": "C:/Users/TDO-XPS15-2024/Documents/ChatGPT/FGA/rebaseline-v1-20261111/CURRENT.json",
+    "parallel_precedent": "C:/Users/TDO-XPS15-2024/Documents/ChatGPT/FGA/t04-tracking-20261111/T04-STAFFING.txt",
+    "use": "Advisory input for local staffing decisions."
+  },
+  "implementation_started": false,
+  "shared_ownership": {
+    "primary": [
+      "web/src/main.ts",
+      "web/src/model.ts",
+      "web/index.html",
+      "web/package.json",
+      "web/tsconfig.json",
+      "web/assets.go",
+      "internal/v2/browser.go",
+      "package lock and generated asset manifest"
+    ],
+    "rule": "Feature authors use isolated worktrees. Primary integrates shared-file edits serially and validates the combined candidate."
+  },
+  "execution_rules": [
+    "Use Standard speed, at most 16 direct active subagents and depth one.",
+    "Activate assignments only for authorized work. Move each story In Progress before work; verify prerequisite acceptance first.",
+    "Launch eligible authors first. Start each fresh independent reviewer as author work becomes ready; both roles count against the same ceiling.",
+    "Primary owns the Go compiler queue and grants one compiler/test lease at a time. Limit independent Node/TypeScript checks to two concurrent jobs.",
+    "Use one browser operator at a time. Terra reviews the integrated visible state while the prescribed check runner validates the same candidate.",
+    "Independent source review, required combined checks, browser verification and parent verification precede RFR. Owner demos run at turn end after technical handoff. Terry owns Completed.",
+    "Record actual first-author start through last development/review finish; record owner waiting separately.",
+    "Refresh the remaining first three execution turns before each handoff. Keep unfinished work and actual readiness visible."
+  ],
+  "estimated_hours": 69.5,
+  "largest_story_hours": 2.5,
+  "barrier_author_baseline_hours": 21.5,
+  "independent_review": {
+    "status": "passed",
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "scope": "Staffing, ownership, gates, resources, dependencies and current ticket mapping."
+  }
+}

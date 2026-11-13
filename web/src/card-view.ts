@@ -526,6 +526,11 @@ export function mountCardView(
     open,
     close,
     refresh,
+    refreshRestored() {
+      if (!selection) return;
+      selection.restored = true;
+      refresh();
+    },
     dispose,
     editor,
     title,

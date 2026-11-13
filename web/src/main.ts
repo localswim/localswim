@@ -441,6 +441,7 @@ export function mount(root: HTMLElement): () => void {
         selection = latest.selection;
         restoreBoardView();
       }
+      drawer?.refreshRestored();
     }
     drawerNeedsConfirmation = true;
     void workspace.refresh().then(() => boardState?.retry());

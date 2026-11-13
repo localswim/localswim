@@ -587,6 +587,7 @@ export function mountCardView(
       if (selection) selection.refreshQueued = false;
     },
     dispose,
+    panel,
     editor,
     tools,
     title,

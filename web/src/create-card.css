@@ -38,7 +38,7 @@
   font-weight: 600;
 }
 
-.create-card :is(textarea, select, button) {
+.create-card :is(textarea, input, select, button) {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--board-view-lane-border);
   border-radius: 0.35rem;
@@ -47,7 +47,7 @@
   font: inherit;
 }
 
-.create-card :is(textarea, select) {
+.create-card :is(textarea, input, select) {
   inline-size: 100%;
   font-size: 0.9375rem;
   font-weight: 400;
@@ -80,6 +80,32 @@
   justify-content: flex-end;
   gap: 0.55rem;
   margin-block-start: 0.25rem;
+}
+
+.create-card-relationships,
+.create-card-relationship-row {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--board-view-lane-border);
+  border-radius: 0.35rem;
+}
+
+.create-card-relationship-rows {
+  display: grid;
+  gap: 0.5rem;
+  margin-block-end: 0.5rem;
+}
+
+.create-card-relationship-rows:empty {
+  margin: 0;
+}
+
+.create-card-relationship-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 0.5rem;
 }
 
 .create-card button {
@@ -117,7 +143,8 @@
 }
 
 @media (width <= 36rem) {
-  .create-card-choices {
+  .create-card-choices,
+  .create-card-relationship-row {
     grid-template-columns: 1fr;
   }
 }

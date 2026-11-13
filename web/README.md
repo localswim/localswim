@@ -126,15 +126,16 @@ is protected. Retired lanes are omitted from the board and lane selectors. Expan
 History in the drawer to inspect attributed activity for that ticket, including
 attachment detaches and priority changes. On a Ready for Review card, Reviewed & approved posts the approval
 comment and moves the card to Completed in one action. The drawer closes on a
-confirmed approval and retains any comment draft. A stale or uncertain response
-keeps the draft available for inspection. Manage lanes can enable or disable
+confirmed approval and retains any comment draft. After a stale or uncertain
+response, open the original card and choose **Inspect approval** to check its
+receipt. Manage lanes can enable or disable
 Approve all in lane for Ready for Review. The action submits the complete rendered
 active membership and its original versions, including the rendered board version.
 A stale set requires inspection before another submission.
 
 Use the drawer's parent and child links to open those cards, including archived
-cards. Add a typed link from the drawer. If you can manage relationships, expand
-**Link the new card** in the new card form to add several links. The service saves
+cards. Add a typed link from the drawer. If you can manage relationships, choose
+**Add relationship** in the new card form to add each link. The service saves
 the card and all its links together. Each relationship is visible from both cards.
 Link types are Blocks, Duplicates, References, and Relates to. Incoming links
 identify the other card as the source. Changing a link type preserves its source
@@ -162,7 +163,7 @@ for that board until the card is confirmed. After creation, the same card drawer
 shows per-file upload results. The card and its confirmed files stay saved if a
 later upload fails.
 
-Use **Files** in the card drawer to select several attachments, then choose
+Use **Files to attach** in the card drawer to select several attachments, then choose
 **Upload attachments**. You can also paste a clipboard image into the open drawer.
 Each file has its own outcome. The drawer rejects files larger than 10 MiB before
 uploading and submits the remaining files one at a time for that card. You can
@@ -170,7 +171,7 @@ open another card while the batch finishes on the original card.
 
 Each tab saves pending file IDs, names, sizes, and SHA-256 fingerprints for the
 original card before uploading. Files stay out of tab storage. If an upload
-response is lost, open the original card and choose **Inspect saved card**.
+response is lost, open the original card and choose **Inspect saved upload**.
 The drawer checks the original ID and fingerprint. An upload may still be
 running when the first inspection finds no saved attachment. In that case
 the card stays fenced and you can inspect again.
@@ -328,20 +329,22 @@ Run the focused checks with `npm --prefix web run check` and `npm --prefix web t
 The board uses `GET /boards/{board_id}?view=lanes` for the server's visible
 priority and dependency order. Archived cards remain in the separate archived
 section. In lanes with dependency reorder enabled and at least two active cards,
-**Preview ticket order** accepts comma- or space-separated
-tickets, or an empty selection for all active cards. It displays the current
-and proposed assignments at the captured revision. Preview is read-only.
+open **Ticket order** and choose **Preview ticket order**. It displays the
+current and proposed assignments for the visible cards at the captured
+revision. Preview is read-only. Applying a change requires the full lane
+with the title and ticket filter cleared.
 
 In **Manage lanes**, **Change lane key** preserves the lane UUID. Saved lane
 labels display their current keys. The Completed lane is excluded from this
 control. The request retains the original lane and board validators.
 
-In **Board actions**, **Set batch priority** accepts distinct ticket numbers,
+In **Board settings**, **Set batch priority** accepts distinct ticket numbers,
 including archived unfinished cards. The service evaluates the selection in
 one revision-checked transaction. The result lists selected effective priorities
 and every actual priority change, including upstream promotions. Completed
-selections and invalid ticket selections are refused. An uncertain write is
-followed by a saved-state read and is never automatically submitted again.
+selections and invalid ticket selections are refused. After an uncertain
+response, use **Inspect saved priorities** to compare the saved values with
+the submitted selection.
 
 **Create backup** captures the current board revision and verified attachment
 inventory. You can edit cards and switch boards while capture runs. Its progress,

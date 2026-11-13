@@ -323,6 +323,9 @@ export function createWorkspaceState({
   return {
     api,
     readWithSession,
+    renewSession(requestSignal: AbortSignal) {
+      return ensureCapability(AbortSignal.any([signal, requestSignal]), capability);
+    },
     refresh,
     requireFreshCatalog() {
       catalogEpoch++;

@@ -58,6 +58,32 @@ header a {
 [data-app] #main {
   padding: 0.75rem;
 }
+
+.ticket-order {
+  inline-size: min(38rem, calc(100% - 2rem));
+  max-block-size: calc(100% - 2rem);
+  padding: clamp(1rem, 4vw, 1.5rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--board-view-lane-border);
+  border-radius: 0.65rem;
+  background: var(--board-view-card-fill);
+  color: var(--board-view-ink);
+}
+
+.ticket-order::backdrop {
+  background: rgb(13 29 51 / 55%);
+}
+
+.ticket-order-assignments {
+  overflow-wrap: anywhere;
+}
+
+.ticket-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
 #workspace-layout {
   display: grid;
   gap: 0.75rem;

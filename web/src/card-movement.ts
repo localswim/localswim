@@ -22,6 +22,7 @@ type MovementOptions = AppContext &
     getBoardData: () => BoardViewData | undefined;
     getPolicy: () => { moveLaneIds: ReadonlyMap<string, ReadonlySet<string>> } | null;
     canWrite: () => boolean;
+    canMoveCard?: (cardId: string) => boolean;
     beginWrite: (cardId: string) => (() => void) | null;
     onChange: () => void;
     onRefresh: (cardId: string) => void;
@@ -63,6 +64,7 @@ export function createCardMovement({
   getBoardData,
   getPolicy,
   canWrite,
+  canMoveCard,
   beginWrite,
   onChange,
   onRefresh,
@@ -110,6 +112,7 @@ export function createCardMovement({
       !storageError &&
       !busy &&
       !pending &&
+      canMoveCard?.(source.cardId) !== false &&
       (!floor || source.revision >= floor.revision) &&
       canWrite()
     );

@@ -6,10 +6,12 @@ type ActorKind = "human" | "bot";
 type ActorPresentation = Partial<Record<ActorKind, { label?: string; accent?: string }>>;
 type Label = Readonly<{ id: string; label: string }>;
 type Actor = Label & Readonly<{ kind: ActorKind; color: string }>;
+type Priority = Label & Readonly<{ rank: number }>;
 
 type BoardLane = Label &
   Readonly<{
     role: string;
+    reorder_enabled: boolean;
     notes?: string;
   }>;
 
@@ -45,7 +47,7 @@ type BoardContents = Readonly<{
 export type BoardViewData = BoardContents &
   Readonly<{
     etag: string;
-    priorities: readonly Label[];
+    priorities: readonly Priority[];
     users: readonly Actor[];
   }>;
 
@@ -91,6 +93,15 @@ function isActor(value: unknown): value is Actor {
     (value.kind === "human" || value.kind === "bot") &&
     "color" in value &&
     typeof value.color === "string"
+  );
+}
+
+function isPriority(value: unknown): value is Priority {
+  return (
+    isLabel(value) &&
+    "rank" in value &&
+    typeof value.rank === "number" &&
+    Number.isSafeInteger(value.rank)
   );
 }
 
@@ -144,7 +155,11 @@ export async function getBoardView(context: AppContext, boardId: string): Promis
         throw new ApiError("invalid_response");
       }
       const [priorities, users] = await Promise.all([
-        readCatalog((cursor) => api.listPriorities(boardId, cursor, signal), "priorities", isLabel),
+        readCatalog(
+          (cursor) => api.listPriorities(boardId, cursor, signal),
+          "priorities",
+          isPriority,
+        ),
         readCatalog((cursor) => api.listUsers(boardId, cursor, signal), "users", isActor),
       ]);
       const check = await api.getBoardIfChanged(boardId, etag, signal);
@@ -250,6 +265,7 @@ export function mountBoardView(
   };
 
   let currentBoard = initialData.board.id;
+  let renderedRevision = initialData.board.revision;
   let lanes: LaneFace[] = [];
   let showOlderCompleted = false;
   const { onOpenCard, renderLaneActions, onViewChange, movement } = options;
@@ -603,6 +619,7 @@ export function mountBoardView(
       cancelMovement();
       showOlderCompleted = true;
       paintFilter(face);
+      onViewChange?.();
     });
     return face;
   }
@@ -614,6 +631,7 @@ export function mountBoardView(
       return;
     }
     if (!sameBoard) cancelMovement();
+    renderedRevision = data.board.revision;
     coverLifetime.abort();
     coverLifetime = new AbortController();
     coverMounts.length = 0;
@@ -747,6 +765,18 @@ export function mountBoardView(
     revokeCovers() {
       coverLifetime.abort();
     },
+    laneMembership(laneId: string) {
+      const lane = lanes.find(({ lane }) => lane.id === laneId);
+      if (!lane) return undefined;
+      const visible = lane.members
+        .filter(({ item }) => item.parentElement === lane.list)
+        .map(({ card }) => card);
+      return {
+        cards: visible,
+        revision: renderedRevision,
+        complete: filter.value.trim() === "" && visible.length === lane.members.length,
+      };
+    },
     captureViewport(): BoardViewport {
       return {
         filter: filter.value,
@@ -764,6 +794,7 @@ export function mountBoardView(
       pendingScroll = { horizontalScroll, laneScroll };
       filter.value = query;
       paintFilter();
+      onViewChange?.();
       const restoreScroll = () => {
         if (restoreSignal.aborted) return;
         strip.scrollLeft = horizontalScroll;

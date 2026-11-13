@@ -3,6 +3,7 @@ import { mountAttention } from "./attention.js";
 import { mountCardArchive } from "./archive.js";
 import { mountAttachmentCover, mountAttachments } from "./attachments.js";
 import { mountBackup } from "./backup.js";
+import { mountBackupPublication } from "./backup-publication.js";
 import { mountBatchPriority } from "./batch-priority.js";
 import { mountBoardLifecycle } from "./board-lifecycle.js";
 import { readBoardPolicy, readBrowserPrincipal } from "./board-policy.js";
@@ -21,11 +22,13 @@ import { mountCreateCard } from "./create-card.js";
 import type { DrawerTextContext } from "./card-view.js";
 import { createCardTextDrafts } from "./drafts.js";
 import type { ConfirmedCardText } from "./drafts.js";
+import { mountLaneApproval } from "./lane-approval.js";
 import { parseRoute } from "./model.js";
 import { mountPublishingSettings } from "./publishing-settings.js";
 import { createRecentBoards } from "./recent-boards.js";
 import type { RecentBoards } from "./recent-boards.js";
 import { mountRelationships } from "./relationships.js";
+import { hasPendingBoardRestore, mountRestore } from "./restore.js";
 import { mountCardSearch } from "./search.js";
 import { hasPendingServiceActivation, mountServiceTools } from "./service-tools.js";
 import { createSidebarPins } from "./sidebar-state.js";
@@ -46,6 +49,7 @@ type RouteRuntime = {
   onWriteSettled?: () => void;
   onServicePendingChange?: () => void;
   refreshBoard?: (boardId: string) => void;
+  refreshRestoredBoard?: (boardId: string, revision?: number) => void;
   drafts: ReturnType<typeof createCardTextDrafts>;
 };
 
@@ -121,9 +125,12 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let attachments: ReturnType<typeof mountAttachments> | undefined;
   let uploads: ReturnType<typeof mountUploads> | undefined;
   let approval: ReturnType<typeof mountCardApproval> | undefined;
+  let laneApproval: ReturnType<typeof mountLaneApproval> | undefined;
   let batchPriority: ReturnType<typeof mountBatchPriority> | undefined;
   let ticketOrder: ReturnType<typeof mountTicketOrder> | undefined;
   let backup: ReturnType<typeof mountBackup> | undefined;
+  let backupPublication: ReturnType<typeof mountBackupPublication> | undefined;
+  let restore: ReturnType<typeof mountRestore> | undefined;
   let relationships: ReturnType<typeof mountRelationships> | undefined;
   let previewsAllowed = false;
   let policyRefreshFrame = 0;
@@ -132,6 +139,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let pinsView: Parameters<typeof attention.updatePins>[0] | undefined;
   let focusedTextConfirmed = false;
   let drawerNeedsConfirmation = false;
+  let retainedRestoreSelection: string | undefined;
+  let laneApprovalDrawer: string | undefined;
   const boardHost = doc.createElement("div");
   const boardTools = doc.createElement("details");
   const boardToolsSummary = doc.createElement("summary");
@@ -346,6 +355,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   }
 
   function updateWriteControls() {
+    updateRestore();
     lifecycle?.update();
     const previewChanged = updatePreviewAdmission();
     if (previewChanged && previewsAllowed && boardData) board?.update(boardData);
@@ -356,6 +366,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     comments?.update();
     batchPriority?.update();
     ticketOrder?.update();
+    laneApproval?.update();
     backup?.update();
     publishing?.updatePermission();
     updateDrawerTools();
@@ -364,17 +375,38 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   runtime.refreshBoard = (boardId) => {
     if (boardId === selectedBoardId) refreshBoardAndDrawer();
   };
+  runtime.refreshRestoredBoard = (boardId, revision) => {
+    if (boardId !== selectedBoardId) return;
+    if (revision !== undefined || hasPendingBoardRestore(doc, boardId)) rememberRestoreSelection();
+    drawerNeedsConfirmation = true;
+    boardState?.requireFreshConfirmation();
+    void workspace.refresh().then(() => boardState?.retry());
+  };
+
+  function rememberRestoreSelection() {
+    if (selection && "id" in selection) retainedRestoreSelection = selection.id;
+  }
+
+  function updateRestore() {
+    if (selectedBoardId && hasPendingBoardRestore(doc, selectedBoardId)) rememberRestoreSelection();
+    restore?.update();
+  }
 
   function cardWorkPending(cardId: string) {
     return (
       runtime.writes.has(cardId) ||
       movement?.blocksCard(cardId) === true ||
       approval?.blocksCard(cardId) === true ||
+      laneApproval?.blocksCard(cardId) === true ||
       uploads?.blocksCard(cardId) === true
     );
   }
 
   function boardWritable() {
+    return boardWriteReady() && (!selectedBoardId || !hasPendingBoardRestore(doc, selectedBoardId));
+  }
+
+  function boardWriteReady() {
     return (
       pageActive &&
       !writesBlocked &&
@@ -428,6 +460,13 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     return beginWrite(selectedBoardId);
   }
 
+  function selectedCardId() {
+    const selected = drawer?.selected;
+    return selected && "id" in selected
+      ? selected.id
+      : boardData?.cards.find(({ ticket }) => ticket === selected?.ticket)?.id;
+  }
+
   function policyReady() {
     return principal !== null && policy !== null && policyVersion === confirmedPolicyVersion;
   }
@@ -455,12 +494,16 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   }
 
   function updateLaneCreate() {
-    boardHost
-      .querySelector(".board-view-host")
-      ?.shadowRoot?.querySelectorAll<HTMLButtonElement>("[data-lane-create]")
-      .forEach((button) => {
-        button.disabled = !boardWritable();
-      });
+    const shadow = boardHost.querySelector(".board-view-host")?.shadowRoot;
+    shadow?.querySelectorAll<HTMLButtonElement>("[data-lane-create]").forEach((button) => {
+      button.disabled = !boardWritable();
+    });
+    shadow?.querySelectorAll<HTMLButtonElement>("[data-lane-approval]").forEach((button) => {
+      const laneId = button.dataset.laneApproval ?? "";
+      const complete = confirmedLaneMembership(laneId)?.complete === true;
+      button.disabled = !complete || !boardWritable() || !laneApprovalDestination(laneId);
+      button.title = complete ? "" : "Show the full unfiltered lane to approve all cards.";
+    });
   }
 
   function refreshPolicy() {
@@ -718,6 +761,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     const { availability, connection, data, name, readiness, retryAvailable, writesFenced } = state;
     if (!writesBlocked && writesFenced) search?.suspend();
     writesBlocked = writesFenced;
+    updateRestore();
     lifecycle?.update();
     const previewChanged = updatePreviewAdmission();
     editor?.update();
@@ -782,6 +826,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         boardHost.replaceChildren();
         board = mountBoardView(boardHost, data, {
           onOpenCard: (card, opener) => {
+            retainedRestoreSelection = undefined;
             if (boardSnapshot?.confirmedRevision === null) {
               drawer?.showRetained({ id: card.id }, opener);
               drawerNeedsConfirmation = true;
@@ -789,9 +834,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
               drawer?.open({ id: card.id }, opener);
             }
           },
-          onViewChange() {
-            queueBoardViewSave();
+          onViewChange: queueBoardViewSave,
+          onMembershipChange() {
             ticketOrder?.update();
+            laneApproval?.update();
+            updateLaneCreate();
           },
           movement,
           mountCover(host, card, coverSignal) {
@@ -830,6 +877,18 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
               order.addEventListener("click", () => ticketOrder?.open(lane.id, order), { signal });
               host.append(order);
             }
+            if (
+              laneApprovalDestination(lane.id) &&
+              boardData?.cards.some(({ lane_id }) => lane_id === lane.id)
+            ) {
+              const bulk = doc.createElement("button");
+              bulk.type = "button";
+              bulk.dataset.laneApproval = lane.id;
+              bulk.textContent = "Approve all in lane";
+              bulk.setAttribute("aria-label", `Approve all in ${lane.label}`);
+              bulk.addEventListener("click", () => laneApproval?.open(lane.id, bulk), { signal });
+              host.append(bulk);
+            }
           },
         });
         restoreBoardView();
@@ -844,7 +903,9 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     updateLaneCreate();
     batchPriority?.update();
     ticketOrder?.update();
+    laneApproval?.update();
     backup?.update();
+    updateRestore();
     if (!writesFenced && data && state.confirmedEtag === data.etag) {
       search?.update(data.lanes, data.board.revision);
       if (boardTools.open && publishingTag !== state.confirmedEtag) {
@@ -904,7 +965,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
 
   function updatePreviewAdmission() {
     const next =
-      pageActive && !writesBlocked && !lifecycle?.blocksWrites() && !hasPendingServiceActivation();
+      pageActive &&
+      !writesBlocked &&
+      !lifecycle?.blocksWrites() &&
+      !hasPendingServiceActivation() &&
+      (!selectedBoardId || !hasPendingBoardRestore(doc, selectedBoardId));
     if (previewsAllowed === next) return false;
     previewsAllowed = next;
     if (!next) board?.revokeCovers();
@@ -987,6 +1052,55 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     drawer?.refresh();
   }
 
+  function closeApprovedDrawer(cardIds: readonly string[]) {
+    const selectedId = selectedCardId();
+    if (!drawer || !selectedId || !cardIds.includes(selectedId)) return;
+    const focus = doc.activeElement;
+    drawer.close(focus === doc.body || drawer.panel.contains(focus), true);
+  }
+
+  function laneApprovalDestination(laneId: string) {
+    const source = boardData?.lanes.find(({ id }) => id === laneId);
+    const completed = boardData?.lanes.find(({ role }) => role === "completed");
+    if (
+      source?.role !== "ready_for_review" ||
+      !source.approval_enabled ||
+      !completed ||
+      !policyReady() ||
+      !policy?.capabilities.has("approve") ||
+      !policy.moveLaneIds.get(laneId)?.has(completed.id)
+    )
+      return undefined;
+    return completed.id;
+  }
+
+  function confirmedLaneMembership(laneId: string) {
+    const lane = boardData?.lanes.find(({ id }) => id === laneId);
+    const membership = board?.laneMembership(laneId);
+    const boardEtag = boardSnapshot?.confirmedEtag;
+    const boardRevision = boardSnapshot?.confirmedRevision;
+    if (
+      !lane ||
+      !membership ||
+      !boardEtag ||
+      !boardRevision ||
+      membership.revision !== boardRevision
+    )
+      return undefined;
+    const fullLane = boardData?.cards.filter(({ lane_id }) => lane_id === laneId) ?? [];
+    const visibleIds = new Set(membership.cards.map(({ id }) => id));
+    return {
+      lane,
+      boardEtag,
+      boardRevision,
+      cards: membership.cards,
+      complete:
+        membership.complete &&
+        fullLane.length === visibleIds.size &&
+        fullLane.every(({ id }) => visibleIds.has(id)),
+    };
+  }
+
   if (selectedBoardId) {
     drawer = mountCardView(shellElement("#card-drawer-root"), {
       boardId: selectedBoardId,
@@ -999,6 +1113,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           "id" in reference ? card.id === reference.id : card.ticket === reference.ticket,
         );
       },
+      retainMissing: (reference) => "id" in reference && reference.id === retainedRestoreSelection,
+      retainedDraft: (reference) =>
+        "id" in reference
+          ? drafts.retainedText({ boardId: selectedBoardId, cardId: reference.id })
+          : undefined,
       onSelectionChange: rememberSelection,
       onTextContext: updateDrawerEditor,
       onTextReadiness(confirmed) {
@@ -1068,11 +1187,22 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     const priorityHost = doc.createElement("section");
     priorityHost.className = "batch-priority";
     const backupHost = doc.createElement("section");
+    const publicationHost = doc.createElement("section");
+    const restoreHost = doc.createElement("section");
+    restoreHost.className = "board-restore";
     const recoveryHost = doc.createElement("section");
     const orderHost = doc.createElement("div");
-    boardTools.append(availabilityHost, publishHost, priorityHost, backupHost);
+    const laneApprovalHost = doc.createElement("div");
+    boardTools.append(
+      availabilityHost,
+      publishHost,
+      priorityHost,
+      backupHost,
+      publicationHost,
+      restoreHost,
+    );
     content.prepend(recoveryHost);
-    content.append(orderHost);
+    content.append(orderHost, laneApprovalHost);
     serviceTools = mountServiceTools(recoveryHost, { ...serviceOptions, recoveryOnly: true });
     batchPriority = mountBatchPriority(priorityHost, {
       ...context,
@@ -1097,35 +1227,55 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       boardId: selectedBoardId,
       readWithSession,
       getContext(laneId) {
-        const lane = boardData?.lanes.find(({ id }) => id === laneId);
-        const membership = board?.laneMembership(laneId);
-        const boardEtag = boardSnapshot?.confirmedEtag;
-        const boardRevision = boardSnapshot?.confirmedRevision;
-        if (
-          !lane?.reorder_enabled ||
-          !membership ||
-          !boardEtag ||
-          !boardRevision ||
-          membership.revision !== boardRevision
-        )
-          return null;
-        const fullLane = boardData?.cards.filter(({ lane_id }) => lane_id === laneId) ?? [];
-        const visibleIds = new Set(membership.cards.map(({ id }) => id));
+        const membership = confirmedLaneMembership(laneId);
+        if (!membership?.lane.reorder_enabled) return null;
         return {
-          laneLabel: lane.label,
-          boardEtag,
-          boardRevision,
+          laneLabel: membership.lane.label,
+          boardEtag: membership.boardEtag,
+          boardRevision: membership.boardRevision,
           cards: membership.cards,
-          complete:
-            membership.complete &&
-            fullLane.length === visibleIds.size &&
-            fullLane.every(({ id }) => visibleIds.has(id)),
+          complete: membership.complete,
           writable: boardWritable() && policy?.capabilities.has("reorder_tickets") === true,
         };
       },
       beginWrite: beginBoardCardWrite,
       beginInspection: () => beginWrite(selectedBoardId),
       onRefresh: refreshBoardAndDrawer,
+      focusFallback: () => board?.focusFilter(),
+    });
+    laneApproval = mountLaneApproval(laneApprovalHost, {
+      ...context,
+      boardId: selectedBoardId,
+      readWithSession,
+      actorId: () => principal?.principalId,
+      isPageActive: () => pageActive,
+      getContext(laneId) {
+        const membership = confirmedLaneMembership(laneId);
+        const completedLaneId = laneApprovalDestination(laneId);
+        if (!membership || !completedLaneId) return null;
+        return {
+          laneLabel: membership.lane.label,
+          boardEtag: membership.boardEtag,
+          completedLaneId,
+          bulkComment: membership.lane.bulk_approval_comment ?? "",
+          cards: membership.cards,
+          complete: membership.complete,
+          writable: boardWritable(),
+        };
+      },
+      beginWrite: (cardIds) => {
+        const release = beginBoardCardWrite(cardIds);
+        if (release) laneApprovalDrawer = selectedCardId();
+        return release;
+      },
+      beginInspection: () => beginWrite(selectedBoardId),
+      onConfirmed(cardIds) {
+        if (!pageActive || signal.aborted) return;
+        if (laneApprovalDrawer === selectedCardId()) closeApprovedDrawer(cardIds);
+        laneApprovalDrawer = undefined;
+        refreshBoardAndDrawer();
+      },
+      onRefresh: () => runtime.refreshBoard?.(selectedBoardId),
       focusFallback: () => board?.focusFilter(),
     });
     backup = mountBackup(backupHost, {
@@ -1138,6 +1288,47 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         revision: boardSnapshot?.confirmedRevision ?? null,
         allowed: boardWritable() && policy?.capabilities.has("backup") === true,
       }),
+      onChange: () => backupPublication?.update(),
+    });
+    backupPublication = mountBackupPublication(publicationHost, {
+      ...context,
+      boardId: selectedBoardId,
+      readWithSession,
+      canRead: () =>
+        pageActive &&
+        !!boardSnapshot?.confirmedEtag &&
+        (boardSnapshot.availability === "open" || boardSnapshot.availability === "closed"),
+      canPublish: () => boardWritable() && policy?.capabilities.has("publish") === true,
+      capturedBackup: backup.capturedBackup,
+    });
+    if (hasPendingBoardRestore(doc, selectedBoardId)) rememberRestoreSelection();
+    restore = mountRestore(restoreHost, {
+      ...context,
+      boardId: selectedBoardId,
+      readWithSession,
+      getContext: () => ({
+        name: boardSnapshot?.name ?? null,
+        revision:
+          boardSnapshot?.availability === "closed" ||
+          boardData?.etag === boardSnapshot?.confirmedEtag
+            ? (boardSnapshot?.confirmedRevision ?? null)
+            : null,
+        allowed: boardWriteReady() && policy?.capabilities.has("restore") === true,
+        readable:
+          pageActive &&
+          boardSnapshot?.confirmedRevision !== null &&
+          (boardSnapshot?.availability === "open" ||
+            boardSnapshot?.availability === "closed" ||
+            boardSnapshot?.availability === "unhealthy"),
+      }),
+      beginWrite: () =>
+        boardWriteReady() &&
+        !Array.from(runtime.writes).some((key) => key !== "workspace") &&
+        !hasPendingBoardUploads(selectedBoardId)
+          ? beginWrite(selectedBoardId)
+          : null,
+      onStateChange: () => runtime.onWriteSettled?.(),
+      refresh: (boardId, revision) => runtime.refreshRestoredBoard?.(boardId, revision),
     });
     lifecycle = mountBoardLifecycle(availabilityHost, {
       ...context,
@@ -1153,6 +1344,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           policyReady() &&
           policy?.canClose === true &&
           !hasPendingServiceActivation() &&
+          !hasPendingBoardRestore(doc, selectedBoardId) &&
           boardSnapshot?.lifecycleReady === true,
       }),
       beginWrite: () => beginWrite(selectedBoardId),
@@ -1178,6 +1370,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           return "Resolve the board availability change before saving.";
         if (hasPendingServiceActivation())
           return "Inspect the service activation before saving publishing settings.";
+        if (hasPendingBoardRestore(doc, selectedBoardId))
+          return "Inspect the native restore before saving publishing settings.";
         if (writesBlocked)
           return "Reconnect and confirm the board before saving publishing settings.";
         return undefined;
@@ -1234,7 +1428,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         boardWritable() &&
         canUpload() &&
         !movement?.blocksCard(cardId) &&
-        !approval?.blocksCard(cardId)
+        !approval?.blocksCard(cardId) &&
+        !laneApproval?.blocksCard(cardId)
           ? beginWrite(cardId)
           : null,
       beginInspect: beginWrite,
@@ -1269,25 +1464,21 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             boardWritable() &&
             focusedTextConfirmed &&
             !uploads?.blocksCard(card.cardId) &&
-            !movement?.blocksCard(card.cardId),
+            !movement?.blocksCard(card.cardId) &&
+            !laneApproval?.blocksCard(card.cardId),
         };
       },
       beginWrite: (cardId) =>
-        boardWritable() && !uploads?.blocksCard(cardId) && !movement?.blocksCard(cardId)
+        boardWritable() &&
+        !uploads?.blocksCard(cardId) &&
+        !movement?.blocksCard(cardId) &&
+        !laneApproval?.blocksCard(cardId)
           ? beginWrite(selectedBoardId, cardId)
           : null,
       beginInspection: beginWrite,
       onConfirmed(cardId) {
         if (!pageActive || signal.aborted) return;
-        const selected = drawer?.selected;
-        const selectedId =
-          selected && "id" in selected
-            ? selected.id
-            : boardData?.cards.find(({ ticket }) => ticket === selected?.ticket)?.id;
-        if (drawer && selectedId === cardId) {
-          const focus = doc.activeElement;
-          drawer.close(focus === doc.body || drawer.panel.contains(focus), true);
-        }
+        closeApprovedDrawer([cardId]);
         refreshBoardAndDrawer();
       },
       onRefresh: refreshBoardAndDrawer,
@@ -1310,7 +1501,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       canWrite: () => boardWritable() && !runtime.writes.has(selectedBoardId),
       canMoveCard: (cardId) => !cardWorkPending(cardId),
       beginWrite: (cardId) =>
-        !uploads?.blocksCard(cardId) && !approval?.blocksCard(cardId) ? beginWrite(cardId) : null,
+        !uploads?.blocksCard(cardId) &&
+        !approval?.blocksCard(cardId) &&
+        !laneApproval?.blocksCard(cardId)
+          ? beginWrite(cardId)
+          : null,
       onChange() {
         movementPanel?.update();
         board?.refreshMovement();
@@ -1432,6 +1627,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     attachments?.dispose();
     uploads?.dispose();
     ticketOrder?.dispose();
+    laneApproval?.dispose();
     relationships?.dispose();
     attention.dispose();
     runtime.streamClosed = workspace.dispose();
@@ -1439,6 +1635,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     if (runtime.onWriteSettled === updateWriteControls) {
       runtime.onWriteSettled = undefined;
       runtime.refreshBoard = undefined;
+      runtime.refreshRestoredBoard = undefined;
     }
     if (runtime.onServicePendingChange === updateAccessControls) {
       runtime.onServicePendingChange = undefined;
@@ -1465,6 +1662,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     sidebar.suspend();
     search?.suspend();
     ticketOrder?.suspend();
+    laneApproval?.suspend();
     publishing?.suspend();
     attention.cancelReorder();
     board?.cancelMovement();

@@ -59,7 +59,7 @@ header a {
   padding: 0.75rem;
 }
 
-.ticket-order {
+:is(.ticket-order, .lane-approval) {
   inline-size: min(38rem, calc(100% - 2rem));
   max-block-size: calc(100% - 2rem);
   padding: clamp(1rem, 4vw, 1.5rem);
@@ -71,7 +71,7 @@ header a {
   color: var(--board-view-ink);
 }
 
-.ticket-order::backdrop {
+:is(.ticket-order, .lane-approval)::backdrop {
   background: rgb(13 29 51 / 55%);
 }
 
@@ -79,10 +79,15 @@ header a {
   overflow-wrap: anywhere;
 }
 
-.ticket-order-actions {
+:is(.ticket-order-actions, .lane-approval-actions) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
+}
+
+.lane-approval-comment {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .batch-priority form {
@@ -100,6 +105,22 @@ header a {
 
 .batch-priority :is(input, select) {
   max-inline-size: 100%;
+}
+
+.board-restore {
+  overflow-wrap: anywhere;
+}
+
+.board-restore label {
+  display: grid;
+  gap: 0.25rem;
+  max-inline-size: 100%;
+}
+
+.board-restore input[type="file"] {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 26rem;
 }
 #workspace-layout {
   display: grid;

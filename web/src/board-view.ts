@@ -11,6 +11,8 @@ type Priority = Label & Readonly<{ rank: number }>;
 type BoardLane = Label &
   Readonly<{
     role: string;
+    approval_enabled: boolean;
+    bulk_approval_comment?: string;
     reorder_enabled: boolean;
     notes?: string;
   }>;
@@ -55,6 +57,7 @@ export type BoardViewOptions = Readonly<{
   onOpenCard?: (card: BoardCard, opener: HTMLButtonElement) => void;
   renderLaneActions?: (lane: BoardLane, container: HTMLElement) => void;
   onViewChange?: () => void;
+  onMembershipChange?: () => void;
   mountCover?: (host: HTMLElement, card: BoardCard, signal: AbortSignal) => void;
   movement?: CardMovement;
 }>;
@@ -268,7 +271,7 @@ export function mountBoardView(
   let renderedRevision = initialData.board.revision;
   let lanes: LaneFace[] = [];
   let showOlderCompleted = false;
-  const { onOpenCard, renderLaneActions, onViewChange, movement } = options;
+  const { onOpenCard, renderLaneActions, onViewChange, onMembershipChange, movement } = options;
   let coverLifetime = new AbortController();
   const coverMounts: Array<() => void> = [];
   const lifetime = new AbortController();
@@ -620,6 +623,7 @@ export function mountBoardView(
       showOlderCompleted = true;
       paintFilter(face);
       onViewChange?.();
+      onMembershipChange?.();
     });
     return face;
   }
@@ -682,6 +686,7 @@ export function mountBoardView(
     }
     refreshMovement();
     onViewChange?.();
+    onMembershipChange?.();
   }
 
   let restore = new AbortController();
@@ -701,6 +706,7 @@ export function mountBoardView(
       cancelMovement();
       paintFilter();
       onViewChange?.();
+      onMembershipChange?.();
     },
     listenerOptions,
   );
@@ -719,6 +725,7 @@ export function mountBoardView(
       filter.value = "";
       paintFilter();
       onViewChange?.();
+      onMembershipChange?.();
     },
     listenerOptions,
   );
@@ -769,7 +776,11 @@ export function mountBoardView(
       const lane = lanes.find(({ lane }) => lane.id === laneId);
       if (!lane) return undefined;
       const visible = lane.members
-        .filter(({ item }) => item.parentElement === lane.list)
+        .filter(
+          ({ item, opener }) =>
+            item.parentElement === lane.list &&
+            opener.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+        )
         .map(({ card }) => card);
       return {
         cards: visible,
@@ -795,6 +806,7 @@ export function mountBoardView(
       filter.value = query;
       paintFilter();
       onViewChange?.();
+      onMembershipChange?.();
       const restoreScroll = () => {
         if (restoreSignal.aborted) return;
         strip.scrollLeft = horizontalScroll;

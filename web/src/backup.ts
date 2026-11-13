@@ -28,6 +28,7 @@ type Options = AppContext &
     readWithSession: ReturnType<typeof createWorkspaceState>["readWithSession"];
     canRead: () => boolean;
     captureContext: () => { etag: string | null; revision: number | null; allowed: boolean };
+    onChange?: () => void;
   }>;
 
 const operationId = /^[\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/;
@@ -107,7 +108,7 @@ function boardState(doc: Document, boardId: string): BackupState {
 
 export function mountBackup(
   host: HTMLElement,
-  { api, boardId, signal, readWithSession, canRead, captureContext }: Options,
+  { api, boardId, signal, readWithSession, canRead, captureContext, onChange }: Options,
 ) {
   const doc = host.ownerDocument;
   const key = `localswim:pending-backup-capture:${boardId}`;
@@ -198,6 +199,7 @@ export function mountBackup(
       : "";
     if (summary.textContent !== description) summary.textContent = description;
     if (status.textContent !== state.message) status.textContent = state.message;
+    onChange?.();
   }
 
   function notify() {

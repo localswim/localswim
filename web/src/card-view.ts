@@ -15,6 +15,10 @@ type CardViewOptions = AppContext &
     onTextContext?: (context: DrawerTextContext | null) => void;
     onTextReadiness?: (confirmed: boolean) => void;
     retainedCard?: (reference: CardReference) => { title: string; description: string } | undefined;
+    retainMissing?: (reference: CardReference) => boolean;
+    retainedDraft?: (
+      reference: CardReference,
+    ) => Partial<{ title: string; description: string }> | undefined;
     acceptTextVersion?: (cardId: string, revision: number, etag: string) => boolean;
   }>;
 
@@ -85,6 +89,8 @@ export function mountCardView(
     onTextContext,
     onTextReadiness,
     retainedCard,
+    retainMissing,
+    retainedDraft,
     acceptTextVersion,
   }: CardViewOptions,
 ) {
@@ -129,6 +135,8 @@ export function mountCardView(
   title.setAttribute("aria-live", "polite");
   const status = element("p", "card-drawer-status");
   status.setAttribute("role", "status");
+  const missingDraft = element("section", "card-drawer-missing-draft");
+  missingDraft.hidden = true;
   const details = element("div", "card-drawer-details");
   const metadata = element("dl", "card-drawer-metadata");
   const description = element("p", "card-drawer-prose");
@@ -144,7 +152,7 @@ export function mountCardView(
     element("h3", "card-drawer-heading", "Parent and children"),
     hierarchy,
   );
-  body.append(title, status, details);
+  body.append(title, status, missingDraft, details);
   panel.append(bar, body);
   root.append(panel);
 
@@ -416,6 +424,8 @@ export function mountCardView(
         throw new ApiError("invalid_response");
       }
       current.staleReadRetried = false;
+      missingDraft.hidden = true;
+      missingDraft.replaceChildren();
       renderCard(card, laneLabel, data);
       renderHierarchy(relations);
       onTextContext?.({
@@ -438,6 +448,28 @@ export function mountCardView(
     } catch (error) {
       if (requestSignal.aborted) return;
       const missing = !cardConfirmed && cardUnavailable(error);
+      if (
+        missing &&
+        error instanceof ApiError &&
+        error.status === 404 &&
+        retainMissing?.(current.reference)
+      ) {
+        const draft = retainedDraft?.(current.reference);
+        title.textContent = "Card unavailable";
+        details.hidden = true;
+        onTextContext?.(null);
+        missingDraft.replaceChildren();
+        if (draft?.title !== undefined || draft?.description !== undefined) {
+          missingDraft.append(element("h3", "card-drawer-heading", "Retained draft"));
+          if (draft.title !== undefined)
+            missingDraft.append(element("p", "card-drawer-prose", draft.title));
+          if (draft.description !== undefined)
+            missingDraft.append(element("p", "card-drawer-prose", draft.description));
+        }
+        missingDraft.hidden = missingDraft.childElementCount === 0;
+        setStatus("This card is absent from the restored board. Changes are unavailable.", true);
+        return;
+      }
       if (missing && current.restored) {
         close(false, true);
         return;
@@ -498,6 +530,8 @@ export function mountCardView(
     title.textContent = "Loading card…";
     setStatus("");
     details.hidden = true;
+    missingDraft.hidden = true;
+    missingDraft.replaceChildren();
     displayedProse = undefined;
     description.replaceChildren();
     metadata.replaceChildren();

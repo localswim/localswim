@@ -582,6 +582,17 @@ export function createCardTextDrafts({
 
   return {
     bind,
+    retainedText(scope: CardTextScope): TextPatch | undefined {
+      const key = storageKey(scope);
+      const entry = entries.get(key);
+      if (entry?.draft) return entry.draft.text;
+      try {
+        const raw = tabStorage().getItem(key);
+        return raw === null ? undefined : (parseDraft(raw)?.text ?? undefined);
+      } catch {
+        return undefined;
+      }
+    },
     latestConfirmed(scope: CardTextScope) {
       return entries.get(storageKey(scope))?.confirmedWrite;
     },

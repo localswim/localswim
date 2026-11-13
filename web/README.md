@@ -128,10 +128,10 @@ attachment detaches and priority changes. On a Ready for Review card, Reviewed &
 comment and moves the card to Completed in one action. The drawer closes on a
 confirmed approval and retains any comment draft. After a stale or uncertain
 response, open the original card and choose **Inspect approval** to check its
-receipt. Manage lanes can enable or disable
-Approve all in lane for Ready for Review. The action submits the complete rendered
-active membership and its original versions, including the rendered board version.
-A stale set requires inspection before another submission.
+receipt. **Approve all in lane** uses the configured comment and submits the
+complete rendered Ready for Review lane with its original board and card
+versions. Clear filters to enable the action. After a stale or uncertain
+result, choose **Inspect original approval** to check the saved receipt.
 
 Use the drawer's parent and child links to open those cards, including archived
 cards. Add a typed link from the drawer. If you can manage relationships, choose
@@ -176,12 +176,12 @@ The drawer checks the original ID and fingerprint. An upload may still be
 running when the first inspection finds no saved attachment. In that case
 the card stays fenced and you can inspect again.
 
-When recovery is available after confirmation or a known refusal, reselect all
-remaining originals in **Files** and choose **Resume pending uploads**. The
-drawer checks each file's name, size, and contents and reads its original ID
-before sending it with the current card revision. **Discard pending files** clears the saved selection
-when there is no unresolved attempt. Uploads require room for their recovery
-details in tab storage.
+When recovery is available after confirmation or a known refusal, reselect
+the remaining originals in **Files to attach** and choose **Resume remaining
+uploads**. The drawer matches each file's name, size, and contents, then sends
+the remaining files with their original IDs. **Discard remaining uploads**
+clears the saved selection after any uncertain file is reconciled. Uploads
+require room for their recovery details in tab storage.
 
 Attachments offer authenticated downloads. Raster attachments also offer a preview
 and cover selection. A card in its lane shows the selected cover or, when no cover
@@ -382,8 +382,8 @@ the captured board validator and proposed ordered card UUIDs exactly once.
 Readback checks the new assignments. A stale preview refuses and requires a fresh
 preview. The service preserves card UUIDs and attachment anchors.
 
-In **Board actions**, choose a **Native backup ZIP** and submit **Restore native
-backup**. The page reads the snapshot validator, checks that its board revision
+In **Board settings**, choose a **Native backup ZIP**, then **Review restore**
+and **Restore backup**. The page reads the snapshot validator and checks that its board revision
 matches the rendered board, and sends one conditional ZIP PUT. Damaged backups
 are refused. A successful restore refreshes the board at the same address. Card
 and board text drafts remain available. An open drawer refreshes saved card fields,
@@ -391,7 +391,7 @@ comments, and attachment rows. When a restored board omits the open card, the
 drawer retains its drafts and disables its write controls. An uncertain response
 requires saved-state inspection before another explicit submission.
 
-After **Create backup**, **Publish backup** publishes that exact captured backup.
+After **Create backup**, **Publish captured revision** publishes that exact backup.
 The service data root must already be inside a Git worktree with an initial
 commit, local branch, configured identity, and origin remote. The page displays
 the publication outcome, its captured revision, and any fixed error code on the

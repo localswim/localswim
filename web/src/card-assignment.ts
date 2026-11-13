@@ -1,4 +1,4 @@
-import type { BoardViewData, ProjectBoardPending } from "./board-view.js";
+import type { BoardViewData, ProjectBoardPending, SettleBoardPending } from "./board-view.js";
 import type { AppContext } from "./model.js";
 import { submitOperation, type OperationStorage } from "./operations.js";
 
@@ -404,13 +404,14 @@ export function mountCardAssignment(
     const submission: Draft = { ...draft, phase: "submitted" };
     const change =
       name === "ownerId" ? { owner_id: draft.requested } : { priority_id: draft.requested };
-    let clearProjection: (() => void) | undefined;
+    let settleProjection: SettleBoardPending | undefined;
+    let projectionConfirmed = false;
     try {
       const outcome = await submitOperation(
         () => persist(cardId, entry, submission),
         async () => {
           if (name === "priorityId") {
-            clearProjection = projectPending?.({
+            settleProjection = projectPending?.({
               kind: "priority",
               boardId,
               cardId,
@@ -444,6 +445,7 @@ export function mountCardAssignment(
       switch (outcome.kind) {
         case "confirmed": {
           const saved = outcome.result;
+          projectionConfirmed = name === "priorityId" && saved.priorityId === draft.requested;
           entry.confirmed = saved;
           entry.result = { field: name, requested: draft.requested, effective: saved[name] };
           persist(cardId, entry, null);
@@ -460,7 +462,7 @@ export function mountCardAssignment(
       }
     } finally {
       entry.active = undefined;
-      clearProjection?.();
+      settleProjection?.(projectionConfirmed ? "confirmed" : undefined);
       release();
       publish();
     }

@@ -1,5 +1,5 @@
 import { ApiError, MAX_ATTACHMENT_BYTES, type RelationshipKind } from "../api.mjs";
-import type { ProjectBoardPending } from "./board-view.js";
+import type { ProjectBoardPending, SettleBoardPending } from "./board-view.js";
 import type { AppContext } from "./model.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
 import {
@@ -907,7 +907,8 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
   async function submitOriginal(submitted: SubmittedDraft, journal: () => boolean) {
     let dispatched: string | null = null;
-    let clearProjection: (() => void) | undefined;
+    let settleProjection: SettleBoardPending | undefined;
+    let projectionConfirmed = false;
     try {
       const result = await submitOperation(
         () => {
@@ -921,7 +922,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const priorityId =
             submission.savedPriorityId ?? submission.effectivePriorityId ?? submission.priorityId;
           if (ownerId && priorityId) {
-            clearProjection = options.projectPending?.({
+            settleProjection = options.projectPending?.({
               kind: "create",
               boardId,
               cardId: submission.id,
@@ -951,13 +952,14 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
               ? uploadValidator(card.id, base + 1, data, etag)
               : null;
           resolveCreation(card, true, tag);
+          projectionConfirmed = true;
           return "created";
         }
         return "unknown";
       }
       return result.kind;
     } finally {
-      clearProjection?.();
+      settleProjection?.(projectionConfirmed ? "confirmed" : undefined);
     }
   }
 

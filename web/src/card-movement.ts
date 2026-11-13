@@ -1,5 +1,5 @@
 import { ApiError } from "../api.mjs";
-import type { BoardViewData, ProjectBoardPending } from "./board-view.js";
+import type { BoardViewData, ProjectBoardPending, SettleBoardPending } from "./board-view.js";
 import type { AppContext } from "./model.js";
 import { submitOperation, type OperationStorage } from "./operations.js";
 
@@ -242,7 +242,8 @@ export function createCardMovement({
     }
     const intent = { cardId, laneId, revision, etag, destination };
     busy = true;
-    let clearProjection: (() => void) | undefined;
+    let settleProjection: SettleBoardPending | undefined;
+    let projectionConfirmed = false;
     try {
       const outcome = await submitOperation(
         () => {
@@ -260,7 +261,7 @@ export function createCardMovement({
           }
         },
         async () => {
-          clearProjection = projectPending?.({
+          settleProjection = projectPending?.({
             kind: "move",
             boardId,
             cardId,
@@ -282,10 +283,11 @@ export function createCardMovement({
           return saved;
         },
       );
+      projectionConfirmed = outcome.kind === "confirmed";
       if (signal.aborted) return;
       if (outcome.kind !== "confirmed") {
-        clearProjection?.();
-        clearProjection = undefined;
+        settleProjection?.();
+        settleProjection = undefined;
       }
       switch (outcome.kind) {
         case "journal-failed":
@@ -314,7 +316,7 @@ export function createCardMovement({
       }
     } finally {
       busy = false;
-      clearProjection?.();
+      settleProjection?.(projectionConfirmed ? "confirmed" : undefined);
       release();
       if (!signal.aborted) onChange();
     }

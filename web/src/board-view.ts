@@ -75,7 +75,8 @@ export type BoardPendingChange = Readonly<{ boardId: string; cardId: string }> &
       }
   >;
 
-export type ProjectBoardPending = (change: BoardPendingChange) => () => void;
+export type SettleBoardPending = (settlement?: "confirmed") => void;
+export type ProjectBoardPending = (change: BoardPendingChange) => SettleBoardPending;
 
 export type BoardViewOptions = Readonly<{
   onOpenCard?: (card: BoardCard, opener: HTMLButtonElement) => void;

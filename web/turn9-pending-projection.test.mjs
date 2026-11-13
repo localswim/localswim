@@ -135,6 +135,11 @@ function boardFixture() {
     lane,
     opened,
     order,
+    filter(value) {
+      const search = shadow.descendants().find((node) => node.id === "board-filter");
+      search.value = value;
+      search.dispatchEvent(new Event("input"));
+    },
     project(...pending) {
       changes = pending.map((change) => ({ boardId, ...change }));
       board.refreshPending();
@@ -277,6 +282,63 @@ test("an unresolved title keeps the original draft after route change without re
   assert.deepEqual(drafts.retainedText(scope), { title: "  Submit é" });
   await reopened.submit();
   assert.equal(writes, 1);
+});
+
+test("a confirmed title projects through a delayed lane read and stays filterable", async () => {
+  const { board, card, filter, project } = boardFixture();
+  const scope = { boardId, cardId: first };
+  const original = { title: "Original", description: "", revision: 6, etag: tag(first, 6) };
+  const title = "Submitted title";
+  const confirmed = { ...original, title, revision: 8, etag: tag(first, 8) };
+  const response = Promise.withResolvers();
+  const readback = Promise.withResolvers();
+  let pending;
+  const drafts = createCardTextDrafts({
+    storage: tabStorage(),
+    projectPending(change) {
+      project(change);
+      return (result) => {
+        assert.equal(result, "confirmed");
+        pending = readback.promise.then(() => project());
+      };
+    },
+    api: {
+      getCard: () => assert.fail("No inspection was requested"),
+      patchCard: () => response.promise,
+    },
+  });
+  const controller = drafts.bind(scope, {
+    context: () => ({ confirmed: original, writable: true }),
+    signal: new AbortController().signal,
+    onChange() {},
+    onConfirmed: (saved) => assert.deepEqual(saved, confirmed),
+  });
+  controller.edit({ ...original, title }, "title");
+  const submitted = controller.submit();
+  response.resolve({
+    data: { ...confirmed, id: first, board_id: boardId },
+    etag: confirmed.etag,
+  });
+  await submitted;
+  assert.equal(card(first).dataset.pending, "title");
+  filter("Original");
+  assert.equal(card(first), undefined);
+  filter("Submitted");
+  assert.equal(card(first).dataset.pending, "title");
+  assert.deepEqual(board.laneMembership(sourceLane).cards, []);
+
+  const saved = { ...data.cards[0], title, revision: 8 };
+  board.update({
+    ...data,
+    board: { ...data.board, revision: 8 },
+    etag: tag(boardId, 8),
+    cards: [saved, data.cards[1]],
+  });
+  assert.equal(card(first).dataset.pending, undefined);
+  assert.deepEqual(board.laneMembership(sourceLane).cards, [saved]);
+  readback.resolve();
+  await pending;
+  assert.equal(card(first).attributes.get("aria-label"), "#1 Submitted title");
 });
 
 test("a refused move clears its projection before readback and retains a failed inspection journal", async () => {

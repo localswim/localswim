@@ -1,4 +1,4 @@
-import type { ProjectBoardPending } from "./board-view.js";
+import type { ProjectBoardPending, SettleBoardPending } from "./board-view.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
 
 export type CardText = Readonly<{ title: string; description: string }>;
@@ -471,7 +471,8 @@ export function createCardTextDrafts({
       if (!base || !draft || !snapshot().canSubmit) return;
       const finishWrite = binding.beginWrite?.();
       if (finishWrite === null) return;
-      let clearProjection: (() => void) | undefined;
+      let settleProjection: SettleBoardPending | undefined;
+      let projectionConfirmed = false;
       try {
         cancelEdit();
         const text = textPatch(
@@ -498,7 +499,7 @@ export function createCardTextDrafts({
               () => persist(key, entry, submission),
               async () => {
                 if (text.title !== undefined) {
-                  clearProjection = projectPending?.({
+                  settleProjection = projectPending?.({
                     kind: "title",
                     boardId,
                     cardId,
@@ -518,6 +519,7 @@ export function createCardTextDrafts({
             );
             switch (result.kind) {
               case "confirmed":
+                projectionConfirmed = true;
                 if (reachesVersion(result.result, entry.confirmedWrite)) {
                   entry.confirmedWrite = version(result.result);
                 }
@@ -536,7 +538,7 @@ export function createCardTextDrafts({
           settled,
         );
       } finally {
-        clearProjection?.();
+        settleProjection?.(projectionConfirmed ? "confirmed" : undefined);
         finishWrite?.();
       }
     }

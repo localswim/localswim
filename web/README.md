@@ -161,8 +161,9 @@ In **New card**, use **Files to stage** or paste a clipboard image into the
 form. You can remove individual files before submitting. Staged file bytes
 stay in the current page's memory for that board until the confirmed card
 accepts them. The card drawer shows per-file results. If a later upload
-fails, the card, links, and confirmed files stay saved. Reselect the remaining
-original files to resume on that card.
+fails, the card, links, and confirmed files stay saved. The current page can
+reuse the staged originals for explicit resume. Reselect the exact remaining
+files after reload or if those bytes are unavailable.
 
 Use **Files to attach** in the card drawer to select several attachments, then choose
 **Upload attachments**. You can also paste a clipboard image into the open drawer.

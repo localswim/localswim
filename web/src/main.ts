@@ -140,7 +140,8 @@ export function mount(root: HTMLElement): () => void {
     if (!current.searchParams.has("ticket") && !current.searchParams.has("card")) return;
     current.searchParams.delete("ticket");
     current.searchParams.delete("card");
-    view.history.replaceState(view.history.state, "", current);
+    const historyState: unknown = view.history.state;
+    view.history.replaceState(historyState, "", current);
   }
 
   function queueBoardViewSave() {
@@ -172,6 +173,7 @@ export function mount(root: HTMLElement): () => void {
     if (!next || !drawer || !selectedBoardId) {
       textBinding?.abort();
       editor?.dispose();
+      textBinding = undefined;
       drawerText = null;
       confirmedText = null;
       editor = undefined;

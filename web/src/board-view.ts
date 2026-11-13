@@ -357,17 +357,20 @@ export function mountBoardView(
     const count = element("span", "board-view-lane-count lane-total");
     heading.append(title, count);
     section.append(heading);
-    if (renderLaneActions) {
-      const actions = element("div", "board-view-lane-actions");
-      renderLaneActions(lane, actions);
-      section.append(actions);
-    }
     const scroll = element("div", "board-view-lane-scroll");
     scroll.tabIndex = 0;
     scroll.setAttribute("role", "group");
     scroll.setAttribute("aria-labelledby", title.id);
+    const note = element("p", "board-view-lane-note lane-note body-text", lane.notes);
     if (lane.notes) {
-      scroll.append(element("p", "board-view-lane-note lane-note body-text", lane.notes));
+      note.id = `board-lane-note-${lane.id}`;
+      note.title = lane.notes;
+      scroll.setAttribute("aria-describedby", note.id);
+    }
+    if (renderLaneActions) {
+      const actions = element("div", "board-view-lane-actions");
+      renderLaneActions(lane, actions);
+      scroll.append(actions);
     }
     const reveal = element("button", "board-view-reveal show-older-completed");
     reveal.type = "button";
@@ -375,7 +378,7 @@ export function mountBoardView(
     list.id = `board-lane-cards-${lane.id}`;
     reveal.setAttribute("aria-controls", list.id);
     scroll.append(reveal, list);
-    section.append(scroll);
+    section.append(note, scroll);
     const face: LaneFace = { lane, section, count, scroll, reveal, list, members: [] };
     reveal.addEventListener("click", () => {
       showOlderCompleted = true;

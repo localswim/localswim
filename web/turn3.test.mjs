@@ -135,12 +135,41 @@ test("comment and multipart upload carry caller IDs and original card ETags", as
     text: "Comment",
     id: resourceId,
   });
-  assert.equal(upload.headers.has("Content-Type"), false);
-  assert.equal(upload.body.get("card_id"), cardId);
-  assert.equal(upload.body.get("expected_card_etag"), tag);
-  assert.equal(upload.body.get("id"), resourceId);
-  assert.equal(upload.body.get("file").name, "test.txt");
-  assert.equal(await upload.body.get("file").text(), "hello");
+  assert.match(upload.headers.get("Content-Type"), /^multipart\/form-data; boundary=localswim-/);
+  const multipart = await new Response(upload.body, { headers: upload.headers }).formData();
+  assert.equal(multipart.get("card_id"), cardId);
+  assert.equal(multipart.get("expected_card_etag"), tag);
+  assert.equal(multipart.get("id"), resourceId);
+  assert.equal(multipart.get("file").name, "test.txt");
+  assert.equal(await multipart.get("file").text(), "hello");
+});
+
+test("attachment multipart preserves exact UTF-8 names and binary bytes", async () => {
+  const names = [
+    'daily"report.txt',
+    "daily%22report.txt",
+    " café [雪]'  %.txt",
+    "one\\two\r\nthree",
+    "empty\0control.txt",
+  ];
+  const bytes = Uint8Array.of(0, 255, 13, 10, 128);
+  const api = createBrowserApi({
+    getCapability: () => capability,
+    fetchImpl: async (_url, { body, headers }) => {
+      const multipart = await new Response(body, { headers }).formData();
+      const file = multipart.get("file");
+      assert.deepEqual(new Uint8Array(await file.arrayBuffer()), bytes);
+      assert.deepEqual([...multipart.keys()], ["card_id", "expected_card_etag", "id", "file"]);
+      return Response.json(
+        { ...savedAttachment, original_name: file.name },
+        { status: 201, headers: { ETag: tag } },
+      );
+    },
+  });
+  for (const name of names) {
+    const result = await api.uploadAttachment(cardId, tag, new File([bytes], name), resourceId);
+    assert.equal(result.data.original_name, name);
+  }
 });
 
 test("card comment reads keep the required board scope", async () => {
@@ -213,7 +242,8 @@ test("an exact attachment 503 refusal leaves its original ID eligible for explic
         calls++;
         assert.equal(url, "/api/2026-11-10/attachments");
         assert.equal(options.method, "POST");
-        assert.equal(options.body.get("id"), resourceId);
+        const multipart = await new Response(options.body, { headers: options.headers }).formData();
+        assert.equal(multipart.get("id"), resourceId);
         if (body === null) throw new TypeError("Disconnected");
         return new Response(body, { status: 503, headers: { "Content-Type": contentType } });
       },

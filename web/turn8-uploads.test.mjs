@@ -390,16 +390,19 @@ test("unavailable journal storage stops the batch before sending any bytes", asy
   assert.match(ui.status.textContent, /could not be verified/);
 });
 
-test("the upload receipt must name the exact original multipart file", async () => {
+test("upload settlement distinguishes a literal percent sequence from an escaped name", async () => {
   const stored = new Map();
+  let inspection;
   const ui = harness(
     {
       uploadAttachment(cardId) {
         const [item] = journal(stored).remaining;
         const response = attachment(cardId, item);
-        response.data.original_name =
-          item.name === 'daily"report.txt' ? "daily%22report.txt" : "wrong-name.txt";
+        if (item.name === "daily%22report.txt") response.data.original_name = 'daily"report.txt';
         return Promise.resolve(response);
+      },
+      getAttachment() {
+        return Promise.resolve(inspection);
       },
     },
     stored,
@@ -411,8 +414,21 @@ test("the upload receipt must name the exact original multipart file", async () 
   assert.equal(ui.outcomes.children[0].textContent, 'daily"report.txt — Uploaded.');
 
   ui.select(first, 4);
-  ui.pick(new File(["two"], "correct-name.txt"));
+  ui.pick(new File(["two"], "daily%22report.txt"));
   await until(() => !ui.leased.size);
   assert.equal(ui.blocksCard(first), true);
   assert.match(ui.outcomes.children[0].textContent, /Outcome uncertain/);
+
+  const [original] = journal(stored).remaining;
+  inspection = attachment(first, original, 5);
+  inspection.data.original_name = 'daily"report.txt';
+  ui.inspect.click();
+  await until(() => !ui.leased.size);
+  assert.equal(ui.blocksCard(first), true);
+
+  inspection = attachment(first, original, 5);
+  ui.inspect.click();
+  await until(() => !ui.leased.size);
+  assert.equal(ui.blocksCard(first), false);
+  assert.match(ui.outcomes.children[0].textContent, /Confirmed by inspection/);
 });

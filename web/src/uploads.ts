@@ -140,16 +140,6 @@ async function fingerprint(file: File): Promise<Original> {
   return { id, name: file.name, size: file.size, digest };
 }
 
-function multipartName(name: string): string {
-  // FormData escapes quote, CR, and LF. The server's MIME parser also
-  // removes quoted-pair backslashes before RFC 2045 special characters.
-  return name
-    .replaceAll('"', "%22")
-    .replaceAll("\r", "%0D")
-    .replaceAll("\n", "%0A")
-    .replace(/\\([()[\]<>@,;:\\/?=])/g, "$1");
-}
-
 function proveAttachment(
   reply: { data: object; etag: string | null },
   original: Original,
@@ -164,7 +154,7 @@ function proveAttachment(
     data.id !== original.id ||
     data.board_id !== boardId ||
     data.card_id !== cardId ||
-    data.original_name !== multipartName(original.name) ||
+    data.original_name !== original.name ||
     data.size !== original.size ||
     data.sha2_256 !== original.digest ||
     typeof data.active !== "boolean" ||

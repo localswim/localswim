@@ -790,14 +790,13 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, form?: FormData, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean }} [options]
+   * @param {{ method?: string, data?: unknown, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean }} [options]
    */
   async function send(
     path,
     {
       method = "GET",
       data,
-      form,
       raw,
       etag,
       ifNoneMatch,
@@ -807,7 +806,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       knownUnavailable = false,
     } = {},
   ) {
-    const body = raw ?? (data === undefined ? form : JSON.stringify(data));
+    const body = raw ?? (data === undefined ? undefined : JSON.stringify(data));
     let headers;
     try {
       const capability = await getCapability();
@@ -868,14 +867,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, successStatus?: number,
+   * @param {{ method?: string, data?: unknown, raw?: Blob, etag?: string, successStatus?: number,
    * signal?: AbortSignal, knownUnavailable?: boolean }} [options]
    */
   async function request(
     path,
-    { method = "GET", data, form, etag, successStatus = 200, signal, knownUnavailable } = {},
+    { method = "GET", data, raw, etag, successStatus = 200, signal, knownUnavailable } = {},
   ) {
-    const response = await send(path, { method, data, form, etag, signal, knownUnavailable });
+    const response = await send(path, { method, data, raw, etag, signal, knownUnavailable });
     const write = method !== "GET";
     const responseEtag = response.headers.get("ETag");
     if (write && (response.status !== successStatus || !STRONG_ETAG.test(responseEtag ?? ""))) {
@@ -977,7 +976,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     return { data: /** @type {BoardAvailability} */ (reply.data), etag: strongTag(reply.etag) };
   }
 
-  /** @param {string} path @param {string} id @param {{data?: unknown, form?: FormData, knownUnavailable?: boolean}} content */
+  /** @param {string} path @param {string} id @param {{data?: unknown, raw?: Blob, knownUnavailable?: boolean}} content */
   async function createWithId(path, id, content) {
     const reply = await request(path, { ...content, method: "POST", successStatus: 201 });
     const item = /** @type {{id?: unknown}} */ (reply.data);
@@ -1642,16 +1641,33 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {unknown} cardId @param {unknown} etag @param {File} file @param {unknown} id */
     async uploadAttachment(cardId, etag, file, id) {
       const expectedId = resourceId(id);
-      const form = new FormData();
-      form.set("card_id", resourceId(cardId));
-      form.set("expected_card_etag", strongTag(etag));
-      form.set("id", expectedId);
-      form.set("file", file);
+      const card = resourceId(cardId);
+      const boundary = "localswim-" + globalThis.crypto.randomUUID();
+      const fields = { card_id: card, expected_card_etag: strongTag(etag), id: expectedId };
+      const parts = Object.entries(fields).map(
+        ([name, value]) =>
+          `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+      );
+      // Go's MIME parser decodes filename* once. FormData's filename escapes
+      // otherwise make a quote and the literal sequence %22 indistinguishable.
+      const filename = encodeURIComponent(file.name).replace(
+        /[!'()*]/g,
+        (character) => "%" + character.charCodeAt(0).toString(16).toUpperCase(),
+      );
+      const raw = new Blob(
+        [
+          ...parts,
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename*=UTF-8''${filename}\r\nContent-Type: application/octet-stream\r\n\r\n`,
+          file,
+          `\r\n--${boundary}--\r\n`,
+        ],
+        { type: `multipart/form-data; boundary=${boundary}` },
+      );
       const reply = await createWithId("/attachments", expectedId, {
-        form,
+        raw,
         knownUnavailable: true,
       });
-      if (!validAttachment(reply.data, expectedId, resourceId(cardId))) {
+      if (!validAttachment(reply.data, expectedId, card)) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
       return reply;

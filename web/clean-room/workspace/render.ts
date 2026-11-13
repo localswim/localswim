@@ -283,7 +283,7 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
       }
     }
     const visible = pins.update(props.data, connected && props.session !== null);
-    const hasPinned = (workspace?.workspace.pinned_board_ids.length ?? 0) > 0;
+    const hasPinned = pins.hasPins();
     const grouped = visible.some((item) => item.pinned);
     const ordered: HTMLElement[] = [];
     if (grouped) ordered.push(pinnedHeading);

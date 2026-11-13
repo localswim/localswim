@@ -102,6 +102,7 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
   let confirmed: WorkspacePins | null = null;
   let ready = false;
   let saving = false;
+  let waitingForResponse = false;
   let needsCheck = false;
   let recovery: PinRecovery | null = null;
   let dragged: Uuid | null = null;
@@ -185,6 +186,7 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
     }
     const change: PinChange = { base: confirmed, order, message };
     saving = true;
+    waitingForResponse = true;
     recovery = null;
     announcement.textContent = "";
     show("Saving pinned boards…", false);
@@ -197,6 +199,8 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
       renderWithFocus();
       const result = await commitPins(change, signal);
       if (signal.aborted) return;
+      waitingForResponse = false;
+      renderWithFocus();
       switch (result.outcome) {
         case "committed":
           receive(result.value);
@@ -218,6 +222,7 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
         }
       }
     } finally {
+      waitingForResponse = false;
       if (!signal.aborted) {
         saving = false;
         renderWithFocus();
@@ -398,7 +403,7 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
   return {
     update(data: ReadState<WorkspaceData>, canWrite: boolean): readonly PinBoard[] {
       const value = (data.status === "ready" ? data.current : data.previous)?.value;
-      if (value) receive(value);
+      if (value && !waitingForResponse) receive(value);
       ready = data.status === "ready" && canWrite;
       search.disabled = value === undefined;
       displayed = projectPinBoards(
@@ -409,6 +414,9 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
       );
       if (dragged !== null && !canDrag(dragged)) endDrag();
       return displayed;
+    },
+    hasPins(): boolean {
+      return (confirmed?.workspace.pinned_board_ids.length ?? 0) > 0;
     },
     dispose(): void {
       listeners.abort();

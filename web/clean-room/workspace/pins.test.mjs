@@ -154,6 +154,11 @@ async function runSave(context, disposition) {
     const requestId = options.headers.get("X-Request-ID");
     assert.ok(requestId);
     if (disposition === "success") {
+      publish();
+      assert.deepEqual(
+        rows.filter(({ pinned }) => pinned).map(({ summary }) => summary.id),
+        [first],
+      );
       return Response.json(saved, { headers: { ETag: nextTag, "X-Request-ID": requestId } });
     }
     if (disposition !== "refused") throw new Error("response lost");

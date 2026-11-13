@@ -112,6 +112,7 @@
   flex: 0 0 2.375rem;
   box-sizing: border-box;
   overflow: hidden;
+  padding-block-end: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-height: 1.25;

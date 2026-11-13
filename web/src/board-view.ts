@@ -336,12 +336,13 @@ export function mountBoardView(
     const summary = query ? `${matching} of ${total} cards match` : countLabel(total, "card");
     if (filterCount.textContent !== summary) filterCount.textContent = summary;
     if (revealingLane) {
+      let target: HTMLElement = revealTarget?.opener ?? revealingLane.scroll;
       if (revealTarget?.opener.disabled) {
         revealTarget.item.tabIndex = -1;
-        revealTarget.item.focus();
-      } else {
-        (revealTarget?.opener ?? revealingLane.scroll).focus();
+        target = revealTarget.item;
       }
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   }
 

@@ -1,6 +1,7 @@
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
 
 export type CardText = Readonly<{ title: string; description: string }>;
+type TextPatch = Partial<CardText>;
 export type CardTextScope = Readonly<{ boardId: string; cardId: string }>;
 type CardVersion = Readonly<{ revision: number; etag: string }>;
 export type ConfirmedCardText = CardText & CardVersion;
@@ -46,9 +47,7 @@ type DraftBindings = Readonly<{
 
 type Draft = Readonly<{
   base: CardVersion;
-  text: CardText;
-  titleChanged: boolean;
-  descriptionChanged: boolean;
+  text: TextPatch;
   phase: "dirty" | "stale" | "refused" | "submitted";
 }>;
 
@@ -75,8 +74,15 @@ function sameVersion(first: CardVersion, second: CardVersion): boolean {
   return first.etag === second.etag && first.revision === second.revision;
 }
 
-function sameText(first: CardText, second: CardText): boolean {
+function sameText(first: TextPatch, second: TextPatch): boolean {
   return first.title === second.title && first.description === second.description;
+}
+
+function textPatch(title: string | undefined, description: string | undefined): TextPatch {
+  return {
+    ...(title === undefined ? {} : { title }),
+    ...(description === undefined ? {} : { description }),
+  };
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -104,25 +110,35 @@ function validText(value: unknown): value is CardText {
   );
 }
 
+function validPatch(value: unknown): value is TextPatch {
+  if (!record(value)) return false;
+  const fields = Object.entries(value);
+  return (
+    fields.length > 0 &&
+    fields.every(
+      ([field, text]) =>
+        (field === "title" || field === "description") &&
+        typeof text === "string" &&
+        text.isWellFormed(),
+    )
+  );
+}
+
 function parseDraft(raw: string): Draft | null {
   if (raw.length > STORAGE_LIMIT) return null;
   try {
     const value: unknown = JSON.parse(raw);
-    if (!record(value) || Object.keys(value).length !== 5) return null;
-    const { base, text, titleChanged, descriptionChanged, phase } = value;
+    if (!record(value) || Object.keys(value).length !== 3) return null;
+    const { base, text, phase } = value;
     if (
       !validVersion(base) ||
       Object.keys(base).length !== 2 ||
-      !validText(text) ||
-      Object.keys(text).length !== 2 ||
-      typeof titleChanged !== "boolean" ||
-      typeof descriptionChanged !== "boolean" ||
-      (!titleChanged && !descriptionChanged) ||
+      !validPatch(text) ||
       (phase !== "dirty" && phase !== "stale" && phase !== "refused" && phase !== "submitted") ||
-      (phase === "submitted" && !titleHasText.test(text.title))
+      (phase === "submitted" && text.title !== undefined && !titleHasText.test(text.title))
     )
       return null;
-    return { base, text, titleChanged, descriptionChanged, phase };
+    return { base, text, phase };
   } catch {
     return null;
   }
@@ -142,7 +158,8 @@ function matchesSubmission(saved: ConfirmedCardText, draft: Draft): boolean {
   return (
     saved.revision > draft.base.revision &&
     saved.etag !== draft.base.etag &&
-    sameText(saved, draft.text)
+    (draft.text.title === undefined || saved.title === draft.text.title) &&
+    (draft.text.description === undefined || saved.description === draft.text.description)
   );
 }
 
@@ -153,7 +170,7 @@ export function createCardTextDrafts({
   storage?: OperationStorage;
   api: {
     getCard(cardId: string, signal: AbortSignal): Promise<CardReply>;
-    patchCard(cardId: string, etag: string, text: CardText): Promise<CardReply>;
+    patchCard(cardId: string, etag: string, text: TextPatch): Promise<CardReply>;
   };
 }>) {
   const entries = new Map<string, Entry>();
@@ -213,7 +230,7 @@ export function createCardTextDrafts({
       const raw = next === null ? null : JSON.stringify(next);
       if (raw === null) tabStorage().removeItem(key);
       else {
-        if (raw.length > STORAGE_LIMIT || !validText(next?.text))
+        if (raw.length > STORAGE_LIMIT || !validPatch(next?.text))
           throw new RangeError("Draft storage limit");
         tabStorage().setItem(key, raw);
       }
@@ -323,17 +340,20 @@ export function createCardTextDrafts({
       const available = current() && !active;
       const canEdit = canChangeDraft() && writable && confirmed !== null;
       const changedFields: (keyof CardText)[] = [];
-      if (draft?.titleChanged) changedFields.push("title");
-      if (draft?.descriptionChanged) changedFields.push("description");
+      if (draft?.text.title !== undefined) changedFields.push("title");
+      if (draft?.text.description !== undefined) changedFields.push("description");
       return {
-        draft: draft?.text ?? null,
+        draft: draft && {
+          title: draft.text.title ?? confirmed?.title ?? "",
+          description: draft.text.description ?? confirmed?.description ?? "",
+        },
         changedFields,
         phase,
         canEdit,
         canSubmit:
           canEdit &&
           draft !== null &&
-          titleHasText.test(draft.text.title) &&
+          (draft.text.title === undefined || titleHasText.test(draft.text.title)) &&
           (!stale || (inspected !== undefined && sameVersion(confirmed, inspected))),
         canInspect:
           available &&
@@ -365,35 +385,20 @@ export function createCardTextDrafts({
       if (!captured || !canChangeDraft()) return;
       const base = captured;
       const previous = entry.draft;
-      function editField(key: keyof CardText, wasChanged: boolean) {
-        if (field && field !== key)
-          return { value: previous?.text[key] ?? base[key], changed: wasChanged };
+      function editField(key: keyof CardText) {
+        if (field && field !== key) return previous?.text[key];
         const value = text[key];
-        // The untouched draft value may predate the text visible in the editor.
-        if (field || !previous || sameVersion(previous.base, base)) {
-          return { value, changed: value !== base[key] };
-        }
-        return { value, changed: wasChanged || value !== previous.text[key] };
+        return value === base[key] ? undefined : value;
       }
-      const title = editField("title", previous?.titleChanged ?? false);
-      const description = editField("description", previous?.descriptionChanged ?? false);
-      const next = { title: title.value, description: description.value };
-      if (
-        previous &&
-        previous.titleChanged === title.changed &&
-        previous.descriptionChanged === description.changed &&
-        sameText(previous.text, next)
-      )
-        return;
+      const next = textPatch(editField("title"), editField("description"));
+      if (previous && sameText(previous.text, next)) return;
       persist(
         key,
         entry,
-        title.changed || description.changed
+        next.title !== undefined || next.description !== undefined
           ? {
               base: previous?.base ?? version(base),
               text: next,
-              titleChanged: title.changed,
-              descriptionChanged: description.changed,
               phase: previous?.phase === "stale" ? "stale" : "dirty",
             }
           : null,
@@ -403,14 +408,14 @@ export function createCardTextDrafts({
       publish(entry);
     }
 
-    function isLatest(saved: ConfirmedCardText) {
-      if (!current()) return false;
-      const previous = context().confirmed;
+    function isLatest(saved: ConfirmedCardText, receiver: DraftBindings) {
+      if (receiver.signal.aborted) return false;
+      const previous = receiver.context().confirmed;
       return !previous || saved.revision > previous.revision || sameVersion(previous, saved);
     }
 
-    function confirmed(saved: ConfirmedCardText) {
-      if (isLatest(saved)) binding.onConfirmed(saved);
+    function confirmed(saved: ConfirmedCardText, receiver = entry.binding) {
+      if (receiver && isLatest(saved, receiver)) receiver.onConfirmed(saved);
     }
 
     function settled() {
@@ -423,13 +428,11 @@ export function createCardTextDrafts({
       const draft = entry.draft;
       if (!base || !draft || !snapshot().canSubmit) return;
       cancelEdit();
-      const text = {
-        title: draft.titleChanged ? draft.text.title : base.title,
-        description: draft.descriptionChanged ? draft.text.description : base.description,
-      };
-      const titleChanged = text.title !== base.title;
-      const descriptionChanged = text.description !== base.description;
-      if (!titleChanged && !descriptionChanged) {
+      const text = textPatch(
+        draft.text.title === base.title ? undefined : draft.text.title,
+        draft.text.description === base.description ? undefined : draft.text.description,
+      );
+      if (text.title === undefined && text.description === undefined) {
         persist(key, entry, null);
         publish(entry);
         return;
@@ -437,8 +440,6 @@ export function createCardTextDrafts({
       const submission: Draft = {
         base: version(base),
         text,
-        titleChanged,
-        descriptionChanged,
         phase: "submitted",
       };
       entry.inspected = undefined;
@@ -501,7 +502,7 @@ export function createCardTextDrafts({
             return;
           }
           if (!current()) return;
-          if (!isLatest(saved)) {
+          if (!isLatest(saved, binding)) {
             entry.inspectionFailed = true;
             return;
           }
@@ -510,7 +511,7 @@ export function createCardTextDrafts({
           if (entry.draft?.phase === "submitted" && matchesSubmission(saved, entry.draft)) {
             persist(key, entry, null);
           }
-          confirmed(saved);
+          confirmed(saved, binding);
         },
         settled,
       );

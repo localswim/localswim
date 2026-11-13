@@ -35,7 +35,7 @@ type PinOptions = Readonly<{
   read(): Promise<WorkspaceReply>;
   write(ids: string[], etag: string): Promise<WorkspaceReply>;
   beginWrite?: () => (() => void) | null;
-  refreshCatalog(): Promise<void>;
+  refreshCatalog(): Promise<unknown>;
   onChange(view: SidebarPinsView): void;
 }>;
 

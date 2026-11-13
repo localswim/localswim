@@ -10,6 +10,7 @@ type CardViewOptions = AppContext &
     boardId: string;
     readWithSession: <T>(read: () => Promise<T>, signal?: AbortSignal) => Promise<T>;
     getBoardData: () => BoardViewData | undefined;
+    canRead: () => boolean;
     focusFallback: (reference: CardReference, opener?: HTMLElement) => void;
     onSelectionChange?: (reference: CardReference | null, explicit: boolean) => void;
     onTextContext?: (context: DrawerTextContext | null) => void;
@@ -84,6 +85,7 @@ export function mountCardView(
     boardId,
     readWithSession,
     getBoardData,
+    canRead,
     focusFallback,
     onSelectionChange,
     onTextContext,
@@ -141,6 +143,7 @@ export function mountCardView(
   const metadata = element("dl", "card-drawer-metadata");
   const description = element("p", "card-drawer-prose");
   const hierarchy = element("ul", "card-drawer-links");
+  const hierarchyHeading = element("h3", "card-drawer-heading", "Parent and children");
   const editor = element("div", "card-drawer-editor");
   const tools = element("div", "card-drawer-tools");
   details.append(
@@ -149,7 +152,7 @@ export function mountCardView(
     description,
     editor,
     tools,
-    element("h3", "card-drawer-heading", "Parent and children"),
+    hierarchyHeading,
     hierarchy,
   );
   body.append(title, status, missingDraft, details);
@@ -307,7 +310,7 @@ export function mountCardView(
         return;
       }
       event.preventDefault();
-      open(id === undefined ? { ticket } : { id });
+      openCard(id === undefined ? { ticket } : { id });
     });
     return link;
   }
@@ -340,6 +343,7 @@ export function mountCardView(
   }
 
   function renderCard(card: SavedCard, laneLabel: string, data: BoardViewData | undefined) {
+    editor.hidden = tools.hidden = hierarchyHeading.hidden = hierarchy.hidden = false;
     const owner = data?.users.find(({ id }) => id === card.owner_id);
     const presentation = owner ? data?.board.actor_presentation?.[owner.kind] : undefined;
     const fields = new Map<string, string>([
@@ -504,7 +508,7 @@ export function mountCardView(
   }
 
   function refresh() {
-    if (selection && !signal.aborted) void load(selection);
+    if (selection && !signal.aborted && canRead()) void load(selection);
   }
 
   function open(reference: CardReference, opener?: HTMLElement, focus = true, read = true) {
@@ -540,6 +544,22 @@ export function mountCardView(
     body.scrollTop = 0;
     if (focus) title.focus({ preventScroll: true });
     if (read) refresh();
+  }
+
+  function showRetained(reference: CardReference, opener?: HTMLElement, focus = true) {
+    const retained = retainedCard?.(reference);
+    if (!retained) return false;
+    open(reference, opener, focus, false);
+    showConfirmedText(retained);
+    editor.hidden = tools.hidden = hierarchyHeading.hidden = hierarchy.hidden = true;
+    details.hidden = false;
+    setStatus("Showing previously loaded card text.");
+    return true;
+  }
+
+  function openCard(reference: CardReference, opener?: HTMLElement, focus = true) {
+    if (canRead()) open(reference, opener, focus);
+    else showRetained(reference, opener, focus);
   }
 
   function close(focus = true, explicit = focus, preserveSelection = false) {
@@ -597,24 +617,25 @@ export function mountCardView(
   if (signal.aborted) dispose();
   else ownerSignal.addEventListener("abort", dispose, { signal });
   return {
-    open,
+    open: openCard,
     close,
+    forget() {
+      close(false, false);
+      ticketLabel.textContent = "";
+      title.textContent = "";
+      description.replaceChildren();
+      metadata.replaceChildren();
+      hierarchy.replaceChildren();
+      missingDraft.replaceChildren();
+      setStatus("");
+    },
     hideForBoardClose: () => close(false, false, true),
     refresh,
-    showRetained(reference: CardReference, opener?: HTMLElement, focus = true) {
-      const retained = retainedCard?.(reference);
-      if (!retained) return;
-      open(reference, opener, focus, false);
-      showConfirmedText(retained);
-      metadata.replaceChildren();
-      details.hidden = false;
-      setStatus("Showing previously loaded card text.");
-    },
-    refreshRestored() {
+    showRetained,
+    prepareRestored() {
       if (!selection) return;
       selection.restored = true;
       selection.read?.abort();
-      refresh();
     },
     suspendRead() {
       selection?.read?.abort();
@@ -626,7 +647,9 @@ export function mountCardView(
     tools,
     title,
     description,
-    showConfirmedText,
+    showConfirmedText(text: { title: string; description: string }) {
+      if (canRead()) showConfirmedText(text);
+    },
     ticketLink,
     get selected() {
       return selection?.reference ?? null;

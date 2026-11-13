@@ -12,6 +12,7 @@ type ReadableBoard = Readonly<{
   revision: number;
   authorName: AuthorName;
   authorKind: AuthorKind;
+  hasSource: (cardId: string, ticket: number) => boolean;
 }>;
 type NewestCommentsOptions = Readonly<{
   api: Pick<AppContext["api"], "listComments">;
@@ -117,6 +118,8 @@ export function mountNewestComments(
       );
       if (!isCurrent()) return;
       const rows = readBoardComments(reply.data, boardId).map(({ comment, cardId, ticket }) => {
+        if (!board.hasSource(cardId, ticket))
+          throw new TypeError("Unconfirmed board comment source.");
         const row = renderComment(
           doc,
           comment,

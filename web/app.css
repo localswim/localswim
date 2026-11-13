@@ -157,6 +157,22 @@ header a {
 .lane-settings :is(input, select, textarea) {
   max-inline-size: 100%;
 }
+
+.newest-comments {
+  margin-block: 0.5rem;
+}
+
+.newest-comments .card-comment-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 0.5rem;
+  padding-inline-start: 1.5rem;
+  overflow-wrap: anywhere;
+}
+
+.newest-comments .card-comment-list[hidden] {
+  display: none;
+}
 #workspace-layout {
   display: grid;
   gap: 0.75rem;

@@ -193,3 +193,17 @@ test("focused unhealthy metadata fences retained data before catalog catches up"
   assert.equal(app.view.name, null);
   assert.equal(app.view.availability, "unavailable");
 });
+
+test("an unhealthy closed board reports damage without revealing retained cards", async (t) => {
+  const app = setup(t, { retained });
+  app.metadata("closed");
+  app.catalog({ ...unhealthy, errorCode: "durable_state_changed" });
+  app.state.start();
+  await app.state.retry();
+  assert.equal(app.view.availability, "unhealthy");
+  assert.equal(app.view.data, null);
+  assert.equal(app.view.startupQuarantined, false);
+  assert.equal(app.view.lifecycleReady, false);
+  assert.equal(app.view.writesFenced, true);
+  assert.match(app.view.healthDiagnostic, /differs from the last accepted state/);
+});

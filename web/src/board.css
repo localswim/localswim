@@ -199,6 +199,16 @@
   background: #f8fafd;
 }
 
+.board-view .board-view-card-pending {
+  border-style: dashed;
+}
+
+.board-view-pending-label {
+  color: var(--board-view-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
 .board-view .board-view-card-title,
 .board-view .board-view-card-meta,
 .board-view .board-view-card-actor {

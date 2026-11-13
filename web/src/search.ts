@@ -10,6 +10,7 @@ type SearchOptions = AppContext &
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     onOpenCard: (reference: { id: string }, opener: HTMLButtonElement) => void;
     onViewChange: (state: DeeperSearchState) => void;
+    canRead?: () => boolean;
   }>;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -69,7 +70,15 @@ function readResults(
 
 export function mountCardSearch(
   host: HTMLElement,
-  { api, signal: ownerSignal, boardId, readWithSession, onOpenCard, onViewChange }: SearchOptions,
+  {
+    api,
+    signal: ownerSignal,
+    boardId,
+    readWithSession,
+    onOpenCard,
+    onViewChange,
+    canRead = () => true,
+  }: SearchOptions,
 ) {
   const doc = host.ownerDocument;
   const lifetime = new AbortController();
@@ -236,6 +245,10 @@ export function mountCardSearch(
   }
 
   async function search(fields = readControls(), cursor?: string) {
+    if (!canRead()) {
+      setStatus("Card search is unavailable.");
+      return;
+    }
     const count = Number(fields.limit);
     if (
       !fields.query.isWellFormed() ||
@@ -279,7 +292,7 @@ export function mountCardSearch(
           ),
         readSignal,
       );
-      if (readSignal.aborted) return;
+      if (readSignal.aborted || !canRead()) return;
       const { matches, next } = readResults(data, boardId, count, fields.archive);
       if (fields.archive === "only" && matches.length > 0) {
         if ((next && seenCursors.has(next)) || matches.some(({ id }) => seenIds.has(id))) {
@@ -365,7 +378,7 @@ export function mountCardSearch(
     "click",
     (event) => {
       const opener = (event.target as Element | null)?.closest<HTMLButtonElement>("button");
-      if (opener?.dataset.cardId) onOpenCard({ id: opener.dataset.cardId }, opener);
+      if (canRead() && opener?.dataset.cardId) onOpenCard({ id: opener.dataset.cardId }, opener);
     },
     { signal },
   );
@@ -403,6 +416,16 @@ export function mountCardSearch(
       else setStatus("");
     },
     suspend: markStale,
+    forget() {
+      resetSearch();
+      paintResults([]);
+      lanes = [];
+      setLanes("");
+      revision = undefined;
+      restorePending = false;
+      submitted = false;
+      setStatus("Card search is unavailable.");
+    },
     dispose() {
       lifetime.abort();
       panel.remove();

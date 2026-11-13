@@ -19,15 +19,16 @@ const MAX_RETRY_MS = 8000;
 export function createBoardRefresh({ signal, read, revision, canReadAutomatically, report }) {
   let hintedRevision = 0;
   let catchUp = false;
+  /** @type {Promise<unknown>} */
   let tail = Promise.resolve();
   /** @type {"ready"|"error"} */
   let settledState = "ready";
-  /** @type {{manual: boolean, result: Promise<void>}|undefined} */
+  /** @type {{manual: boolean, result: Promise<boolean>}|undefined} */
   let queued;
 
   /** @param {boolean} manual */
   function queue(manual) {
-    if (signal.aborted) return Promise.resolve();
+    if (signal.aborted) return Promise.resolve(false);
     if (queued) {
       queued.manual ||= manual;
       return queued.result;
@@ -38,12 +39,12 @@ export function createBoardRefresh({ signal, read, revision, canReadAutomaticall
         .catch(() => {})
         .then(async () => {
           queued = undefined;
-          if (signal.aborted) return;
+          if (signal.aborted) return false;
           if (
             !job.manual &&
             (!canReadAutomatically() || (!catchUp && hintedRevision <= revision()))
           )
-            return;
+            return false;
           const target = hintedRevision;
           const reconnect = catchUp;
           hintedRevision = 0;
@@ -51,7 +52,7 @@ export function createBoardRefresh({ signal, read, revision, canReadAutomaticall
           report("refreshing");
           try {
             const applied = await read(!job.manual);
-            if (signal.aborted) return;
+            if (signal.aborted) return false;
             if (applied) {
               settledState = "ready";
               report(settledState);
@@ -62,11 +63,13 @@ export function createBoardRefresh({ signal, read, revision, canReadAutomaticall
               report(settledState);
               resume();
             }
+            return applied;
           } catch (error) {
-            if (signal.aborted) return;
+            if (signal.aborted) return false;
             settledState = "error";
             report(settledState);
             if (job.manual) throw error;
+            return false;
           }
         }),
     };

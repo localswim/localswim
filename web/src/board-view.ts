@@ -616,7 +616,10 @@ export function mountBoardView(
     });
     if (focused instanceof ElementType && focusLane && shadow.activeElement !== focused) {
       const lane = lanes.find(({ lane }) => lane.id === focusLane);
-      const target = focused.isConnected ? focused : (lane?.scroll ?? filter);
+      const target =
+        focused.isConnected && !focused.closest("[hidden]") && !focused.matches(":disabled")
+          ? focused
+          : (lane?.scroll ?? filter);
       target.focus({ preventScroll: true });
     }
     refreshMovement();

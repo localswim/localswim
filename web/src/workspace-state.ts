@@ -181,8 +181,8 @@ export function createWorkspaceState({
     observedAt: null,
     totalAttention: 0,
   });
-  let tail = Promise.resolve();
-  let queued: Promise<void> | undefined;
+  let tail: Promise<unknown> = Promise.resolve();
+  let queued: Promise<boolean> | undefined;
   let queuedPeriodic = false;
   let catalogEpoch = 0;
 
@@ -252,8 +252,8 @@ export function createWorkspaceState({
     }
   }
 
-  function refresh(periodic = false): Promise<void> {
-    if (signal.aborted) return Promise.resolve();
+  function refresh(periodic = false): Promise<boolean> {
+    if (signal.aborted) return Promise.resolve(false);
     queuedPeriodic ||= periodic;
     // A hint during a paginated read queues one follow-up after the current read settles.
     queued ??= tail
@@ -261,7 +261,7 @@ export function createWorkspaceState({
         queued = undefined;
         const checkRecovery = queuedPeriodic;
         queuedPeriodic = false;
-        if (signal.aborted) return;
+        if (signal.aborted) return false;
         const epoch = catalogEpoch;
         let next: WorkspaceView;
         try {
@@ -269,12 +269,14 @@ export function createWorkspaceState({
         } catch {
           next = Object.freeze({ ...view, status: "error" });
         }
-        if (signal.aborted || epoch !== catalogEpoch) return;
+        if (signal.aborted || epoch !== catalogEpoch) return false;
         view = next;
         onChange(view, checkRecovery);
+        return next.status === "ready";
       })
       .catch((error: unknown) => {
         globalThis.reportError(error);
+        return false;
       });
     tail = queued;
     return queued;

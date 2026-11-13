@@ -328,6 +328,16 @@ with workspace Attention for that view. A transient catalog failure or a refused
 page cursor gets one retry from the first page. The last complete catalog remains
 visible until a fresh read succeeds.
 
+Use **Refresh** on an open board or Workspace to request an immediate read.
+The board keeps the current selection and drafts. **Retry board update**
+recovers a failed board read or connection. If the service reports an
+unhealthy board and the tab has a last confirmed view, the board shows it
+read-only with the saved-state status. A board that failed startup admission
+may have no readable view.
+
+**Newest comments** shows the two most recent saved comments across active
+cards on the current board. Follow a source ticket to open its card drawer.
+
 Run the focused checks with `npm --prefix web run check` and `npm --prefix web test`.
 
 ### Turn 6 board actions

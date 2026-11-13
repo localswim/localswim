@@ -12,7 +12,7 @@ import type { BoardPolicyContext, BrowserPrincipal } from "./board-policy.js";
 import { createBoardState } from "./board-state.js";
 import type { BoardStateView } from "./board-state.js";
 import { mountBoardView } from "./board-view.js";
-import type { BoardViewData } from "./board-view.js";
+import type { BoardPendingChange, BoardViewData, ProjectBoardPending } from "./board-view.js";
 import { mountCardApproval } from "./card-approval.js";
 import { mountCardAssignment } from "./card-assignment.js";
 import { createCardMovement, mountCardMovement } from "./card-movement.js";
@@ -25,7 +25,9 @@ import { createCardTextDrafts } from "./drafts.js";
 import type { ConfirmedCardText } from "./drafts.js";
 import { mountLaneApproval } from "./lane-approval.js";
 import { mountLaneSettings } from "./lane-settings.js";
+import { mountManualRefresh } from "./manual-refresh.js";
 import { parseRoute } from "./model.js";
+import { mountNewestComments } from "./newest-comments.js";
 import { mountPublishingSettings } from "./publishing-settings.js";
 import { createRecentBoards } from "./recent-boards.js";
 import type { RecentBoards } from "./recent-boards.js";
@@ -47,6 +49,10 @@ type RouteRuntime = {
   workspace?: ReturnType<typeof createWorkspaceState>;
   streamClosed?: Promise<void>;
   writes: Set<string>;
+  pendingChanges: Map<string, BoardPendingChange>;
+  projectPending: ProjectBoardPending;
+  refreshPending?: (boardId: string) => void;
+  confirmPending?: (boardId: string) => Promise<boolean> | undefined;
   stagedFiles: Map<string, CreateCardFileDraft>;
   cardVersions: Map<string, { revision: number; etag: string }>;
   onWriteSettled?: () => void;
@@ -92,9 +98,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       : (linkSelection ?? restored?.selection ?? null);
   let pendingViewSave = false;
   let pageActive = true;
+  let drawerReadPaused = false;
   let departureView = "";
   let title = "localswim";
   let totalAttention = 0;
+  let catalogReady = false;
   let board: ReturnType<typeof mountBoardView> | undefined;
   let boardData: BoardViewData | undefined;
   let boardState: ReturnType<typeof createBoardState> | undefined;
@@ -123,6 +131,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let movementPanel: ReturnType<typeof mountCardMovement> | undefined;
   let createCard: ReturnType<typeof mountCreateCard> | undefined;
   let comments: ReturnType<typeof mountCardComments> | undefined;
+  let newestComments: ReturnType<typeof mountNewestComments> | undefined;
   let commentsBinding: AbortController | undefined;
   let commentsHost: HTMLElement | undefined;
   let attachments: ReturnType<typeof mountAttachments> | undefined;
@@ -147,6 +156,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let retainedRestoreSelection: string | undefined;
   let laneApprovalDrawer: string | undefined;
   const boardHost = doc.createElement("div");
+  const refreshHost = doc.createElement("div");
+  const newestCommentsHost = doc.createElement("div");
   const boardTools = doc.createElement("details");
   const boardToolsSummary = doc.createElement("summary");
   boardToolsSummary.textContent = "Board settings";
@@ -167,8 +178,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   retryAccess.textContent = "Retry access check";
   access.hidden = true;
   access.append(accessStatus, retryAccess);
-  content.append(retry, boardTools, searchHost, boardHost);
-  if (route.kind === "workspace") workspaceTools.append(access);
+  content.append(refreshHost, retry, boardTools, newestCommentsHost, searchHost, boardHost);
+  if (route.kind === "workspace") workspaceTools.append(access, refreshHost);
   else content.prepend(access);
   root.dataset.route = route.kind;
   boardRegion.hidden = route.kind === "workspace";
@@ -211,14 +222,20 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         }
       : undefined,
     onChange(catalog, periodic) {
+      catalogReady = catalog.status === "ready";
       attention.update(catalog, selectedBoardId);
       sidebar.updateCatalog(catalog);
       if (catalog.status === "ready") {
-        for (const entry of catalog.boards) {
-          if (entry.availability === "closed" || entry.availability === "unhealthy") {
-            runtime.cache.delete(entry.id);
-          }
-        }
+        runtime.cache.retainCatalog(
+          new Set(
+            catalog.boards
+              .filter(
+                ({ availability, revision }) =>
+                  availability === "open" || (availability === "unhealthy" && revision !== null),
+              )
+              .map(({ id }) => id),
+          ),
+        );
       }
       boardState?.observeCatalog(catalog, periodic);
       totalAttention = catalog.totalAttention;
@@ -249,6 +266,29 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
 
   const context = { api: workspace.api, signal };
   const { readWithSession } = workspace;
+  if (route.kind !== "missing") {
+    mountManualRefresh(refreshHost, {
+      signal,
+      scope: route.kind,
+      async refresh() {
+        if (!pageActive || signal.aborted) return false;
+        const refreshed = await workspace.refresh();
+        if (!refreshed || !pageActive || signal.aborted) return false;
+        if (!selectedBoardId) {
+          void sidebar.refresh();
+          void publishing?.refresh();
+          return true;
+        }
+        drawerNeedsConfirmation = true;
+        const confirmed = await boardState?.retry();
+        if (!confirmed || !pageActive || signal.aborted) return false;
+        const current = boardSnapshot;
+        if (current?.availability !== "open" || current.readiness !== "ready") return false;
+        if (!drawerReadPaused) comments?.refreshSaved();
+        return true;
+      },
+    });
+  }
   const serviceOptions = {
     ...context,
     readWithSession,
@@ -369,6 +409,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     updateArchive();
     movementPanel?.update();
     comments?.update();
+    newestComments?.update();
     createCard?.update();
     batchPriority?.update();
     ticketOrder?.update();
@@ -379,6 +420,20 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     updateDrawerTools();
   }
   runtime.onWriteSettled = updateWriteControls;
+  runtime.refreshPending = (boardId) => {
+    if (boardId === selectedBoardId && pageActive) board?.refreshPending();
+  };
+  runtime.confirmPending = (boardId) => {
+    if (
+      boardId === selectedBoardId &&
+      pageActive &&
+      boardSnapshot?.availability !== "unavailable" &&
+      boardSnapshot?.availability !== "missing"
+    ) {
+      return boardState?.retry();
+    }
+    return undefined;
+  };
   runtime.refreshBoard = (boardId) => {
     if (boardId === selectedBoardId) refreshBoardAndDrawer();
   };
@@ -435,7 +490,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
 
   async function awaitUploadAdmission(requestSignal: AbortSignal, confirmedCardRevision: number) {
     const confirmation = AbortSignal.any([signal, requestSignal, AbortSignal.timeout(5000)]);
-    boardState?.retry();
+    void boardState?.retry();
     while (
       !confirmation.aborted &&
       pageActive &&
@@ -590,7 +645,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         ? "id" in current && selection.id === current.id
         : "ticket" in current && selection.ticket === current.ticket);
     if (selection && !matches) {
-      if (boardSnapshot?.confirmedRevision === null) {
+      if (
+        boardSnapshot?.confirmedRevision === null ||
+        boardSnapshot?.availability === "unhealthy"
+      ) {
         drawer?.showRetained(selection, undefined, false);
         drawerNeedsConfirmation = true;
       } else {
@@ -665,6 +723,15 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     setPhase("missing", "Board not found.");
   }
 
+  function commentAuthorName(id: string) {
+    const user = boardData?.users.find((entry) => entry.id === id);
+    return user
+      ? (boardData?.board.actor_presentation?.[user.kind]?.label ?? user.label)
+      : "Unknown author";
+  }
+
+  const commentAuthorKind = (id: string) => boardData?.users.find((user) => user.id === id)?.kind;
+
   function updateDrawerEditor(next: DrawerTextContext | null) {
     if (!next || !drawer || !selectedBoardId) {
       textBinding?.abort();
@@ -721,7 +788,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             drawer?.showConfirmedText(saved);
           }
           if (pageActive) {
-            boardState?.retry();
+            void boardState?.retry();
             drawer?.refresh();
           }
         },
@@ -769,13 +836,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
               !cardWorkPending(card.cardId),
           };
         },
-        authorName(id) {
-          const user = boardData?.users.find((entry) => entry.id === id);
-          return user
-            ? (boardData?.board.actor_presentation?.[user.kind]?.label ?? user.label)
-            : "Unknown author";
-        },
-        authorKind: (id) => boardData?.users.find((user) => user.id === id)?.kind,
+        authorName: commentAuthorName,
+        authorKind: commentAuthorKind,
         ticketLink: drawer.ticketLink,
         beginWrite: beginCardWrite,
         onConfirmed: refreshBoardAndDrawer,
@@ -786,7 +848,13 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   }
 
   function renderBoard(state: BoardStateView) {
+    const previousAvailability = boardSnapshot?.availability;
     boardSnapshot = state;
+    const admissionLost =
+      state.startupQuarantined ||
+      state.availability === "unavailable" ||
+      state.availability === "missing";
+    if (admissionLost) resetPolicy();
     if (principal === null && !principalReadFailed && state.connection === "connected") {
       void refreshPrincipal();
     }
@@ -812,13 +880,20 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       drawerNeedsConfirmation = true;
       publishingTag = null;
     }
-    if (state.confirmedRevision !== null) {
+    if (!admissionLost && state.confirmedRevision !== null) {
       boardRegion.dataset.revision = String(state.confirmedRevision);
+    } else {
+      delete boardRegion.dataset.revision;
     }
     if (name !== null) {
       boardName.textContent = name;
       boardName.hidden = false;
       title = `${name} · localswim`;
+      updateTitle();
+    } else if (admissionLost) {
+      boardName.textContent = "";
+      boardName.hidden = true;
+      title = "localswim";
       updateTitle();
     }
     if (selectedBoardId) {
@@ -831,19 +906,23 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         runtime.cache.remember(data);
       } else if (
         availability === "closed" ||
-        availability === "unhealthy" ||
+        (availability === "unhealthy" && data === null) ||
         availability === "unavailable" ||
         availability === "missing"
       ) {
         runtime.cache.delete(selectedBoardId);
       }
     }
+    if (admissionLost) {
+      drawer?.forget();
+      search?.forget();
+    }
     if (data === null && board) {
       if (availability === "closed") {
         saveBoardView();
         drawerNeedsConfirmation = true;
         drawer?.hideForBoardClose();
-      } else {
+      } else if (!admissionLost) {
         drawer?.close(false);
       }
       board.dispose();
@@ -860,7 +939,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         board = mountBoardView(boardHost, data, {
           onOpenCard: (card, opener) => {
             retainedRestoreSelection = undefined;
-            if (boardSnapshot?.confirmedRevision === null) {
+            if (
+              boardSnapshot?.confirmedRevision === null ||
+              boardSnapshot?.availability === "unhealthy"
+            ) {
               drawer?.showRetained({ id: card.id }, opener);
               drawerNeedsConfirmation = true;
             } else {
@@ -873,6 +955,12 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             laneApproval?.update();
             updateLaneCreate();
           },
+          pendingChanges: () =>
+            pageActive && boardSnapshot?.availability === "open" && selectedBoardId
+              ? [...runtime.pendingChanges.values()].filter(
+                  ({ boardId }) => boardId === selectedBoardId,
+                )
+              : [],
           movement,
           mountCover(host, card, coverSignal) {
             if (!previewsAllowed || !selectedBoardId) return;
@@ -931,13 +1019,20 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         });
         restoreBoardView();
       }
-      if (previous && previous.board.revision !== data.board.revision) {
+      if (availability === "open" && previous && previous.board.revision !== data.board.revision) {
         drawer?.refresh();
-        if (!writesFenced) drawerNeedsConfirmation = false;
+        if (!writesFenced && !drawerReadPaused) drawerNeedsConfirmation = false;
       }
     } else if (previewChanged && board && boardData) {
       board.update(boardData);
     }
+    if (availability === "unhealthy" && previousAvailability !== "unhealthy" && selection && data) {
+      drawerNeedsConfirmation = true;
+      if (drawer?.selected && !drawer.showRetained(selection, undefined, false)) {
+        drawer.hideForBoardClose();
+      }
+    }
+    if (previousAvailability !== availability) board?.refreshPending();
     updateLaneCreate();
     batchPriority?.update();
     ticketOrder?.update();
@@ -946,15 +1041,23 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     backup?.update();
     updateRestore();
     if (!writesFenced && data && state.confirmedEtag === data.etag) {
-      search?.update(data.lanes, data.board.revision);
+      if (!drawerReadPaused) search?.update(data.lanes, data.board.revision);
       if (boardTools.open && publishingTag !== state.confirmedEtag) {
         publishingTag = state.confirmedEtag;
         void publishing?.refresh();
       }
     }
     updateDrawerTools();
+    newestComments?.update();
     if (!writesFenced && drawerNeedsConfirmation) {
       drawerNeedsConfirmation = false;
+      const resumed = drawerReadPaused;
+      drawerReadPaused = false;
+      if (resumed) {
+        comments?.refreshSaved();
+        board?.refreshPending();
+        if (data) search?.update(data.lanes, data.board.revision);
+      }
       if (selection && drawer?.selected === null) drawer.open(selection, undefined, false);
       else drawer?.refresh();
     }
@@ -970,9 +1073,12 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     if (availability === "unhealthy" || availability === "unavailable") {
       const message =
         availability === "unhealthy"
-          ? "This board’s saved state is unhealthy."
+          ? (state.healthDiagnostic ?? "This board’s saved state is unhealthy.")
           : "This board is unavailable.";
-      setPhase("error", `${message}${retained}`);
+      setPhase(
+        "error",
+        `${message}${availability === "unhealthy" && data ? " Showing last confirmed cards. Changes are unavailable." : retained}`,
+      );
       return;
     }
     if (readiness === "error") {
@@ -1087,7 +1193,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   function refreshBoardAndDrawer() {
     if (signal.aborted) return;
     search?.suspend();
-    boardState?.retry();
+    void boardState?.retry();
     drawer?.refresh();
   }
 
@@ -1147,6 +1253,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       signal,
       readWithSession: workspace.readWithSession,
       getBoardData: () => boardData,
+      canRead: () => pageActive && !drawerReadPaused && boardSnapshot?.availability === "open",
       retainedCard(reference) {
         return boardData?.cards.find((card) =>
           "id" in reference ? card.id === reference.id : card.ticket === reference.ticket,
@@ -1209,10 +1316,38 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         }
       },
     });
+    newestComments = mountNewestComments(newestCommentsHost, {
+      ...context,
+      boardId: selectedBoardId,
+      readWithSession,
+      context: () => {
+        const data = boardData;
+        return pageActive &&
+          catalogReady &&
+          boardSnapshot?.availability === "open" &&
+          boardSnapshot.connection === "connected" &&
+          boardSnapshot.readiness === "ready" &&
+          !boardSnapshot.writesFenced &&
+          data?.etag === boardSnapshot.confirmedEtag &&
+          !hasPendingServiceActivation() &&
+          !hasPendingBoardRestore(doc, selectedBoardId)
+          ? {
+              revision: data.board.revision,
+              authorName: commentAuthorName,
+              authorKind: commentAuthorKind,
+              hasSource: (cardId, ticket) =>
+                data.cards.some((card) => card.id === cardId && card.ticket === ticket),
+            }
+          : null;
+      },
+      ticketLink: drawer.ticketLink,
+      onOpenCard: (cardId, opener) => drawer?.open({ id: cardId }, opener),
+    });
     search = mountCardSearch(searchHost, {
       ...context,
       readWithSession,
       boardId: selectedBoardId,
+      canRead: () => pageActive && !drawerReadPaused && boardSnapshot?.availability === "open",
       onOpenCard: (reference, opener) => drawer?.open(reference, opener),
       onViewChange(state) {
         if (!restored) return;
@@ -1369,7 +1504,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           ? beginWrite(selectedBoardId)
           : null,
       onStateChange: () => runtime.onWriteSettled?.(),
-      onReconciled: () => comments?.refreshSaved(),
+      onReconciled: () => {
+        comments?.refreshSaved();
+        newestComments?.refresh();
+      },
       refresh: (boardId, revision) => runtime.refreshRestoredBoard?.(boardId, revision),
     });
     const canInspectLaneSettings = () =>
@@ -1555,6 +1693,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       ...context,
       readWithSession,
       boardId: selectedBoardId,
+      projectPending: runtime.projectPending,
       getBoardData: () => boardData,
       getPolicy: () => policy,
       canWrite: () => boardWritable() && !runtime.writes.has(selectedBoardId),
@@ -1583,6 +1722,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       readWithSession,
       boardId: selectedBoardId,
       isPageActive: () => pageActive,
+      projectPending: runtime.projectPending,
       stagedFiles: runtime.stagedFiles,
       ...(uploads ? { attachments: { canStage: canUpload, upload: uploads.submitCreated } } : {}),
       beginWrite: (relatedCardIds = []) => beginBoardCardWrite(relatedCardIds),
@@ -1624,6 +1764,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       ...context,
       readWithSession,
       boardId: selectedBoardId,
+      projectPending: runtime.projectPending,
       getBoardData: () => boardData,
       getContext: () =>
         drawerText && {
@@ -1698,6 +1839,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       runtime.onWriteSettled = undefined;
       runtime.refreshBoard = undefined;
       runtime.refreshRestoredBoard = undefined;
+      runtime.refreshPending = undefined;
+      runtime.confirmPending = undefined;
     }
     if (runtime.onServicePendingChange === updateAccessControls) {
       runtime.onServicePendingChange = undefined;
@@ -1723,11 +1866,13 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     }
     sidebar.suspend();
     search?.suspend();
+    newestComments?.suspend();
     ticketOrder?.suspend();
     laneApproval?.suspend();
     publishing?.suspend();
     attention.cancelReorder();
     board?.cancelMovement();
+    board?.refreshPending();
     board?.revokeCovers();
     attachments?.show(null);
     drawer?.suspendRead();
@@ -1736,6 +1881,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   function resumeOnReturn(event: PageTransitionEvent) {
     if (!event.persisted) return;
     pageActive = true;
+    drawerReadPaused = true;
+    drawerNeedsConfirmation = true;
     workspace.requireFreshCatalog();
     boardState?.requireFreshConfirmation();
     focusedTextConfirmed = false;
@@ -1744,7 +1891,6 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     void publishing?.resume();
     backup?.update();
     drafts.refresh();
-    comments?.refreshSaved();
     if (selectedBoardId) {
       const latest = views.read(selectedBoardId);
       if (latest && JSON.stringify(latest) !== departureView) {
@@ -1753,9 +1899,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         selection = latest.selection;
         restoreBoardView();
       }
-      drawer?.refreshRestored();
+      drawer?.prepareRestored();
     }
-    drawerNeedsConfirmation = true;
     void workspace.refresh().then(() => boardState?.retry());
   }
 
@@ -1773,6 +1918,24 @@ export function mount(root: HTMLElement): () => void {
   const runtime: RouteRuntime = {
     cache: createRecentBoards(),
     writes: new Set(),
+    pendingChanges: new Map(),
+    projectPending(change) {
+      const key = `${change.boardId}:${change.cardId}`;
+      runtime.pendingChanges.set(key, change);
+      runtime.refreshPending?.(change.boardId);
+      function clear() {
+        if (runtime.pendingChanges.get(key) !== change) return;
+        runtime.pendingChanges.delete(key);
+        runtime.refreshPending?.(change.boardId);
+      }
+      return (settlement?: "confirmed") => {
+        if (runtime.pendingChanges.get(key) !== change) return;
+        const confirmation =
+          settlement === "confirmed" ? runtime.confirmPending?.(change.boardId) : undefined;
+        if (confirmation) void confirmation.finally(clear);
+        else clear();
+      };
+    },
     stagedFiles: new Map(),
     cardVersions: new Map(),
     navigate(url) {
@@ -1783,6 +1946,7 @@ export function mount(root: HTMLElement): () => void {
       routeDispose = mountRoute(root, runtime);
     },
     drafts: createCardTextDrafts({
+      projectPending: (change) => runtime.projectPending(change),
       api: {
         getCard(id, signal) {
           const active = runtime.workspace;

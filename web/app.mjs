@@ -747,7 +747,7 @@ function watchPreferenceWrite(key, update) {
  * @param {{data: Publishing, etag: string}|undefined} initial
  * @param {() => Promise<{data: Publishing, etag: string}>} read
  * @param {(enabled: boolean, tag: string) => Promise<unknown>} save
- * @param {() => Promise<void>} afterSave @param {Inspection} inspection */
+ * @param {() => Promise<void | boolean>} afterSave @param {Inspection} inspection */
 function renderPublishing(scope, key, initial, read, save, afterSave, inspection) {
   const panel = element("section");
   const enabled = element("input");
@@ -1673,7 +1673,7 @@ function moveDestinations(lanes, workflow, source) {
 }
 
 /** @param {Card} card @param {string} destination @param {string|(() => Promise<string>)} validator
- * @param {HTMLButtonElement|null} submit @param {() => Promise<void>} reloadBoard @param {Inspection} inspection */
+ * @param {HTMLButtonElement|null} submit @param {() => Promise<void | boolean>} reloadBoard @param {Inspection} inspection */
 function moveCard(card, destination, validator, submit, reloadBoard, inspection) {
   const { id, board_id: boardId } = card;
   /** @type {PendingCard} */
@@ -2011,7 +2011,7 @@ function laneNotes(lane) {
 }
 
 /** @param {string} boardId @param {Pick<Card, "id">} summary @param {Lane[]} lanes @param {User[]} users
- * @param {Labeled[]} priorities @param {() => string} boardTag @param {() => Promise<void>} reloadBoard
+ * @param {Labeled[]} priorities @param {() => string} boardTag @param {() => Promise<void | boolean>} reloadBoard
  * @param {() => Workflow|null} currentWorkflow @param {HTMLElement} opener
  * @param {() => ActorPresentation|undefined} presentation @param {boolean} [restoring] */
 async function openCard(
@@ -4865,7 +4865,7 @@ async function load(savedAvailability) {
   }
 
   /** @param {string} id @param {import("./api.mjs").AvailabilityChange} requested @param {() => string} currentTag
-   * @param {(latest: BoardAvailability) => Promise<void>} refreshCurrent @param {Inspection} inspection */
+   * @param {(latest: BoardAvailability) => Promise<void | boolean>} refreshCurrent @param {Inspection} inspection */
   function availabilityForm(id, requested, currentTag, refreshCurrent, inspection) {
     const action = form(requested === "open" ? "Reopen board" : "Close board", [], (submit) => {
       if (!action.isConnected || view !== activeView) return;
@@ -6309,7 +6309,7 @@ function completedBefore(completedAt, cutoff) {
 }
 
 /** @param {string} boardId @param {Lane[]} lanes @param {Labeled[]} users
- * @param {() => string} boardTag @param {() => Promise<void>} reloadBoard @param {Inspection} inspection */
+ * @param {() => string} boardTag @param {() => Promise<void | boolean>} reloadBoard @param {Inspection} inspection */
 function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspection) {
   const editor = element("details");
   editor.className = "editor";
@@ -6974,7 +6974,7 @@ function renderBackupControls(boardId, boardTag) {
 }
 
 /** @param {string} boardId @param {Labeled[]} priorities @param {() => Card[]} cards
- * @param {() => string} boardTag @param {() => Promise<void>} reloadBoard @param {Inspection} inspection */
+ * @param {() => string} boardTag @param {() => Promise<void | boolean>} reloadBoard @param {Inspection} inspection */
 function renderBoardActions(boardId, priorities, cards, boardTag, reloadBoard, inspection) {
   const panel = element("details");
   panel.className = "editor";

@@ -122,13 +122,13 @@ export function createBoardState({
       availability = catalogAvailability;
     } else if (
       !denied &&
-      availability !== "closed" &&
-      (catalogAvailability === "unhealthy" || (needsFullRead && data !== null))
+      (catalogAvailability === "unhealthy" ||
+        (availability !== "closed" && needsFullRead && data !== null))
     ) {
       availability = "unhealthy";
     }
     const hideContent = quarantined || denied || !catalogHasBoard;
-    if (hideContent || availability === "closed") data = null;
+    if (hideContent || availability === "closed" || focusedAvailability === "closed") data = null;
     const code = catalogAvailability === "unhealthy" ? catalogErrorCode : null;
     const healthDiagnostic =
       availability !== "unhealthy"
@@ -144,8 +144,8 @@ export function createBoardState({
       healthDiagnostic,
       connection,
       readiness,
-      confirmedRevision,
-      confirmedEtag,
+      confirmedRevision: hideContent ? null : confirmedRevision,
+      confirmedEtag: hideContent ? null : confirmedEtag,
       policyId: hideContent ? null : policyId,
       lifecycleReady:
         catalogReady &&
@@ -260,10 +260,7 @@ export function createBoardState({
       name = metadata.data.name;
       policyId = metadata.data.policy_id;
       focusedAvailability = metadata.data.availability;
-      if (
-        focusedAvailability === "unhealthy" ||
-        (focusedAvailability === "open" && catalogAvailability === "unhealthy")
-      ) {
+      if (focusedAvailability === "unhealthy" || catalogAvailability === "unhealthy") {
         needsFullRead = true;
         void inspectHealth(epoch);
       } else {
@@ -430,10 +427,11 @@ export function createBoardState({
   }
 
   function retry() {
-    if (!started || signal.aborted) return Promise.resolve();
+    if (!started || signal.aborted) return Promise.resolve(false);
     if (connection === "unavailable" && watchRecovery === "deferred") watchRecovery = "idle";
     return updates.request().catch(() => {
       // The refresh controller reports the failed read and preserves the last confirmed view.
+      return false;
     });
   }
 

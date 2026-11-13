@@ -109,6 +109,8 @@ function harness() {
             revision,
             authorName: (id) => (id === humanId ? "Terry" : "Bot"),
             authorKind: (id) => (id === humanId ? "human" : "bot"),
+            hasSource: (id, ticket) =>
+              (id === cardId && ticket === 9) || (id === otherCard && ticket === 12),
           },
     ticketLink(ticket, label) {
       const link = doc.createElement("a");
@@ -221,6 +223,8 @@ test("newest comments rejects malformed pages and reports failure separately fro
     reply(newest, { ...older, board_id: older.id }),
     reply(newest, { ...older, card_id: "#9" }),
     reply(newest, { ...older, ticket: -1 }),
+    reply(newest, { ...older, ticket: 12 }),
+    reply(newest, { ...older, card_id: older.id }),
     reply(newest, newest),
     reply(newest, older, { ...older, id: otherCard }),
     { data: { comments: [] } },

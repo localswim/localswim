@@ -85,6 +85,11 @@ export function createRecentBoards(storage?: Pick<Storage, "getItem" | "setItem"
     delete(boardId: string) {
       remove(boardId.toLowerCase());
     },
+    retainCatalog(boardIds: ReadonlySet<string>) {
+      for (const id of entries.keys()) {
+        if (!boardIds.has(id)) remove(id);
+      }
+    },
     setBudgetMiB(mib: number): boolean {
       if (!validBudget(mib)) throw new RangeError("Invalid recent board cache budget.");
       budgetMiB = mib;

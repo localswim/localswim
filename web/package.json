@@ -10,7 +10,7 @@
     "lint": "oxlint --no-ignore --config .oxlintrc.json .",
     "format": "prettier --write \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
     "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
-    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn5-attachments.test.mjs turn6.test.mjs turn6-service-tools.test.mjs turn7.test.mjs turn7-ui.test.mjs turn7-relationships.test.mjs turn7-create-card.test.mjs turn7-create-card-seeds.test.mjs turn7-comments.test.mjs turn7-publishing.test.mjs turn7-board-lifecycle.test.mjs turn7-card-approval.test.mjs turn7-ticket-order.test.mjs turn8-uploads.test.mjs turn8-batch-priority.test.mjs turn8-backup.test.mjs turn8-backup-publication.test.mjs turn8-restore.test.mjs turn9-lane-approval.test.mjs"
+    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn5-attachments.test.mjs turn6.test.mjs turn6-service-tools.test.mjs turn7.test.mjs turn7-ui.test.mjs turn7-relationships.test.mjs turn7-create-card.test.mjs turn7-create-card-seeds.test.mjs turn7-comments.test.mjs turn7-publishing.test.mjs turn7-board-lifecycle.test.mjs turn7-card-approval.test.mjs turn7-ticket-order.test.mjs turn8-uploads.test.mjs turn8-batch-priority.test.mjs turn8-backup.test.mjs turn8-backup-publication.test.mjs turn8-restore.test.mjs turn9-lane-approval.test.mjs turn9-create-card-files.test.mjs turn9-lane-settings.test.mjs"
   },
   "devDependencies": {
     "@types/node": "26.6.6",

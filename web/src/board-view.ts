@@ -11,6 +11,10 @@ type Priority = Label & Readonly<{ rank: number }>;
 type BoardLane = Label &
   Readonly<{
     role: string;
+    key: string;
+    position: number;
+    revision: number;
+    retired: boolean;
     approval_enabled: boolean;
     bulk_approval_comment?: string;
     reorder_enabled: boolean;

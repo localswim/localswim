@@ -157,11 +157,12 @@ reports when a dependency floor prevents the requested demotion. After a
 stale or uncertain result, compare the saved priority with your selection
 before submitting again.
 
-In **New card**, use **Files to attach** or paste files into the form. You can
-remove individual files before submitting. Staged files stay in the current tab
-for that board until the card is confirmed. After creation, the same card drawer
-shows per-file upload results. The card and its confirmed files stay saved if a
-later upload fails.
+In **New card**, use **Files to stage** or paste a clipboard image into the
+form. You can remove individual files before submitting. Staged file bytes
+stay in the current page's memory for that board until the confirmed card
+accepts them. The card drawer shows per-file results. If a later upload
+fails, the card, links, and confirmed files stay saved. Reselect the remaining
+original files to resume on that card.
 
 Use **Files to attach** in the card drawer to select several attachments, then choose
 **Upload attachments**. You can also paste a clipboard image into the open drawer.
@@ -338,9 +339,12 @@ current and proposed assignments for the visible cards at the captured
 revision. Preview is read-only. Applying a change requires the full lane
 with the title and ticket filter cleared.
 
-In **Manage lanes**, **Change lane key** preserves the lane UUID. Saved lane
-labels display their current keys. The Completed lane is excluded from this
-control. The request retains the original lane and board validators.
+In **Board settings**, open **Manage lanes** to insert a lane after an existing
+lane and choose its creation and movement grants. **Save lane settings**
+preserves the lane UUID and checks the original lane and board validators.
+The Completed lane keeps its key and cannot be retired. A lane with active
+cards cannot be retired. Ready for Review lane settings include the bulk
+approval toggle and exact comment.
 
 In **Board settings**, **Set batch priority** accepts distinct ticket numbers,
 including archived unfinished cards. The service evaluates the selection in

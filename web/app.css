@@ -122,6 +122,27 @@ header a {
   min-inline-size: 0;
   max-inline-size: 26rem;
 }
+
+.lane-settings {
+  overflow-wrap: anywhere;
+}
+
+.lane-settings-form,
+.lane-settings-grants {
+  display: grid;
+  gap: 0.5rem 0.75rem;
+  min-inline-size: 0;
+}
+
+.lane-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.lane-settings :is(input, select, textarea) {
+  max-inline-size: 100%;
+}
 #workspace-layout {
   display: grid;
   gap: 0.75rem;

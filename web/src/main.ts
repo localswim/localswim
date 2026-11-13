@@ -19,11 +19,12 @@ import { createCardMovement, mountCardMovement } from "./card-movement.js";
 import { mountCardEditor } from "./card-editor.js";
 import { mountCardView } from "./card-view.js";
 import { mountCardComments } from "./comments.js";
-import { mountCreateCard } from "./create-card.js";
+import { mountCreateCard, type CreateCardFileDraft } from "./create-card.js";
 import type { DrawerTextContext } from "./card-view.js";
 import { createCardTextDrafts } from "./drafts.js";
 import type { ConfirmedCardText } from "./drafts.js";
 import { mountLaneApproval } from "./lane-approval.js";
+import { mountLaneSettings } from "./lane-settings.js";
 import { parseRoute } from "./model.js";
 import { mountPublishingSettings } from "./publishing-settings.js";
 import { createRecentBoards } from "./recent-boards.js";
@@ -46,6 +47,7 @@ type RouteRuntime = {
   workspace?: ReturnType<typeof createWorkspaceState>;
   streamClosed?: Promise<void>;
   writes: Set<string>;
+  stagedFiles: Map<string, CreateCardFileDraft>;
   cardVersions: Map<string, { revision: number; etag: string }>;
   onWriteSettled?: () => void;
   onServicePendingChange?: () => void;
@@ -127,6 +129,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let uploads: ReturnType<typeof mountUploads> | undefined;
   let approval: ReturnType<typeof mountCardApproval> | undefined;
   let laneApproval: ReturnType<typeof mountLaneApproval> | undefined;
+  let laneSettings: ReturnType<typeof mountLaneSettings> | undefined;
   let batchPriority: ReturnType<typeof mountBatchPriority> | undefined;
   let ticketOrder: ReturnType<typeof mountTicketOrder> | undefined;
   let backup: ReturnType<typeof mountBackup> | undefined;
@@ -366,9 +369,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     updateArchive();
     movementPanel?.update();
     comments?.update();
+    createCard?.update();
     batchPriority?.update();
     ticketOrder?.update();
     laneApproval?.update();
+    laneSettings?.update();
     backup?.update();
     publishing?.updatePermission();
     updateDrawerTools();
@@ -937,6 +942,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     batchPriority?.update();
     ticketOrder?.update();
     laneApproval?.update();
+    laneSettings?.update();
     backup?.update();
     updateRestore();
     if (!writesFenced && data && state.confirmedEtag === data.etag) {
@@ -1224,6 +1230,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     const restoreHost = doc.createElement("section");
     restoreHost.className = "board-restore";
     const recoveryHost = doc.createElement("section");
+    const laneSettingsHost = doc.createElement("section");
     const orderHost = doc.createElement("div");
     const laneApprovalHost = doc.createElement("div");
     boardTools.append(
@@ -1233,6 +1240,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       backupHost,
       publicationHost,
       restoreHost,
+      laneSettingsHost,
     );
     content.prepend(recoveryHost);
     content.append(orderHost, laneApprovalHost);
@@ -1363,6 +1371,23 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       onStateChange: () => runtime.onWriteSettled?.(),
       onReconciled: () => comments?.refreshSaved(),
       refresh: (boardId, revision) => runtime.refreshRestoredBoard?.(boardId, revision),
+    });
+    const canInspectLaneSettings = () =>
+      pageActive && !hasPendingServiceActivation() && !hasPendingBoardRestore(doc, selectedBoardId);
+    laneSettings = mountLaneSettings(laneSettingsHost, {
+      ...context,
+      boardId: selectedBoardId,
+      readWithSession,
+      getContext: () => ({
+        data: boardData?.etag === boardSnapshot?.confirmedEtag ? (boardData ?? null) : null,
+        actorId: policy?.principalId,
+        allowed: policyReady() && policy?.capabilities.has("manage_workflow") === true,
+        writable: boardWritable(),
+      }),
+      beginWrite: () => (boardWritable() ? beginWrite(selectedBoardId) : null),
+      canInspectSaved: canInspectLaneSettings,
+      beginInspection: () => (canInspectLaneSettings() ? beginWrite(selectedBoardId) : null),
+      onChange: () => runtime.refreshBoard?.(selectedBoardId),
     });
     lifecycle = mountBoardLifecycle(availabilityHost, {
       ...context,
@@ -1558,6 +1583,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       readWithSession,
       boardId: selectedBoardId,
       isPageActive: () => pageActive,
+      stagedFiles: runtime.stagedFiles,
+      ...(uploads ? { attachments: { canStage: canUpload, upload: uploads.submitCreated } } : {}),
       beginWrite: (relatedCardIds = []) => beginBoardCardWrite(relatedCardIds),
       beginInspection: () => beginWrite(selectedBoardId),
       context: () => {
@@ -1746,6 +1773,7 @@ export function mount(root: HTMLElement): () => void {
   const runtime: RouteRuntime = {
     cache: createRecentBoards(),
     writes: new Set(),
+    stagedFiles: new Map(),
     cardVersions: new Map(),
     navigate(url) {
       const target = new URL(url, view.location.href);

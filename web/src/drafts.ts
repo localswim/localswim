@@ -17,6 +17,7 @@ export type CardTextState = Readonly<{
     | "unknown"
     | "inspecting"
     | "refused"
+    | "storage-conflict"
     | "storage-error";
   canEdit: boolean;
   canSubmit: boolean;
@@ -54,7 +55,7 @@ type Draft = Readonly<{
 type Entry = {
   draft: Draft | null;
   raw: string | null | undefined;
-  storageProblem: "invalid" | "unavailable" | "unsaved" | undefined;
+  storageProblem: "invalid" | "unavailable" | "unsaved" | "conflict" | undefined;
   binding: DraftBindings | undefined;
   inspected: CardVersion | undefined;
   inspectionFailed: boolean;
@@ -159,23 +160,40 @@ export function createCardTextDrafts({
   const operations = createScopedOperations();
   const tabStorage = () => storage ?? globalThis.sessionStorage;
 
-  function load(key: string, entry: Entry) {
+  function markConflict(entry: Entry) {
+    entry.storageProblem = "conflict";
+    entry.inspected = undefined;
+    entry.inspectionFailed = false;
+  }
+
+  function load(key: string, entry: Entry, useStored = false) {
+    if (entry.storageProblem === "conflict" && !useStored) return false;
     try {
       const raw = tabStorage().getItem(key);
-      if (raw === entry.raw) {
+      if (!useStored && raw === entry.raw) {
         if (entry.storageProblem === "unavailable") {
           entry.storageProblem = raw !== null && !entry.draft ? "invalid" : undefined;
         }
-        return;
+        return true;
+      }
+      if (
+        !useStored &&
+        entry.raw !== undefined &&
+        (entry.draft || entry.storageProblem === "unsaved")
+      ) {
+        markConflict(entry);
+        return false;
       }
       entry.inspected = undefined;
       entry.inspectionFailed = false;
       entry.draft = raw === null ? null : parseDraft(raw);
       entry.raw = raw;
       entry.storageProblem = raw !== null && !entry.draft ? "invalid" : undefined;
+      return true;
     } catch {
       entry.inspected = undefined;
-      entry.storageProblem = "unavailable";
+      if (entry.storageProblem !== "conflict") entry.storageProblem = "unavailable";
+      return false;
     }
   }
 
@@ -188,7 +206,8 @@ export function createCardTextDrafts({
     try {
       const current = tabStorage().getItem(key);
       if (current !== entry.raw) {
-        load(key, entry);
+        if (retainOnFailure) entry.draft = next;
+        markConflict(entry);
         return false;
       }
       const raw = next === null ? null : JSON.stringify(next);
@@ -243,7 +262,12 @@ export function createCardTextDrafts({
     let editBase: ConfirmedCardText | undefined;
 
     function release() {
-      if (!entry.binding && !operations.state(key) && entry.storageProblem !== "unsaved")
+      if (
+        !entry.binding &&
+        !operations.state(key) &&
+        entry.storageProblem !== "unsaved" &&
+        entry.storageProblem !== "conflict"
+      )
         entries.delete(key);
     }
 
@@ -268,7 +292,8 @@ export function createCardTextDrafts({
         !operations.state(key) &&
         entry.draft?.phase !== "submitted" &&
         entry.storageProblem !== "invalid" &&
-        entry.storageProblem !== "unavailable"
+        entry.storageProblem !== "unavailable" &&
+        entry.storageProblem !== "conflict"
       );
     }
 
@@ -282,17 +307,19 @@ export function createCardTextDrafts({
         (draft.phase === "stale" || !confirmed || !sameVersion(confirmed, draft.base));
       const phase =
         active ??
-        (unknown
-          ? "unknown"
-          : storageProblem
-            ? "storage-error"
-            : stale
-              ? "stale"
-              : draft?.phase === "refused"
-                ? "refused"
-                : draft
-                  ? "dirty"
-                  : "idle");
+        (storageProblem === "conflict"
+          ? "storage-conflict"
+          : unknown
+            ? "unknown"
+            : storageProblem
+              ? "storage-error"
+              : stale
+                ? "stale"
+                : draft?.phase === "refused"
+                  ? "refused"
+                  : draft
+                    ? "dirty"
+                    : "idle");
       const available = current() && !active;
       const canEdit = canChangeDraft() && writable && confirmed !== null;
       const changedFields: (keyof CardText)[] = [];
@@ -309,10 +336,14 @@ export function createCardTextDrafts({
           titleHasText.test(draft.text.title) &&
           (!stale || (inspected !== undefined && sameVersion(confirmed, inspected))),
         canInspect:
-          available && (unknown || stale || Boolean(storageProblem) || draft?.phase === "refused"),
+          available &&
+          storageProblem !== "conflict" &&
+          (unknown || stale || Boolean(storageProblem) || draft?.phase === "refused"),
         canDismiss:
           available &&
-          (draft !== null || (storageProblem === "invalid" && inspected !== undefined)),
+          (draft !== null ||
+            storageProblem === "conflict" ||
+            (storageProblem === "invalid" && inspected !== undefined)),
         inspectionFailed,
       };
     }
@@ -372,10 +403,14 @@ export function createCardTextDrafts({
       publish(entry);
     }
 
-    function confirmed(saved: ConfirmedCardText) {
-      if (!current()) return;
+    function isLatest(saved: ConfirmedCardText) {
+      if (!current()) return false;
       const previous = context().confirmed;
-      if (!previous || saved.revision >= previous.revision) binding.onConfirmed(saved);
+      return !previous || saved.revision > previous.revision || sameVersion(previous, saved);
+    }
+
+    function confirmed(saved: ConfirmedCardText) {
+      if (isLatest(saved)) binding.onConfirmed(saved);
     }
 
     function settled() {
@@ -452,7 +487,10 @@ export function createCardTextDrafts({
         async () => {
           entry.inspected = undefined;
           entry.inspectionFailed = false;
-          load(key, entry);
+          if (!load(key, entry)) {
+            entry.inspectionFailed = entry.storageProblem !== "conflict";
+            return;
+          }
           const original = entry.raw;
           publish(entry);
           let saved: ConfirmedCardText;
@@ -463,8 +501,11 @@ export function createCardTextDrafts({
             return;
           }
           if (!current()) return;
-          load(key, entry);
-          if (entry.raw !== original) return;
+          if (!isLatest(saved)) {
+            entry.inspectionFailed = true;
+            return;
+          }
+          if (!load(key, entry) || entry.raw !== original) return;
           entry.inspected = version(saved);
           if (entry.draft?.phase === "submitted" && matchesSubmission(saved, entry.draft)) {
             persist(key, entry, null);
@@ -479,7 +520,8 @@ export function createCardTextDrafts({
       if (!snapshot().canDismiss) return;
       cancelEdit();
       const draft = entry.draft;
-      persist(key, entry, draft?.phase === "submitted" ? { ...draft, phase: "stale" } : null);
+      if (entry.storageProblem === "conflict") load(key, entry, true);
+      else persist(key, entry, draft?.phase === "submitted" ? { ...draft, phase: "stale" } : null);
       entry.inspected = undefined;
       entry.inspectionFailed = false;
       publish(entry);

@@ -14,7 +14,8 @@ type Options = AppContext &
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     context: () => Context;
     onChange: () => void;
-    beginWrite?: () => (() => void) | null;
+    beginWrite: () => (() => void) | null;
+    beginInspection: () => (() => void) | null;
   }>;
 
 function parseIntent(value: unknown, boardId: string): Intent {
@@ -35,7 +36,16 @@ function parseIntent(value: unknown, boardId: string): Intent {
 
 export function mountBoardLifecycle(
   host: HTMLElement,
-  { api, boardId, signal, readWithSession, context, onChange, beginWrite }: Options,
+  {
+    api,
+    boardId,
+    signal,
+    readWithSession,
+    context,
+    onChange,
+    beginWrite,
+    beginInspection,
+  }: Options,
 ) {
   const doc = host.ownerDocument;
   const journalKey = "localswim:pending-board-availability:" + boardId;
@@ -50,6 +60,7 @@ export function mountBoardLifecycle(
   host.replaceChildren(change, cancel, inspect, status);
 
   let pending: Intent | undefined;
+  let raw: string | null = null;
   let inspectedEtag: string | null = null;
   let closeConfirmation: string | null = null;
   let busy = false;
@@ -58,8 +69,8 @@ export function mountBoardLifecycle(
 
   function loadJournal() {
     try {
-      const stored = globalThis.sessionStorage.getItem(journalKey);
-      pending = stored === null ? undefined : parseIntent(JSON.parse(stored) as unknown, boardId);
+      raw = globalThis.sessionStorage.getItem(journalKey);
+      pending = raw === null ? undefined : parseIntent(JSON.parse(raw) as unknown, boardId);
       inspectedEtag = null;
       journalProblem = false;
       closeConfirmation = null;
@@ -100,12 +111,27 @@ export function mountBoardLifecycle(
     if (status.textContent !== message) status.textContent = message;
   }
 
+  function journalMatches(): boolean {
+    try {
+      if (globalThis.sessionStorage.getItem(journalKey) === raw) return true;
+      loadJournal();
+    } catch {
+      journalProblem = true;
+      message = "The board availability record could not be read.";
+    }
+    return false;
+  }
+
   function save(intent: Intent | undefined): boolean {
+    if (!journalMatches()) return false;
     try {
       if (intent) {
-        globalThis.sessionStorage.setItem(journalKey, JSON.stringify(intent));
+        const next = JSON.stringify({ ...intent, attempt: crypto.randomUUID() });
+        globalThis.sessionStorage.setItem(journalKey, next);
+        raw = next;
       } else {
         globalThis.sessionStorage.removeItem(journalKey);
+        raw = null;
       }
       pending = intent;
       return true;
@@ -141,8 +167,12 @@ export function mountBoardLifecycle(
       update();
       return;
     }
-    const release = beginWrite?.();
-    if (release === null) return;
+    const release = beginWrite();
+    if (!release) {
+      message = "A board operation is still running. Try again when it finishes.";
+      update();
+      return;
+    }
     const intent: Intent = { availability: availability === "open" ? "closed" : "open", etag };
     closeConfirmation = null;
     busy = true;
@@ -174,7 +204,7 @@ export function mountBoardLifecycle(
       if (!signal.aborted && result.kind !== "journal-failed") onChange();
     } finally {
       busy = false;
-      release?.();
+      release();
       if (!signal.aborted) update();
     }
   }
@@ -182,15 +212,23 @@ export function mountBoardLifecycle(
   async function inspectAvailability() {
     const intent = pending;
     if (signal.aborted || busy || journalProblem || !intent) return;
+    const release = beginInspection();
+    if (!release) {
+      message = "A board operation is still running. Inspect availability when it finishes.";
+      update();
+      return;
+    }
     busy = true;
     inspectedEtag = null;
     message = "Checking board availability…";
     update();
     try {
+      if (!journalMatches()) return;
       const { data, etag } = await readWithSession(
         () => api.getBoardAvailability(boardId, signal),
         signal,
       );
+      if (signal.aborted || !journalMatches()) return;
       if (data.availability === intent.availability) {
         confirmed(data.availability);
       } else if (data.availability === "unhealthy") {
@@ -206,6 +244,7 @@ export function mountBoardLifecycle(
       message = "Could not inspect board availability. Try inspecting it again.";
     } finally {
       busy = false;
+      release();
       if (!signal.aborted) {
         onChange();
         update();

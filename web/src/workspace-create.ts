@@ -9,6 +9,8 @@ type Options = AppContext &
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     canCreate: () => boolean;
     onCreated: (id: string) => void;
+    beginWrite: () => (() => void) | null;
+    beginInspection: () => (() => void) | null;
   }>;
 
 const journalKey = "localswim:pending-board-create";
@@ -30,7 +32,7 @@ function parseIntent(value: unknown): CreateIntent {
 
 export function mountWorkspaceCreate(
   host: HTMLElement,
-  { api, signal, readWithSession, canCreate, onCreated }: Options,
+  { api, signal, readWithSession, canCreate, onCreated, beginWrite, beginInspection }: Options,
 ) {
   const doc = host.ownerDocument;
   const form = doc.createElement("form");
@@ -50,6 +52,7 @@ export function mountWorkspaceCreate(
   host.replaceChildren(form);
 
   let pending: CreateIntent | undefined;
+  let raw: string | null = null;
   let retryable = false;
   let busy = false;
   let pageActive = true;
@@ -58,8 +61,8 @@ export function mountWorkspaceCreate(
 
   function loadJournal() {
     try {
-      const stored = globalThis.sessionStorage.getItem(journalKey);
-      pending = stored === null ? undefined : parseIntent(JSON.parse(stored) as unknown);
+      raw = globalThis.sessionStorage.getItem(journalKey);
+      pending = raw === null ? undefined : parseIntent(JSON.parse(raw) as unknown);
       retryable = false;
       journalProblem = false;
       message = "";
@@ -85,12 +88,28 @@ export function mountWorkspaceCreate(
     if (status.textContent !== message) status.textContent = message;
   }
 
+  function journalMatches(): boolean {
+    try {
+      if (globalThis.sessionStorage.getItem(journalKey) === raw) return true;
+      loadJournal();
+    } catch {
+      journalProblem = true;
+      message = "The board creation record could not be read.";
+    }
+    return false;
+  }
+
   function save(intent: CreateIntent | undefined): boolean {
+    if (!journalMatches()) return false;
     try {
       if (intent) {
-        globalThis.sessionStorage.setItem(journalKey, JSON.stringify(intent));
+        // Each dispatch owns its record, including a retry of the same board UUID.
+        const next = JSON.stringify({ ...intent, attempt: crypto.randomUUID() });
+        globalThis.sessionStorage.setItem(journalKey, next);
+        raw = next;
       } else {
         globalThis.sessionStorage.removeItem(journalKey);
+        raw = null;
       }
       pending = intent;
       return true;
@@ -128,6 +147,12 @@ export function mountWorkspaceCreate(
     }
     const retrying = pending !== undefined;
     const intent = pending ?? { id: crypto.randomUUID(), name: value };
+    const release = beginWrite();
+    if (!release) {
+      message = "A Workspace operation is still running. Try again when it finishes.";
+      update();
+      return;
+    }
     busy = true;
     retryable = false;
     message = "Creating board…";
@@ -180,6 +205,7 @@ export function mountWorkspaceCreate(
       }
     } finally {
       busy = false;
+      release();
       if (!signal.aborted) update();
     }
   }
@@ -187,20 +213,29 @@ export function mountWorkspaceCreate(
   async function inspectCreation() {
     const intent = pending;
     if (signal.aborted || !pageActive || busy || journalProblem || !intent) return;
+    const release = beginInspection();
+    if (!release) {
+      message = "A Workspace operation is still running. Inspect the board when it finishes.";
+      update();
+      return;
+    }
     busy = true;
     retryable = false;
     message = "Checking the original board…";
     update();
     try {
+      if (!journalMatches()) return;
       await readWithSession(() => api.getBoardAvailability(intent.id, signal), signal);
       created(intent);
     } catch (error) {
+      if (signal.aborted || !journalMatches()) return;
       retryable = error instanceof ApiError && error.status === 404;
       message = retryable
         ? "The board was not found. Retrying uses the original board ID and name."
         : "The original board could not be inspected. Try inspecting it again.";
     } finally {
       busy = false;
+      release();
       if (!signal.aborted) update();
     }
   }

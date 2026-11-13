@@ -90,23 +90,25 @@ export function mount(root: HTMLElement): () => void {
         showMissing();
         return;
       }
-      const { name, availability } = reply.data;
-      boardName.textContent = name;
-      boardName.hidden = false;
-      title = `${name} · localswim`;
-      updateTitle();
+      const { availability } = reply.data;
+      let name = reply.data.name;
       if (availability === "open") {
         const confirmed = await workspace.readWithSession(
           () => getBoardView(context, route.id),
           signal,
         );
         if (signal.aborted) return;
+        name = confirmed.board.name;
         const host = doc.createElement("div");
         content.replaceChildren(host);
         board = mountBoardView(host, confirmed);
       } else {
         content.replaceChildren();
       }
+      boardName.textContent = name;
+      boardName.hidden = false;
+      title = `${name} · localswim`;
+      updateTitle();
       const message =
         availability === "closed"
           ? "This board is closed."

@@ -148,7 +148,7 @@ export function mount(root: HTMLElement): () => void {
       }
       if (previous && previous.board.revision !== data.board.revision) {
         drawer?.refresh();
-        drawerNeedsConfirmation = false;
+        if (!writesFenced) drawerNeedsConfirmation = false;
       }
     }
     if (!writesFenced && drawerNeedsConfirmation) {

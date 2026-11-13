@@ -253,7 +253,7 @@
       "dependencies": [
         "R03"
       ],
-      "scope_and_acceptance": "Match V1 dropdown, keyboard and drag/drop movement with destination permissions and disabled/refused feedback. Verify lane/revision/audit, focus and scrolling. Exercise stale refusal and lost-response readback without replaying a committed move.",
+      "scope_and_acceptance": "Match the V1 pointer drag-and-drop card movement, destination permissions and visible refusal feedback. Preserve focus and scrolling. Verify saved lane, revision and audit. Exercise stale refusal and lost-response readback without replay. Terry confirmed V1 has no keyboard move dropdown; do not introduce that control.",
       "author_model": "gpt-6.1-sol",
       "author_reasoning": "medium",
       "technical_reviewer_model": "gpt-6.1-sol",
@@ -320,12 +320,12 @@
     },
     {
       "reference": "R15",
-      "title": "Batch priority",
+      "title": "Batch-priority CLI/API retention",
       "engineering_hours": 1.5,
       "dependencies": [
         "R03"
       ],
-      "scope_and_acceptance": "Match V1 batch priority entry, selected scope, priority choices and feedback. Verify exact affected cards, dependency floor and one batch revision. Demonstrate validation, stale refusal and safe lost-response readback.",
+      "scope_and_acceptance": "Verify the retained native CLI/API batch-priority capability. Terry confirmed V1 has no browser batch-priority control. The CLI card set-priorities uses PATCH /api/2026-11-10/cards with board_id, expected_board_etag and selection. Remove the provisional unwired browser control. Verify a disposable CLI operation and authoritative readback, effective dependency floor and stale-board refusal through the same V2 API.",
       "author_model": "gpt-6.1-sol",
       "author_reasoning": "medium",
       "technical_reviewer_model": "gpt-6.1-sol",

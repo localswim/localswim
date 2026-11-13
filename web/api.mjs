@@ -206,17 +206,18 @@ function validDisplayText(value, limit) {
 
 /** @param {unknown} value */
 function validActorPresentation(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (!isObject(value)) return false;
   return Object.entries(value).every(([kind, decoration]) =>
-    (kind === "human" || kind === "bot") && decoration && typeof decoration === "object"
-      && !Array.isArray(decoration) && Object.entries(decoration).every(([key, field]) =>
+    (kind === "human" || kind === "bot") && isObject(decoration)
+      && Object.entries(decoration).every(([key, field]) =>
         (key === "label" && validDisplayText(field, 256))
         || (key === "accent" && typeof field === "string" && field.length === 7 && /^#[0-9a-f]{6}$/i.test(field))));
 }
 
-/** @param {object} data @param {string} [id] @param {string} [boardId] */
-function validLane(data, id, boardId) {
-  const lane = /** @type {Record<string, unknown>} */ (data);
+/** @param {unknown} lane @param {string} [id] @param {string} [boardId]
+ * @returns {lane is Record<string, unknown> & {id: string, board_id: string, revision: number, retired: boolean, position: number}} */
+function validLane(lane, id, boardId) {
+  if (!isObject(lane)) return false;
   const hasBulkComment = Object.hasOwn(lane, "bulk_approval_comment");
   const hasNotes = Object.hasOwn(lane, "notes");
   return Object.keys(lane).length === 12 + Number(hasBulkComment) + Number(hasNotes)
@@ -243,9 +244,10 @@ function relationshipKind(kind) {
   return normalized;
 }
 
-/** @param {object} data @param {string} [id] @param {string} [boardId] */
-function validRelationship(data, id, boardId) {
-  const link = /** @type {Record<string, unknown>} */ (data);
+/** @param {unknown} link @param {string} [id] @param {string} [boardId]
+ * @returns {link is Record<string, unknown> & {board_id: string, revision: number, source_card_id: string, target_card_id: string}} */
+function validRelationship(link, id, boardId) {
+  if (!isObject(link)) return false;
   return Object.keys(link).length === 8 && !Object.hasOwn(link, "etag")
     && isId(link.id) && (id === undefined || link.id.toLowerCase() === id.toLowerCase())
     && isId(link.board_id) && (boardId === undefined || link.board_id.toLowerCase() === boardId.toLowerCase())
@@ -256,9 +258,9 @@ function validRelationship(data, id, boardId) {
     && ["blocks", "duplicates", "references", "relates_to"].includes(link.kind);
 }
 
-/** @param {object} data @param {string} [id] @param {string} [cardId] */
-function validAttachment(data, id, cardId) {
-  const item = /** @type {Record<string, unknown>} */ (data);
+/** @param {unknown} item @param {string} [id] @param {string} [cardId] */
+function validAttachment(item, id, cardId) {
+  if (!isObject(item)) return false;
   return Object.keys(item).length === 13 && !Object.hasOwn(item, "etag")
     && isId(item.id) && (id === undefined || item.id.toLowerCase() === id.toLowerCase())
     && isId(item.card_id) && (cardId === undefined || item.card_id.toLowerCase() === cardId.toLowerCase())
@@ -270,12 +272,13 @@ function validAttachment(data, id, cardId) {
     && typeof item.sha2_256 === "string" && /^[0-9a-f]{64}$/.test(item.sha2_256)
     && typeof item.media_type === "string" && item.media_type.includes("/")
     && typeof item.active === "boolean" && typeof item.previewable === "boolean"
-    && item.previewable === RASTER_MEDIA_TYPES.has(item.media_type.split(";", 1)[0].trim().toLowerCase());
+    && item.previewable === RASTER_MEDIA_TYPES.has(item.media_type.split(";", 1)[0]?.trim().toLowerCase() ?? "");
 }
 
-/** @param {object} data @param {string} boardId @param {string | undefined} id */
-function validCard(data, boardId, id) {
-  const card = /** @type {Record<string, unknown>} */ (data);
+/** @param {unknown} card @param {string} boardId @param {string | undefined} id
+ * @returns {card is Record<string, unknown> & {id: string, lane_id: string, archived: boolean}} */
+function validCard(card, boardId, id) {
+  if (!isObject(card)) return false;
   return Object.keys(card).length === 21
     && isId(card.id) && (id === undefined || card.id.toLowerCase() === id.toLowerCase())
     && isId(card.board_id) && card.board_id.toLowerCase() === boardId.toLowerCase()
@@ -326,6 +329,17 @@ function matchesApproval(data, id, boardId, cardId) {
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Keep unvalidated elements unknown.
+ * @param {unknown} value @returns {value is unknown[]} */
+function isArray(value) {
+  return Array.isArray(value);
+}
+
+/** @param {unknown} value @returns {value is {card_id: string, ticket: number}} */
+function validTicketAssignment(value) {
+  return isObject(value) && typeof value.card_id === "string" && isInteger(value.ticket) && value.ticket > 0;
 }
 
 /** @param {string} id @param {unknown} revision */
@@ -617,7 +631,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /** @param {Response} response @param {number} status @param {boolean} write */
   async function requireJSONResponse(response, status, write) {
-    const media = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+    const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
     if (response.status !== status || media !== "application/json") {
       await discardBody(response);
       throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
@@ -715,7 +729,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     if (!validRelationship(data, id)) {
       throw new ApiError("invalid_response", { status: 200 });
     }
-    if (/** @type {{revision: number}} */ (data).revision !== revision) {
+    if (data.revision !== revision) {
       throw new ApiError("http_error", { status: 412 });
     }
     return { data, etag: strongTag(tag) };
@@ -728,24 +742,30 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const reply = await request("/boards/" + board + "?view=lanes", { signal });
       const data = /** @type {{board?: {id?: unknown, revision?: unknown, actor_presentation?: unknown}, lanes?: unknown, cards?: unknown}} */ (reply.data);
       if (data.board?.id !== board || !isInteger(data.board.revision) || data.board.revision < 1
-          || reply.etag !== versionTag(board, data.board.revision) || !Array.isArray(data.lanes)
-          || !Array.isArray(data.cards) || (Object.hasOwn(data.board, "actor_presentation")
+          || reply.etag !== versionTag(board, data.board.revision) || !isArray(data.lanes)
+          || !isArray(data.cards) || (Object.hasOwn(data.board, "actor_presentation")
             && !validActorPresentation(data.board.actor_presentation))) {
         throw new ApiError("invalid_response", { status: 200 });
       }
+      /** @type {Set<string>} */
       const ids = new Set();
       let position = -1;
       for (const lane of data.lanes) {
-        if (!lane || typeof lane !== "object" || !validLane(lane, undefined, board)
+        if (!validLane(lane, undefined, board)
             || lane.retired || lane.position <= position || ids.has(lane.id)) {
           throw new ApiError("invalid_response", { status: 200 });
         }
         ids.add(lane.id);
         position = lane.position;
       }
-      if (new Set(data.cards.map((card) => card?.id)).size !== data.cards.length
-          || !data.cards.every((card) => card && validCard(card, board, undefined)
-            && ids.has(card.lane_id) && !card.archived)) throw new ApiError("invalid_response", { status: 200 });
+      /** @type {Set<string>} */
+      const cardIds = new Set();
+      for (const card of data.cards) {
+        if (!validCard(card, board, undefined) || !ids.has(card.lane_id) || card.archived || cardIds.has(card.id)) {
+          throw new ApiError("invalid_response", { status: 200 });
+        }
+        cardIds.add(card.id);
+      }
       return reply;
     },
     /** @param {string} boardId @param {string} boardEtag @param {string[]} cardIds @param {string} priorityId */
@@ -763,10 +783,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const tag = response.headers.get("X-Board-ETag");
       if (response.status !== 200 || data.board_id !== board || !isInteger(data.board_revision)
           || data.board_revision < 1 || tag !== versionTag(board, data.board_revision)
-          || !Array.isArray(data.cards) || data.cards.length !== ids.length
-          || new Set(data.cards.map((card) => card?.id)).size !== ids.length
-          || !data.cards.every((card) => card && validCard(card, board, undefined) && ids.includes(card.id))
-          || !Array.isArray(data.changes) || !data.changes.every((change) => change
+          || !isArray(data.cards) || data.cards.length !== ids.length
+          || !data.cards.every((card) => validCard(card, board, undefined))
+          || new Set(data.cards.map((card) => card.id)).size !== ids.length
+          || !data.cards.every((card) => ids.includes(card.id))
+          || !isArray(data.changes) || !data.changes.every((change) => isObject(change)
             && change.board_id === board && change.revision === data.board_revision
             && isOperationId(change.id) && isId(change.resource_id) && isId(change.actor_id)
             && isTimestamp(change.at) && change.resource_type === "card" && change.field === "priority_id"
@@ -793,17 +814,19 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (response.status !== 200 || data.board_id !== board || data.lane_id !== lane
           || !isInteger(data.board_revision) || data.board_revision < 1
           || tag !== versionTag(board, data.board_revision) || typeof data.changed !== "boolean"
-          || !Array.isArray(data.selected_card_ids) || !data.selected_card_ids.every(isId)
+          || !isArray(data.selected_card_ids) || !data.selected_card_ids.every(isId)
           || new Set(data.selected_card_ids).size !== data.selected_card_ids.length
-          || !Array.isArray(data.current) || !Array.isArray(data.proposed)) {
+          || !isArray(data.current) || !data.current.every(validTicketAssignment)
+          || !isArray(data.proposed) || !data.proposed.every(validTicketAssignment)) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       const selected = data.selected_card_ids;
       for (const assignments of [data.current, data.proposed]) {
-        if (assignments.length !== selected.length || new Set(assignments.map((item) => item?.card_id)).size !== selected.length
-            || new Set(assignments.map((item) => item?.ticket)).size !== selected.length
-            || !assignments.every((item) => item && selected.includes(item.card_id)
-              && isInteger(item.ticket) && item.ticket > 0)) throw new ApiError("invalid_response", { status: 200 });
+        if (assignments.length !== selected.length || new Set(assignments.map((item) => item.card_id)).size !== selected.length
+            || new Set(assignments.map((item) => item.ticket)).size !== selected.length
+            || !assignments.every((item) => selected.includes(item.card_id))) {
+          throw new ApiError("invalid_response", { status: 200 });
+        }
       }
       const current = data.current;
       const proposed = data.proposed;
@@ -832,16 +855,16 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (response.status !== 200 || data.board_id !== board || data.lane_id !== lane
           || !isInteger(data.board_revision) || data.board_revision < 1
           || response.headers.get("X-Board-ETag") !== versionTag(board, data.board_revision)
-          || typeof data.changed !== "boolean" || !Array.isArray(data.selected_card_ids)
+          || typeof data.changed !== "boolean" || !isArray(data.selected_card_ids)
           || data.selected_card_ids.length !== ids.length || new Set(data.selected_card_ids).size !== ids.length
-          || !data.selected_card_ids.every((id) => ids.includes(id))
-          || !Array.isArray(data.current) || data.current.length !== ids.length
-          || new Set(data.current.map((entry) => entry?.card_id)).size !== ids.length
-          || new Set(data.current.map((entry) => entry?.ticket)).size !== ids.length
-          || !data.current.every((entry) => entry && ids.includes(entry.card_id) && proposed.some((item) => item.ticket === entry.ticket))
-          || !Array.isArray(data.proposed)
-          || data.proposed.length !== ids.length || new Set(data.proposed.map((entry) => entry?.card_id)).size !== ids.length
-          || !data.proposed.every((entry) => entry && proposed.some((item) => item.card_id.toLowerCase() === entry.card_id && item.ticket === entry.ticket))) {
+          || !data.selected_card_ids.every((id) => typeof id === "string" && ids.includes(id))
+          || !isArray(data.current) || data.current.length !== ids.length || !data.current.every(validTicketAssignment)
+          || new Set(data.current.map((entry) => entry.card_id)).size !== ids.length
+          || new Set(data.current.map((entry) => entry.ticket)).size !== ids.length
+          || !data.current.every((entry) => ids.includes(entry.card_id) && proposed.some((item) => item.ticket === entry.ticket))
+          || !isArray(data.proposed) || data.proposed.length !== ids.length || !data.proposed.every(validTicketAssignment)
+          || new Set(data.proposed.map((entry) => entry.card_id)).size !== ids.length
+          || !data.proposed.every((entry) => proposed.some((item) => item.card_id.toLowerCase() === entry.card_id && item.ticket === entry.ticket))) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       if (data.changed !== data.current.some((entry) => proposed.find((item) => item.card_id.toLowerCase() === entry.card_id)?.ticket !== entry.ticket)) {
@@ -914,7 +937,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (!isInteger(size) || size < 0 || !/^[0-9a-f]{64}$/.test(digest)) throw new TypeError("Invalid backup metadata.");
       const response = await send("/backups/" + operationId(id) + "/content", { accept: "application/zip" });
       if (response.status !== 200 || !response.body
-          || response.headers.get("Content-Type")?.split(";", 1)[0].trim() !== "application/zip") {
+          || response.headers.get("Content-Type")?.split(";", 1)[0]?.trim() !== "application/zip") {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
       }
@@ -1033,9 +1056,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const card = resourceId(cardId);
       const reply = await list("/attachments", { card_id: card }, cursor, signal);
       const page = /** @type {{attachments?: unknown}} */ (reply.data);
-      if (!Array.isArray(page.attachments) || !page.attachments.every((item) =>
-        item !== null && typeof item === "object" && !Array.isArray(item)
-        && validAttachment(item, undefined, card))) {
+      if (!isArray(page.attachments) || !page.attachments.every((item) => validAttachment(item, undefined, card))) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return reply;
@@ -1068,8 +1089,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       const response = await send("/attachments/" + resourceId(attachmentId) + "/content?"
         + new URLSearchParams({ disposition }), { accept: "*/*", signal });
-      const media = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
-      const servedDisposition = response.headers.get("Content-Disposition")?.split(";", 1)[0].trim().toLowerCase();
+      const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+      const servedDisposition = response.headers.get("Content-Disposition")?.split(";", 1)[0]?.trim().toLowerCase();
       if (response.status !== 200 || servedDisposition !== disposition
           || (disposition === "inline" && !RASTER_MEDIA_TYPES.has(media))) {
         await discardBody(response);
@@ -1125,9 +1146,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const card = resourceId(cardId);
       const reply = await list("/relationships", { board_id: board, card_id: card }, cursor);
       const page = /** @type {{relationships?: unknown}} */ (reply.data);
-      if (!Array.isArray(page.relationships) || !page.relationships.every((link) =>
-        link !== null && typeof link === "object" && !Array.isArray(link)
-        && validRelationship(link, undefined, board)
+      if (!isArray(page.relationships) || !page.relationships.every((link) =>
+        validRelationship(link, undefined, board)
         && (link.source_card_id === card || link.target_card_id === card))) {
         throw new ApiError("invalid_response", { status: 200 });
       }
@@ -1156,7 +1176,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const reply = await request("/relationships/" + resourceId(id), {
         method: "PATCH", etag: current.etag, data: { expected_board_etag: boardTag, kind },
       });
-      if (!validRelationship(reply.data, id, /** @type {{board_id: string}} */ (current.data).board_id)) {
+      if (!validRelationship(reply.data, id, current.data.board_id)) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
       return reply;
@@ -1303,13 +1323,13 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (!validLane(current, id)) {
         throw new ApiError("invalid_response", { status: 200 });
       }
-      if (/** @type {{revision: number}} */ (current).revision !== revision) {
+      if (current.revision !== revision) {
         throw new ApiError("http_error", { status: 412 });
       }
       const result = await request("/lanes/" + id, {
         method: "PATCH", etag: strongTag(currentTag), data: { board_etag: boardTag, label },
       });
-      if (!validLane(result.data, id, /** @type {{board_id: string}} */ (current).board_id)) {
+      if (!validLane(result.data, id, current.board_id)) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
       return result;
@@ -1370,7 +1390,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const response = await send(query.size ? "/events?" + query : "/events", {
         accept: "text/event-stream", signal,
       });
-      const mediaType = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+      const mediaType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
       if (response.status !== 200 || mediaType !== "text/event-stream" || response.body === null) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
@@ -1440,8 +1460,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const id = resourceId(boardId);
       const result = await list("/lanes", { board_id: id }, cursor, signal);
       const data = /** @type {{lanes?: unknown}} */ (result.data);
-      if (!Array.isArray(data.lanes) || !data.lanes.every((lane) =>
-        lane !== null && typeof lane === "object" && !Array.isArray(lane) && validLane(lane, undefined, id))) {
+      if (!isArray(data.lanes) || !data.lanes.every((lane) => validLane(lane, undefined, id))) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return result;

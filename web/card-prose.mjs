@@ -14,19 +14,20 @@ function spans(text, delimiters, maxWidth, code = []) {
   const result = [];
   let start = -1, width = 0, codeIndex = 0;
   for (const {0: run, index} of text.matchAll(delimiters)) {
-    while (codeIndex < code.length && code[codeIndex].end <= index) codeIndex++;
-    if (codeIndex < code.length && code[codeIndex].start < index) continue;
+    let span = code[codeIndex];
+    while (span && span.end <= index) span = code[++codeIndex];
+    if (span && span.start < index) continue;
     if (run === "\n" || run === "\r" || run.length > maxWidth) {
       start = -1;
       continue;
     }
     const end = index + run.length;
     const isCode = run === "`";
-    if (start !== -1 && width === run.length && (isCode || !/[ \t]/.test(text[index - 1]))) {
+    if (start !== -1 && width === run.length && (isCode || !/[ \t]/.test(text.charAt(index - 1)))) {
       result.push({ start, end: index + width, width });
       start = -1;
     } else {
-      start = isCode || (end < text.length && !/[ \t]/.test(text[end])) ? index : -1;
+      start = isCode || (end < text.length && !/[ \t]/.test(text.charAt(end))) ? index : -1;
       width = run.length;
     }
   }
@@ -61,13 +62,15 @@ export function appendCardProse(body, text, ticketLink) {
 
   /** @param {HTMLElement} parent @param {number} from @param {number} to */
   function appendWithCode(parent, from, to) {
-    while (codeIndex < code.length && code[codeIndex].end <= to) {
-      const { start, end } = code[codeIndex++];
+    let span = code[codeIndex];
+    while (span && span.end <= to) {
+      const { start, end } = span;
       appendPlain(parent, text.slice(from, start));
       const literal = body.ownerDocument.createElement("code");
       literal.textContent = text.slice(start + 1, end - 1);
       parent.append(literal);
       from = end;
+      span = code[++codeIndex];
     }
     appendPlain(parent, text.slice(from, to));
   }

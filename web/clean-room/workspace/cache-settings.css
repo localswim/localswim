@@ -10,9 +10,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
 }
 
 .lsw-workspace-cache-settings input {
+  appearance: textfield;
   box-sizing: border-box;
   width: 80px;
   height: 23px;
@@ -23,4 +26,8 @@
   color: inherit;
   font: inherit;
   font-size: 12px;
+}
+
+.lsw-workspace-cache-settings input::-webkit-inner-spin-button {
+  appearance: none;
 }

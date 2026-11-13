@@ -58,6 +58,37 @@ export interface RelationshipReceipt {
   readonly revision: number;
 }
 
+export function applyRelationshipReceipt(
+  data: DrawerData,
+  input: RelationshipOperation,
+  receipt: RelationshipReceipt,
+  targets: readonly DrawerCardLink[],
+): DrawerData {
+  if (input.action === "remove") {
+    return {
+      ...data,
+      boardEtag: receipt.boardEtag,
+      boardRevision: receipt.revision,
+      relationships: data.relationships.filter(({ id }) => id !== input.id),
+    };
+  }
+  const { kind, source_card_id: source, target_card_id: target } = input.after;
+  const direction = source === data.card.id ? "outgoing" : "incoming";
+  const prior = data.relationships.find(({ id }) => id === input.id);
+  const otherId = direction === "outgoing" ? target : source;
+  const other = prior?.card ?? targets.find(({ id }) => id === otherId);
+  if (other === undefined) return data;
+  const row: DrawerRelationship = { id: input.id, kind, direction, card: other };
+  return {
+    ...data,
+    boardEtag: receipt.boardEtag,
+    boardRevision: receipt.revision,
+    relationships: prior
+      ? data.relationships.map((relationship) => (relationship.id === row.id ? row : relationship))
+      : [...data.relationships, row],
+  };
+}
+
 interface RelationshipRow extends RelationshipLink {
   readonly id: Uuid;
   readonly board_id: Uuid;
@@ -461,7 +492,7 @@ export function mountRelationshipEditor(
               new Option(`#${String(ticket).padStart(4, "0")} ${title}`, id),
           ),
         );
-        if (available.some(({ id }) => id === previousTarget)) related.value = previousTarget;
+        if (sameCard && !form.hidden) related.value = previousTarget;
       }
       sync();
       updateEmpty();

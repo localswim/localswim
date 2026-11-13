@@ -89,12 +89,6 @@
   color: #19243a;
 }
 
-.lsw-drawer-priority::after {
-  margin-left: 5px;
-  font-size: 8px;
-  content: "▾";
-}
-
 .lsw-drawer-approval {
   padding: 5px 9px;
   border: 0;

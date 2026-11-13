@@ -53,10 +53,12 @@ import {
   type CommentReceipt,
 } from "./drawer/post-comment.js";
 import {
+  applyRelationshipReceipt,
   prepareRelationshipOperation,
   writeRelationshipOperation,
   inspectRelationshipOperation,
   type RelationshipIntent,
+  type RelationshipReceipt,
 } from "./drawer/edit-relationships.js";
 import {
   requestAttachmentWrite,
@@ -600,7 +602,7 @@ function start(host: HTMLElement): void {
   function closeDrawer(animate = false): void {
     if (route.kind !== "board") return;
     route = { ...route, cardId: null };
-    scheduleHistory();
+    persistHistory();
     drawerRead?.abort();
     ticketRead?.abort();
     const opener = drawerKey;
@@ -624,7 +626,7 @@ function start(host: HTMLElement): void {
     if (drawerKey !== id) drawerPresentation = null;
     const boardId = route.boardId;
     route = { ...route, cardId: id };
-    scheduleHistory();
+    persistHistory();
     drawerRead?.abort();
     ticketRead?.abort();
     const attempt = new AbortController();
@@ -1028,7 +1030,7 @@ function start(host: HTMLElement): void {
     relationshipOperations.set(linkId, card.id);
     const requestId = crypto.randomUUID();
     let input: Awaited<ReturnType<typeof prepareRelationshipOperation>>;
-    await runDrawerOperation<unknown>(
+    await runDrawerOperation<DrawerData | RelationshipReceipt>(
       context,
       async (guard) => {
         input = await prepareRelationshipOperation(
@@ -1042,9 +1044,20 @@ function start(host: HTMLElement): void {
         input
           ? inspectRelationshipOperation(input, await readDrawer(card.board_id, card.id))
           : { outcome: "unknown" },
-      () => {
+      (receipt) => {
         relationshipOperations.delete(linkId);
         committedRelationships.set(card.id, intent);
+        if (!isSelected(card.board_id) || drawerKey !== card.id) return;
+        const current = (drawerPresentation ?? last(drawerData))?.value;
+        if (current === undefined) return;
+        if ("card" in receipt) {
+          if (receipt.boardRevision > current.boardRevision)
+            drawerPresentation = confirmed(receipt);
+        } else if (input && current.boardRevision < receipt.revision) {
+          drawerPresentation = confirmed(
+            applyRelationshipReceipt(context.drawer, input, receipt, context.board.view.cards),
+          );
+        }
       },
     );
     if (!drawerOperations.has(card.id)) relationshipOperations.delete(linkId);

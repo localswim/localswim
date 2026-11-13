@@ -134,19 +134,22 @@ time. Saved reports always mark live coverage as incomplete.
 
 ### Verify a board-change notice
 
-After 15 seconds of quiet, an enabled owner notice lists the writer, UTC interval,
-and up to 128 card UUID and event-time ticket pairs. Its **Operations** line
-groups the retained tickets by committed Human edits. An approval and its receipt
-comment appear together under **Reviewed & approved**. Ordinary moves, comments,
-and archive or restore actions have their own groups.
+After 15 seconds of quiet, an enabled owner notice shows an unquoted board label
+with its shortened UUID (`first4...last4`). Resolve the full UUID with
+`board list`. A quiet burst shorter than one second has a **Time** line; otherwise
+the notice has **Start** and **End** bounds. The **Tickets** line groups operations
+and tickets. Timestamps use
+`YYYY-MM-DD HH:MM:SS+00:00` format.
 
-Use the notice's board UUID, writer UUID, and Start and End values to read
-sanitized activity, including each event's `operation_group`.
+Use the resolved board UUID and time values to read sanitized activity, including
+each event's `operation_group`.
 
 ```powershell
-.\localswim.exe activity list --writer-id $writer $board $start $end
+.\localswim.exe activity list $board $from $to
 ```
 
+For a **Time** line, query from the stated second through two seconds later. For
+**Start** and **End**, use the displayed outward-rounded bounds.
 Continue with `--cursor` and the same query until pagination is complete. When
 the end was omitted, reuse the first response’s `coverage.to` as explicit `TO_UTC`. Check
 `coverage.complete` before relying on the interval. For a focused follow-up,

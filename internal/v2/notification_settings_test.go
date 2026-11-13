@@ -176,7 +176,7 @@ func TestNotificationSettingsControlHumanQuietBurst(t *testing.T) {
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
 		if len(attempts) != 1 || attempts[0].target != ownerNoticeNextTarget ||
-			!strings.Contains(attempts[0].message+"\n", "\n- Tickets: 0002, 0003\n") ||
+			!strings.Contains(attempts[0].message+"\n", "\n- Tickets: Created (0002, 0003)\n") ||
 			strings.Contains(attempts[0].message, "Synthetic title") {
 			t.Fatal("expected one Human burst delivered to the configured fake recipient")
 		}

@@ -25,7 +25,8 @@ func TestOwnerNoticeGroupsShareCardBound(t *testing.T) {
 		event.addCard(ownerNoticeCard{activityCard{CardID: newID(), Ticket: ticket}, all &^ activityRestored.bit()})
 	}
 	message := event.message()
-	if !event.truncated || strings.Contains(message, fmt.Sprint(omitted)) || strings.Contains(message, "Restored (") {
+	if !event.truncated || !strings.HasSuffix(message, " (additional tickets omitted)") ||
+		strings.Contains(message, fmt.Sprint(omitted)) || strings.Contains(message, "Restored (") {
 		t.Fatal("evicted card left unbounded ticket or operation metadata")
 	}
 	for _, item := range event.cards {
@@ -202,20 +203,17 @@ func TestGroupedOwnerNoticeMatchesActivityInterval(t *testing.T) {
 			t.Fatal("expected one burst for the disposable recipient")
 		}
 		message := deliveries[0].message
-		want := "\n- Operations: Comment added (0002), Moved lanes (0002), Reviewed & approved (0001), Archived (0002), Restored (0002)\n"
-		for _, field := range []string{want, "- Writer: `" + writer + "`", "- Start: " + from, "- End: " + to,
-			fmt.Sprintf("- Cards: 0001 (`%s`), 0002 (`%s`)", review.ID, moved.ID), "- Tickets: 0001, 0002"} {
-			if !strings.Contains(message, field) {
-				t.Errorf("notice missing expected metadata %q", field)
-			}
+		wantTickets := "- Tickets: Comment added (0002), Moved lanes (0002), Reviewed & approved (0001), Archived (0002), Restored (0002)"
+		wantMessage := fmt.Sprintf("localswim board-change notice\n\n- Board: Synthetic grouped notice (`%s...%s`)\n- Start: %s\n- End: %s\n%s",
+			b.ID[:4], b.ID[len(b.ID)-4:], from, to, wantTickets)
+		if message != wantMessage {
+			t.Errorf("notice metadata mismatch\ngot: %s\nwant: %s", message, wantMessage)
 		}
-		for _, excluded := range []string{"Private", "Uncommitted", reviewApprovalText, humanToken, botToken, automated.ID} {
+		for _, excluded := range []string{"Private", "Uncommitted", reviewApprovalText, humanToken, botToken, automated.ID,
+			writer, review.ID, moved.ID} {
 			if strings.Contains(message, excluded) {
 				t.Error("notice leaked prose, credentials, or unrelated activity")
 			}
-		}
-		if !strings.HasSuffix(message, "- Tickets: 0001, 0002") {
-			t.Fatal("notice tickets included unrelated activity")
 		}
 
 		query := url.Values{"board_id": {b.ID}, "writer_id": {writer}, "from": {from}, "to": {to}}

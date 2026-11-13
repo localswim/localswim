@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 const (
@@ -60,23 +61,35 @@ func (event *ownerNoticeEvent) addCard(card ownerNoticeCard) {
 func (event ownerNoticeEvent) message() string {
 	var message strings.Builder
 	message.WriteString("localswim board-change notice\n\n")
-	fmt.Fprintf(&message, "- Board: %q (`%s`)\n", event.label, event.boardID)
-	fmt.Fprintf(&message, "- Writer: `%s`\n", event.writerID)
-	fmt.Fprintf(&message, "- Start: %s\n- End: %s\n",
-		canonicalTime(event.since).Format(timestampLayout), canonicalTime(event.until).Format(timestampLayout))
-	message.WriteString("- Cards: ")
-	var groups activityOperationSet
-	for index, card := range event.cards {
-		groups |= card.operations
-		if index > 0 {
-			message.WriteString(", ")
+	identity := event.boardID
+	if len(identity) > 8 {
+		identity = identity[:4] + "..." + identity[len(identity)-4:]
+	}
+	label := strings.Map(func(character rune) rune {
+		if unicode.IsControl(character) || character == '\u2028' || character == '\u2029' {
+			return ' '
 		}
-		fmt.Fprintf(&message, "%04d (`%s`)", card.Ticket, card.CardID)
+		return character
+	}, event.label)
+	fmt.Fprintf(&message, "- Board: %s (`%s`)\n", label, identity)
+	if event.until.Sub(event.since) < time.Second {
+		fmt.Fprintf(&message, "- Time: %s\n", canonicalTime(event.since).Format(timestampLayout))
+	} else {
+		end := canonicalTime(event.until)
+		if event.until.Nanosecond() != 0 {
+			end = end.Add(time.Second)
+		}
+		fmt.Fprintf(&message, "- Start: %s\n- End: %s\n",
+			canonicalTime(event.since).Format(timestampLayout), end.Format(timestampLayout))
 	}
-	if event.truncated {
-		message.WriteString(" (additional card and ticket pairs omitted)")
+	message.WriteString("- Tickets: ")
+	var groups activityOperationSet
+	for _, card := range event.cards {
+		groups |= card.operations
 	}
-	message.WriteString("\n- Operations: ")
+	if groups == 0 {
+		message.WriteString("unspecified")
+	}
 	for group, label := range activityOperationLabels {
 		bit := activityOperationGroup(group).bit()
 		if groups&bit == 0 {
@@ -90,8 +103,9 @@ func (event ownerNoticeEvent) message() string {
 			message.WriteString(", ")
 		}
 	}
-	message.WriteString("\n- Tickets: ")
-	event.writeTickets(&message, ^activityOperationSet(0))
+	if event.truncated {
+		message.WriteString(" (additional tickets omitted)")
+	}
 	return message.String()
 }
 

@@ -79,13 +79,12 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 		t.Fatalf("attributed cards = %v", event.cards)
 	}
 	message := event.message()
-	for _, want := range []string{previous.Board.ID, "Synthetic\\nboard", "12:00:01+00:00", "12:00:04+00:00", "0001, 0002, 0003, 0005"} {
-		if !strings.Contains(message, want) {
-			t.Errorf("notice omitted %q", want)
-		}
-	}
-	if strings.Count(message, "\n") != 8 || strings.Contains(message, "private") {
-		t.Error("notice contains content outside the bounded metadata lines")
+	wantMessage := "localswim board-change notice\n\n" +
+		"- Board: Synthetic board (`3b21...7ff7`)\n" +
+		"- Start: 2026-11-10 12:00:01+00:00\n- End: 2026-11-10 12:00:04+00:00\n" +
+		"- Tickets: Contents modified (0001, 0003, 0005), Comment added (0002)"
+	if message != wantMessage {
+		t.Fatalf("notice metadata mismatch\ngot: %s\nwant: %s", message, wantMessage)
 	}
 	if bot := ownerNoticeTestEdit(next, botID, "card", "four", at.Add(time.Minute)); len(committedOwnerNotice(next, bot).cards) != 0 {
 		t.Error("Bot edit produced notice metadata")
@@ -157,7 +156,7 @@ func TestOwnerNoticeQuietBurstUsesCurrentDestination(t *testing.T) {
 
 		time.Sleep(time.Second)
 		synctest.Wait()
-		if len(attempts) != 1 || attempts[0].target != target || !strings.Contains(attempts[0].message, "- Tickets: 0001") {
+		if len(attempts) != 1 || attempts[0].target != target || !strings.Contains(attempts[0].message, "- Tickets: Contents modified (0001)") {
 			t.Fatal("other board lost its independent quiet deadline")
 		}
 
@@ -169,7 +168,7 @@ func TestOwnerNoticeQuietBurstUsesCurrentDestination(t *testing.T) {
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
 		if len(attempts) != 2 || attempts[1].target != nextTarget ||
-			!strings.HasSuffix(attempts[1].message, "- Tickets: 0002, 0005") {
+			!strings.HasSuffix(attempts[1].message, "- Tickets: Contents modified (0002, 0005)") {
 			t.Fatal("committed Human tickets were not coalesced for the current target")
 		}
 
@@ -301,9 +300,8 @@ func TestOwnerNoticeFailurePreservesDurableEdit(t *testing.T) {
 	created := turnOneDecode[card](t, raw)
 	select {
 	case message := <-attempts:
-		if !strings.HasSuffix(message, "- Tickets: 0001") || strings.Contains(message, created.Title) ||
-			!strings.Contains(message, "- Writer: `"+app.store.activityWriterID+"`") ||
-			!strings.Contains(message, "- Cards: 0001 (`"+created.ID+"`)") {
+		if !strings.HasSuffix(message, "- Tickets: Created (0001)") || strings.Contains(message, created.Title) ||
+			strings.Contains(message, app.store.activityWriterID) || strings.Contains(message, created.ID) {
 			t.Fatal("delivery did not contain only committed card metadata")
 		}
 	case <-time.After(5 * time.Second):
@@ -337,13 +335,13 @@ func TestOwnerNoticeRevalidatesPendingAfterSettingsRead(t *testing.T) {
 		target, suffix string
 	}{
 		{"Human edit resets quiet period", []edit{{cardID: "two"}},
-			ownerNoticeQuietPeriod, target, "- Tickets: 0001, 0002"},
+			ownerNoticeQuietPeriod, target, "- Tickets: Contents modified (0001, 0002)"},
 		{"Retarget preserves deadline", []edit{{settings: &retargeted}},
-			0, nextTarget, "- Tickets: 0001"},
+			0, nextTarget, "- Tickets: Contents modified (0001)"},
 		{"Disable drops old burst", []edit{{settings: &disabled}, {settings: &enabled}, {cardID: "two"}},
-			ownerNoticeQuietPeriod, target, "- Tickets: 0002"},
+			ownerNoticeQuietPeriod, target, "- Tickets: Contents modified (0002)"},
 		{"Clearing drops old burst", []edit{{settings: &cleared}, {settings: &enabled}, {cardID: "two"}},
-			ownerNoticeQuietPeriod, target, "- Tickets: 0002"},
+			ownerNoticeQuietPeriod, target, "- Tickets: Contents modified (0002)"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -421,19 +419,39 @@ func TestOwnerNoticeProjectTimestampFormat(t *testing.T) {
 		duration time.Duration
 		want     string
 	}{
-		{"single second", 100 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:04+00:00\n"},
-		{"interval", 2200 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:06+00:00\n"},
+		{"single instant", 0, "- Time: 2026-11-10 20:33:04+00:00\n"},
+		{"single second", 100 * time.Millisecond, "- Time: 2026-11-10 20:33:04+00:00\n"},
+		{"subsecond crossing second", 900 * time.Millisecond, "- Time: 2026-11-10 20:33:04+00:00\n"},
+		{"exact one second duration", time.Second, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:06+00:00\n"},
+		{"interval fractional end", 2200 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:07+00:00\n"},
+		{"interval exact end", 2877 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:07+00:00\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			event := ownerNoticeEvent{
 				boardID: "board", label: "Test", writerID: "writer", since: start, until: start.Add(tc.duration),
 			}
 			event.addCard(ownerNoticeCard{activityCard{CardID: "card", Ticket: 1}, activityCreated.bit()})
-			want := "localswim board-change notice\n\n- Board: \"Test\" (`board`)\n- Writer: `writer`\n" +
-				tc.want + "- Cards: 0001 (`card`)\n- Operations: Created (0001)\n- Tickets: 0001"
+			want := "localswim board-change notice\n\n- Board: Test (`board`)\n" +
+				tc.want + "- Tickets: Created (0001)"
 			if got := event.message(); got != want {
 				t.Fatalf("notice timestamp format mismatch\ngot: %s\nwant: %s", got, want)
 			}
 		})
+	}
+}
+
+func TestOwnerNoticeCompactLabelAndTruncation(t *testing.T) {
+	at := time.Date(2026, 11, 11, 2, 3, 4, 0, time.UTC)
+	event := ownerNoticeEvent{
+		boardID: "3b21b22e-3538-49ee-af0a-8fae47ca7ff7", label: "Test\r\n\t\x00\x7f\u0085\u2028\u2029board",
+		writerID: "private-writer", since: at, until: at, truncated: true,
+	}
+	event.addCard(ownerNoticeCard{activityCard{CardID: "private-card", Ticket: 2}, activityCreated.bit() | activityCommentAdded.bit()})
+	event.addCard(ownerNoticeCard{activityCard{CardID: "private-other-card", Ticket: 1}, activityCreated.bit()})
+	want := "localswim board-change notice\n\n- Board: Test        board (`3b21...7ff7`)\n" +
+		"- Time: 2026-11-11 02:03:04+00:00\n" +
+		"- Tickets: Created (0001, 0002), Comment added (0002) (additional tickets omitted)"
+	if got := event.message(); got != want {
+		t.Fatalf("compact notice mismatch\ngot: %s\nwant: %s", got, want)
 	}
 }

@@ -20,12 +20,16 @@ const availabilityLabels: Record<WorkspaceBoard["availability"], string> = {
 
 let nextAttentionID = 0;
 
-function recency(board: WorkspaceBoard, observedAt: WorkspaceView["observedAt"]): string {
+function recency(
+  board: WorkspaceBoard,
+  observedAt: WorkspaceView["observedAt"],
+  reference: "ago" | "before the last catalog refresh",
+): string {
   if (board.lastCardEditAt !== null && observedAt !== null) {
     const minutes = Math.max(0, Math.floor((observedAt - board.lastCardEditAt) / 60_000));
     const elapsed =
       minutes === 0 ? "less than a minute" : `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
-    return `Last card edit ${elapsed} before the last catalog refresh`;
+    return `Last card edit ${elapsed} ${reference}`;
   }
   if (board.lastCardEditAt === null && board.attention !== null) return "No recorded card edits";
   return "Card edit history unavailable";
@@ -92,7 +96,11 @@ function createBoardRow(doc: Document, id: string, prefix: string, intents: Atte
     intents.selectBoard(id);
   }
 
+  let updateInteractiveRecency: (() => void) | undefined;
+  const showCurrentRecency = () => updateInteractiveRecency?.();
   link.addEventListener("click", select);
+  link.addEventListener("pointerenter", showCurrentRecency);
+  link.addEventListener("focus", showCurrentRecency);
 
   return {
     item,
@@ -112,12 +120,19 @@ function createBoardRow(doc: Document, id: string, prefix: string, intents: Atte
         count.textContent = value === undefined ? "—" : String(value);
         return `${label} ${value ?? "unavailable"}`;
       });
-      const details = [status, recency(board, observedAt)].filter(Boolean);
-      link.title = details.join(". ");
-      description.textContent = [counts.join(", "), ...details].join(". ");
+      const countSummary = counts.join(", ");
+      function setRecency(lastEdit: string) {
+        const details = [status, lastEdit].filter(Boolean);
+        link.title = details.join(". ");
+        description.textContent = [countSummary, ...details].join(". ");
+      }
+      setRecency(recency(board, observedAt, "before the last catalog refresh"));
+      updateInteractiveRecency = () => setRecency(recency(board, Date.now(), "ago"));
     },
     dispose() {
       link.removeEventListener("click", select);
+      link.removeEventListener("pointerenter", showCurrentRecency);
+      link.removeEventListener("focus", showCurrentRecency);
       item.remove();
     },
   };

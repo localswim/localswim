@@ -682,7 +682,7 @@ async function readWriteRefusal(response, status, code, withIssue = false) {
       problem.title.length > 0 &&
       problem.title.length <= 120 &&
       typeof problem.detail === "string" &&
-      problem.detail.length <= 512 &&
+      problem.detail.length <= (withIssue ? 3072 : 512) &&
       canonicalId(problem.request_id) &&
       isArray(problem.errors) &&
       problem.errors.length === (withIssue ? 1 : 0)

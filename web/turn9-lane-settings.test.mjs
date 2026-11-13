@@ -523,7 +523,8 @@ test("a verified conflict and a refused correction keep editing on the original 
   assert.match(status(host), /Lane added/);
 });
 
-for (const { label, detail, guidance } of [
+const longLaneLabel = "A" + "🐬".repeat(255);
+for (const { label, detail, guidance, field = "lane.key" } of [
   {
     label: "!!!",
     detail: validationProblem.detail,
@@ -534,15 +535,27 @@ for (const { label, detail, guidance } of [
     detail: "the completed key is reserved",
     guidance: /Edit the rejected draft before adding it/,
   },
+  {
+    label: longLaneLabel,
+    detail: `Lane "${longLaneLabel}" has no transition path to the completed lane.`,
+    guidance: /Edit the rejected draft before adding it/,
+    field: "policy.move_grants",
+  },
 ]) {
-  test(`a lost validation refusal for ${label} permits guarded correction after remount`, async () => {
+  const sample = [...label].slice(0, 12).join("");
+  test(`a lost validation refusal for ${sample} permits guarded correction after remount`, async () => {
     const attempts = [];
     const { mount, storage } = fixture((path, request) => {
       if (request.method === "POST") {
         const draft = body(request);
         attempts.push(draft);
         if (attempts.length === 1) throw new Error("lost native 400");
-        if (attempts.length === 2) return validationReply({ ...validationProblem, detail });
+        if (attempts.length === 2)
+          return validationReply({
+            ...validationProblem,
+            detail,
+            errors: [{ field, code: "invalid_value" }],
+          });
         return reply(lane(draft.id, draft.label, 2, "ordinary", { revision: 5 }), 201);
       }
       if (path === `${prefix}/boards/${boardId}`) return boardReply(4);

@@ -40,7 +40,7 @@ const first = "82b11b54-e045-4ff0-912e-a429e2ef4a66";
 const second = "83b11b54-e045-4ff0-912e-a429e2ef4a66";
 const revisionTag = (id, revision) => `"${id}-${revision}"`;
 
-function harness(api, values = new Map()) {
+function harness(api, values = new Map(), awaitUploadAdmission) {
   const life = new AbortController();
   const host = new Element();
   const pasteTarget = new Element();
@@ -63,6 +63,7 @@ function harness(api, values = new Map()) {
     signal: life.signal,
     pasteTarget,
     canUpload: () => true,
+    awaitUploadAdmission,
     beginWrite: begin,
     beginInspect: begin,
     readWithSession: (read) => read(),
@@ -301,6 +302,42 @@ test("an intervening card write stops a batch while preserving confirmed file re
   assert.equal(ui.changes(), 1);
   assert.match(ui.outcomes.children[0].textContent, /Uploaded/);
   assert.match(ui.outcomes.children[1].textContent, /stopped/);
+});
+
+test("a failed fresh admission stops subsequent dispatches", async () => {
+  const stored = new Map();
+  const events = [];
+  const permission = Promise.withResolvers();
+  const ui = harness(
+    {
+      uploadAttachment(cardId) {
+        events.push("posted");
+        const [item] = journal(stored).remaining;
+        return Promise.resolve(attachment(cardId, item));
+      },
+      getCard() {
+        events.push("checked card revision");
+        return Promise.resolve({
+          etag: revisionTag(first, 4),
+          data: { id: first, board_id: board, revision: 4 },
+        });
+      },
+    },
+    stored,
+    () => {
+      events.push("awaiting write access");
+      return permission.promise;
+    },
+  );
+  ui.select(first);
+  ui.pick(new File(["one"], "one.bin"), new File(["two"], "two.bin"));
+  await until(() => events.includes("awaiting write access"));
+  assert.deepEqual(events, ["posted", "checked card revision", "awaiting write access"]);
+  permission.resolve(false);
+  await until(() => !ui.leased.size);
+  assert.equal(events.filter((event) => event === "posted").length, 1);
+  assert.equal(ui.blocksCard(first), false);
+  assert.match(ui.status.textContent, /write access could not be confirmed/);
 });
 
 test("unavailable journal storage stops the batch before sending any bytes", async () => {

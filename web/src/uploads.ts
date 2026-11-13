@@ -15,6 +15,7 @@ type UploadOptions = AppContext &
     pasteTarget: HTMLElement;
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     canUpload: () => boolean;
+    awaitUploadAdmission?: (signal: AbortSignal) => Promise<boolean>;
     beginWrite: (cardId: string) => (() => void) | null;
     beginInspect: (cardId: string) => (() => void) | null;
     onChange: () => void;
@@ -165,6 +166,7 @@ export function mountUploads(
     pasteTarget,
     readWithSession,
     canUpload,
+    awaitUploadAdmission,
     beginWrite,
     beginInspect,
     onChange,
@@ -306,16 +308,17 @@ export function mountUploads(
       raw = save(cardId, previous, { remaining, expected: null });
       let revision: number | undefined;
       for (const [index, { file, result, original }] of pending.entries()) {
-        if (signal.aborted || !canUpload()) {
-          batch.notice = "Upload stopped because the board became unavailable.";
-          break;
-        }
+        signal.throwIfAborted();
         if (revision !== undefined) {
           expected = await readCardTag(cardId, revision);
           revision = undefined;
         }
+        if (index > 0 && awaitUploadAdmission && !(await awaitUploadAdmission(signal))) {
+          batch.notice = "Upload stopped because write access could not be confirmed.";
+          break;
+        }
         if (signal.aborted || !canUpload()) {
-          batch.notice = "Upload stopped because the board became unavailable.";
+          batch.notice = "Upload stopped because write access could not be confirmed.";
           break;
         }
         raw = save(cardId, raw, { remaining, expected });

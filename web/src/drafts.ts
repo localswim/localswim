@@ -1,3 +1,4 @@
+import type { ProjectBoardPending } from "./board-view.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
 
 export type CardText = Readonly<{ title: string; description: string }>;
@@ -178,8 +179,10 @@ function matchesSubmission(saved: ConfirmedCardText, draft: Draft): boolean {
 export function createCardTextDrafts({
   storage,
   api,
+  projectPending,
 }: Readonly<{
   storage?: OperationStorage;
+  projectPending?: ProjectBoardPending;
   api: {
     getCard(cardId: string, signal: AbortSignal): Promise<CardReply>;
     patchCard(cardId: string, etag: string, text: TextPatch): Promise<CardReply>;
@@ -468,6 +471,7 @@ export function createCardTextDrafts({
       if (!base || !draft || !snapshot().canSubmit) return;
       const finishWrite = binding.beginWrite?.();
       if (finishWrite === null) return;
+      let clearProjection: (() => void) | undefined;
       try {
         cancelEdit();
         const text = textPatch(
@@ -493,6 +497,15 @@ export function createCardTextDrafts({
             const result = await submitOperation(
               () => persist(key, entry, submission),
               async () => {
+                if (text.title !== undefined) {
+                  clearProjection = projectPending?.({
+                    kind: "title",
+                    boardId,
+                    cardId,
+                    revision: submission.base.revision,
+                    title: text.title,
+                  });
+                }
                 publish(entry);
                 const saved = confirmedReply(
                   scope,
@@ -523,6 +536,7 @@ export function createCardTextDrafts({
           settled,
         );
       } finally {
+        clearProjection?.();
         finishWrite?.();
       }
     }

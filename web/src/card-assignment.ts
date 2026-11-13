@@ -1,4 +1,4 @@
-import type { BoardViewData } from "./board-view.js";
+import type { BoardViewData, ProjectBoardPending } from "./board-view.js";
 import type { AppContext } from "./model.js";
 import { submitOperation, type OperationStorage } from "./operations.js";
 
@@ -111,6 +111,7 @@ export function mountCardAssignment(
     beginInspection,
     onConfirmed,
     onChange,
+    projectPending,
   }: AppContext &
     Readonly<{
       boardId: string;
@@ -122,6 +123,7 @@ export function mountCardAssignment(
       beginInspection: (cardId: string) => (() => void) | null;
       onConfirmed: (saved: SavedAssignment) => void;
       onChange?: () => void;
+      projectPending?: ProjectBoardPending;
     }>,
 ) {
   const doc = root.ownerDocument;
@@ -402,10 +404,20 @@ export function mountCardAssignment(
     const submission: Draft = { ...draft, phase: "submitted" };
     const change =
       name === "ownerId" ? { owner_id: draft.requested } : { priority_id: draft.requested };
+    let clearProjection: (() => void) | undefined;
     try {
       const outcome = await submitOperation(
         () => persist(cardId, entry, submission),
         async () => {
+          if (name === "priorityId") {
+            clearProjection = projectPending?.({
+              kind: "priority",
+              boardId,
+              cardId,
+              revision: context.revision,
+              priorityId: draft.requested,
+            });
+          }
           publish();
           const saved = readReply(
             await api.patchCard(cardId, context.etag, change),
@@ -448,6 +460,7 @@ export function mountCardAssignment(
       }
     } finally {
       entry.active = undefined;
+      clearProjection?.();
       release();
       publish();
     }

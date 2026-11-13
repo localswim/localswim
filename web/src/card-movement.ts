@@ -1,5 +1,5 @@
 import { ApiError } from "../api.mjs";
-import type { BoardViewData } from "./board-view.js";
+import type { BoardViewData, ProjectBoardPending } from "./board-view.js";
 import type { AppContext } from "./model.js";
 import { submitOperation, type OperationStorage } from "./operations.js";
 
@@ -26,6 +26,7 @@ type MovementOptions = AppContext &
     beginWrite: (cardId: string) => (() => void) | null;
     onChange: () => void;
     onRefresh: (cardId: string) => void;
+    projectPending?: ProjectBoardPending;
   }>;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -68,6 +69,7 @@ export function createCardMovement({
   beginWrite,
   onChange,
   onRefresh,
+  projectPending,
 }: MovementOptions) {
   const key = `localswim:v2:card-move:${boardId}`;
   const journal = () => storage ?? globalThis.sessionStorage;
@@ -240,6 +242,7 @@ export function createCardMovement({
     }
     const intent = { cardId, laneId, revision, etag, destination };
     busy = true;
+    let clearProjection: (() => void) | undefined;
     try {
       const outcome = await submitOperation(
         () => {
@@ -257,6 +260,14 @@ export function createCardMovement({
           }
         },
         async () => {
+          clearProjection = projectPending?.({
+            kind: "move",
+            boardId,
+            cardId,
+            revision,
+            sourceLaneId: laneId,
+            laneId: destination,
+          });
           announce(cardId, `Moving card to ${laneLabel(destination)}…`);
           const reply = await api.patchCard(cardId, etag, { lane_id: destination });
           const saved = decodeCard(cardId, reply);
@@ -272,6 +283,10 @@ export function createCardMovement({
         },
       );
       if (signal.aborted) return;
+      if (outcome.kind !== "confirmed") {
+        clearProjection?.();
+        clearProjection = undefined;
+      }
       switch (outcome.kind) {
         case "journal-failed":
           if (pending) announce(pending.cardId, "A card move needs inspection.");
@@ -299,6 +314,7 @@ export function createCardMovement({
       }
     } finally {
       busy = false;
+      clearProjection?.();
       release();
       if (!signal.aborted) onChange();
     }

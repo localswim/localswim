@@ -36,6 +36,9 @@ type BoardCard = Readonly<{
   cover_attachment_id: string | null;
 }>;
 
+type UnnumberedCard = Pick<BoardCard, "id" | "title" | "priority_id" | "owner_id"> &
+  Readonly<{ ticket: null }>;
+
 type BoardContents = Readonly<{
   board: Readonly<{
     id: string;
@@ -57,6 +60,23 @@ export type BoardViewData = BoardContents &
     users: readonly Actor[];
   }>;
 
+export type BoardPendingChange = Readonly<{ boardId: string; cardId: string }> &
+  Readonly<
+    | { kind: "title"; revision: number; title: string }
+    | { kind: "move"; revision: number; sourceLaneId: string; laneId: string }
+    | { kind: "priority"; revision: number; priorityId: string }
+    | {
+        kind: "create";
+        boardEtag: string;
+        laneId: string;
+        title: string;
+        priorityId: string;
+        ownerId: string;
+      }
+  >;
+
+export type ProjectBoardPending = (change: BoardPendingChange) => () => void;
+
 export type BoardViewOptions = Readonly<{
   onOpenCard?: (card: BoardCard, opener: HTMLButtonElement) => void;
   renderLaneActions?: (lane: BoardLane, container: HTMLElement) => void;
@@ -64,6 +84,7 @@ export type BoardViewOptions = Readonly<{
   onMembershipChange?: () => void;
   mountCover?: (host: HTMLElement, card: BoardCard, signal: AbortSignal) => void;
   movement?: CardMovement;
+  pendingChanges?: () => readonly BoardPendingChange[];
 }>;
 
 type BoardViewport = Readonly<{
@@ -212,6 +233,7 @@ export function mountBoardView(
   const view = doc.defaultView;
   if (!view) throw new Error("The board view requires a window.");
   const NodeType = view.Node;
+  const ElementType = view.HTMLElement;
 
   function element<K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -259,7 +281,16 @@ export function mountBoardView(
   if (options.movement) filterBar.after(moveFeedback);
   shadow.append(stylesheet, board);
 
-  type CardFace = { card: BoardCard; item: HTMLLIElement; opener: HTMLButtonElement };
+  type CardFace<T extends BoardCard | UnnumberedCard = BoardCard | UnnumberedCard> = {
+    card: T;
+    item: HTMLLIElement;
+    opener: HTMLButtonElement;
+    title: HTMLSpanElement;
+    priority: HTMLSpanElement;
+    pending: HTMLSpanElement;
+    description: readonly string[];
+    painted?: BoardPendingChange | null;
+  };
   type LaneFace = {
     lane: BoardLane;
     section: HTMLElement;
@@ -268,12 +299,18 @@ export function mountBoardView(
     scroll: HTMLDivElement;
     reveal: HTMLButtonElement;
     list: HTMLUListElement;
-    members: CardFace[];
+    members: CardFace<BoardCard>[];
+    displayed: CardFace[];
+    pendingMembership: boolean;
   };
 
   let currentBoard = initialData.board.id;
-  let renderedRevision = initialData.board.revision;
+  let confirmedData = initialData;
   let lanes: LaneFace[] = [];
+  let facesById = new Map<string, CardFace>();
+  let priorities = new Map<string, Priority>();
+  let users = new Map<string, Actor>();
+  let projectedChanges: readonly BoardPendingChange[] | undefined;
   let showOlderCompleted = false;
   const { onOpenCard, renderLaneActions, onViewChange, onMembershipChange, movement } = options;
   let coverLifetime = new AbortController();
@@ -307,6 +344,7 @@ export function mountBoardView(
     const deferred = deferredData;
     deferredData = undefined;
     if (deferred) update(deferred);
+    else if (current) refreshPending();
     return current;
   }
 
@@ -328,6 +366,7 @@ export function mountBoardView(
     const enabled = new Map<string, boolean>();
     for (const { members } of lanes) {
       for (const { card, opener } of members) {
+        if (card.ticket === null) continue;
         const source = moveSource(card);
         let granted = enabled.get(source.laneId);
         if (granted === undefined) {
@@ -335,7 +374,8 @@ export function mountBoardView(
           enabled.set(source.laneId, granted);
         }
         if (opener !== drag?.opener) {
-          opener.draggable = !opener.disabled && granted && movement.available(source);
+          opener.draggable =
+            !opener.disabled && !opener.dataset.pending && granted && movement.available(source);
         }
       }
     }
@@ -354,19 +394,13 @@ export function mountBoardView(
 
   inspectMove.addEventListener("click", () => void movement?.inspect(), listenerOptions);
 
-  function cardFace(
-    card: BoardCard,
-    priority: Label | undefined,
-    owner: Actor | undefined,
-    presentation: ActorPresentation | undefined,
-  ): CardFace {
+  function cardFace<T extends BoardCard | UnnumberedCard>(card: T): CardFace<T> {
     const item = doc.createElement("li");
     const opener = element("button", "board-view-card card");
     opener.type = "button";
     opener.dataset.cardId = card.id;
-    const ticket = `#${card.ticket}`;
-    opener.setAttribute("aria-label", `${ticket} ${card.title}`);
-    if (onOpenCard) {
+    const ticket = card.ticket === null ? "" : `#${card.ticket}`;
+    if (card.ticket !== null && onOpenCard) {
       opener.addEventListener("click", () => onOpenCard(card, opener));
     } else {
       opener.disabled = true;
@@ -374,14 +408,14 @@ export function mountBoardView(
     }
 
     const meta = element("span", "board-view-card-meta");
-    meta.append(element("span", "board-view-card-ticket", ticket));
+    if (ticket) meta.append(element("span", "board-view-card-ticket", ticket));
+    const priority = element("span", "board-view-card-priority card-priority");
+    const pending = element("span", "board-view-pending-label");
+    meta.append(priority, pending);
     const description: string[] = [];
-    if (priority) {
-      meta.append(element("span", "board-view-card-priority card-priority", priority.label));
-      description.push(`Priority ${priority.label}`);
-    }
+    const owner = users.get(card.owner_id);
     if (owner) {
-      const custom = presentation?.[owner.kind];
+      const custom = confirmedData.board.actor_presentation?.[owner.kind];
       const name = custom?.label ?? owner.label;
       const actor = element("span", "board-view-card-actor actor-label", name);
       actor.dataset.actorKind = owner.kind;
@@ -393,8 +427,9 @@ export function mountBoardView(
       meta.append(actor);
       description.push(`Owner ${name}`);
     }
-    opener.append(element("span", "board-view-card-title", card.title), meta);
-    if (card.comment_count > 0 || card.attachment_count > 0) {
+    const title = element("span", "board-view-card-title");
+    opener.append(title, meta);
+    if (card.ticket !== null && (card.comment_count > 0 || card.attachment_count > 0)) {
       const counts = element("span", "board-view-card-counts card-counts");
       counts.setAttribute("aria-hidden", "true");
       if (card.comment_count > 0) {
@@ -419,8 +454,7 @@ export function mountBoardView(
       }
       opener.append(counts);
     }
-    if (description.length > 0) opener.setAttribute("aria-description", description.join(", "));
-    if (movement) {
+    if (card.ticket !== null && movement) {
       opener.addEventListener("dragstart", (event) => {
         const transfer = event.dataTransfer;
         const source = moveSource(card);
@@ -454,13 +488,138 @@ export function mountBoardView(
       });
     }
     item.append(opener);
-    if (options.mountCover && card.attachment_count > 0) {
+    if (card.ticket !== null && options.mountCover && card.attachment_count > 0) {
       const cover = element("span", "board-view-cover-slot");
       opener.prepend(cover);
       const mount = options.mountCover;
       coverMounts.push(() => mount(cover, card, coverLifetime.signal));
     }
-    return { card, item, opener };
+    return { card, item, opener, title, priority, pending, description };
+  }
+
+  function paintFace(face: CardFace, change?: BoardPendingChange) {
+    if (face.painted === (change ?? null)) return;
+    face.painted = change ?? null;
+    const { card, opener, title, priority, pending, description } = face;
+    const text = change?.kind === "title" ? change.title : card.title;
+    const priorityId = change?.kind === "priority" ? change.priorityId : card.priority_id;
+    const label = priorities.get(priorityId)?.label;
+    title.textContent = text;
+    priority.textContent = label ?? "";
+    priority.hidden = label === undefined;
+    pending.hidden = change === undefined;
+    pending.textContent = change?.kind === "create" ? "Pending creation" : change ? "Pending" : "";
+    opener.classList.toggle("board-view-card-pending", change !== undefined);
+    if (change) opener.dataset.pending = change.kind;
+    else delete opener.dataset.pending;
+    opener.setAttribute(
+      "aria-label",
+      `${card.ticket === null ? "" : `#${card.ticket} `}${text}${change ? `, ${pending.textContent}` : ""}`,
+    );
+    const details = label ? [`Priority ${label}`, ...description] : description;
+    if (details.length) opener.setAttribute("aria-description", details.join(", "));
+    else opener.removeAttribute("aria-description");
+  }
+
+  function paintPending(changes: readonly BoardPendingChange[]) {
+    const byLane = new Map(lanes.map((lane) => [lane.lane.id, lane]));
+    const byCard = new Map(
+      changes
+        .filter(({ boardId }) => boardId === currentBoard)
+        .map((change) => [change.cardId, change]),
+    );
+    const placements: Array<{ face: CardFace; lane: LaneFace; priorityId: string }> = [];
+    for (const lane of lanes) {
+      lane.displayed = [];
+      lane.pendingMembership = false;
+    }
+    for (const lane of lanes) {
+      for (const face of lane.members) {
+        const { card } = face;
+        const change = byCard.get(card.id);
+        const applicable =
+          change?.kind !== "create" && change?.revision === card.revision ? change : undefined;
+        const target =
+          applicable?.kind === "move" && applicable.sourceLaneId === lane.lane.id
+            ? byLane.get(applicable.laneId)
+            : undefined;
+        if (target && target !== lane) {
+          lane.pendingMembership = target.pendingMembership = true;
+          placements.push({ face, lane: target, priorityId: card.priority_id });
+          paintFace(face, applicable);
+        } else if (applicable?.kind === "priority" && priorities.has(applicable.priorityId)) {
+          placements.push({ face, lane, priorityId: applicable.priorityId });
+          paintFace(face, applicable);
+        } else {
+          lane.displayed.push(face);
+          paintFace(face, applicable?.kind === "title" ? applicable : undefined);
+        }
+      }
+    }
+    for (const change of byCard.values()) {
+      if (
+        change.kind !== "create" ||
+        change.boardEtag !== confirmedData.etag ||
+        facesById.has(change.cardId)
+      )
+        continue;
+      const lane = byLane.get(change.laneId);
+      if (!lane || !priorities.has(change.priorityId) || !users.has(change.ownerId)) continue;
+      const face = cardFace({
+        id: change.cardId,
+        ticket: null,
+        title: change.title,
+        priority_id: change.priorityId,
+        owner_id: change.ownerId,
+      });
+      lane.pendingMembership = true;
+      placements.push({ face, lane, priorityId: change.priorityId });
+      paintFace(face, change);
+    }
+    // The server resolves relationship ordering. Keep the order of its other faces
+    // and position projected faces by priority and ticket until the next snapshot.
+    const pendingRanks = new Map(placements.map(({ face, priorityId }) => [face, priorityId]));
+    const rank = (id: string) => priorities.get(id)?.rank ?? Number.POSITIVE_INFINITY;
+    for (const { face, lane, priorityId } of placements) {
+      const projectedRank = rank(priorityId);
+      const ticket = face.card.ticket ?? Number.POSITIVE_INFINITY;
+      const index = lane.displayed.findIndex((other) => {
+        const otherRank = rank(pendingRanks.get(other) ?? other.card.priority_id);
+        return (
+          otherRank > projectedRank ||
+          (otherRank === projectedRank && (other.card.ticket ?? Number.POSITIVE_INFINITY) > ticket)
+        );
+      });
+      lane.displayed.splice(index === -1 ? lane.displayed.length : index, 0, face);
+    }
+    projectedChanges = changes;
+  }
+
+  function refreshPending() {
+    if (drag || lifetime.signal.aborted) return;
+    const changes = options.pendingChanges?.() ?? [];
+    if (
+      projectedChanges?.length === changes.length &&
+      projectedChanges.every((change, index) => change === changes[index])
+    )
+      return;
+    const focused = shadow.activeElement;
+    const focusLane = focused?.closest<HTMLElement>("[data-lane-id]")?.dataset.laneId;
+    const scrollLeft = strip.scrollLeft;
+    const scrollTops = lanes.map(({ scroll }) => scroll.scrollTop);
+    paintPending(changes);
+    paintFilter();
+    strip.scrollLeft = scrollLeft;
+    lanes.forEach(({ scroll }, index) => {
+      scroll.scrollTop = scrollTops[index] ?? 0;
+    });
+    if (focused instanceof ElementType && focusLane && shadow.activeElement !== focused) {
+      const lane = lanes.find(({ lane }) => lane.id === focusLane);
+      const target = focused.isConnected ? focused : (lane?.scroll ?? filter);
+      target.focus({ preventScroll: true });
+    }
+    refreshMovement();
+    onMembershipChange?.();
   }
 
   function paintFilter(revealingLane?: LaneFace) {
@@ -470,38 +629,51 @@ export function mountBoardView(
     let matching = 0;
     let revealTarget: CardFace | undefined;
     for (const laneFace of lanes) {
-      const { lane, count, countDescription, reveal, list, members } = laneFace;
+      const { lane, count, countDescription, reveal, list, displayed } = laneFace;
       const matches = query
-        ? members.filter(
-            ({ card }) =>
-              card.title.toLowerCase().includes(query) || `#${card.ticket}`.includes(query),
+        ? displayed.filter(
+            ({ card, title }) =>
+              title.textContent.toLowerCase().includes(query) ||
+              (card.ticket !== null && `#${card.ticket}`.includes(query)),
           )
-        : members;
-      total += members.length;
+        : displayed;
+      total += displayed.length;
       matching += matches.length;
       const laneSummary = query
-        ? `${matches.length} of ${members.length} cards`
-        : countLabel(members.length, "card");
-      count.textContent = query ? `${matches.length}/${members.length}` : String(members.length);
+        ? `${matches.length} of ${displayed.length} cards`
+        : countLabel(displayed.length, "card");
+      count.textContent = query
+        ? `${matches.length}/${displayed.length}`
+        : String(displayed.length);
       count.title = laneSummary;
       countDescription.textContent = laneSummary;
 
       if (revealingLane && revealingLane !== laneFace) continue;
       let hiddenCount = 0;
-      const visible = doc.createDocumentFragment();
+      const visible: HTMLLIElement[] = [];
       for (const face of matches) {
         const { card, item } = face;
-        const older = lane.role === "completed" && olderThanCutoff(card.completed_at, cutoff);
+        const older =
+          lane.role === "completed" &&
+          card.ticket !== null &&
+          olderThanCutoff(card.completed_at, cutoff);
         if (older && !showOlderCompleted) {
           hiddenCount++;
           continue;
         }
         if (older && revealingLane === laneFace) revealTarget ??= face;
-        visible.append(item);
+        visible.push(item);
       }
       reveal.hidden = hiddenCount === 0;
       reveal.textContent = `Show ${countLabel(hiddenCount, "older card")}`;
-      list.replaceChildren(visible);
+      const visibleSet = new Set<Element>(visible);
+      for (const item of Array.from(list.children)) {
+        if (!visibleSet.has(item)) item.remove();
+      }
+      for (const [index, item] of visible.entries()) {
+        const current = list.children.item(index);
+        if (item !== current) list.insertBefore(item, current);
+      }
     }
     const summary = query ? `${matching} of ${total} cards match` : countLabel(total, "card");
     if (filterCount.textContent !== summary) filterCount.textContent = summary;
@@ -621,6 +793,8 @@ export function mountBoardView(
       reveal,
       list,
       members: [],
+      displayed: [],
+      pendingMembership: false,
     };
     reveal.addEventListener("click", () => {
       cancelMovement();
@@ -639,7 +813,7 @@ export function mountBoardView(
       return;
     }
     if (!sameBoard) cancelMovement();
-    renderedRevision = data.board.revision;
+    confirmedData = data;
     coverLifetime.abort();
     coverLifetime = new AbortController();
     coverMounts.length = 0;
@@ -654,23 +828,20 @@ export function mountBoardView(
       filter.value = "";
       scrollTops.clear();
     }
-    const priorities = new Map(data.priorities.map((priority) => [priority.id, priority]));
-    const users = new Map(data.users.map((user) => [user.id, user]));
+    priorities = new Map(data.priorities.map((priority) => [priority.id, priority]));
+    users = new Map(data.users.map((user) => [user.id, user]));
     lanes = data.lanes.map(laneFace);
     const lanesById = new Map(lanes.map((face) => [face.lane.id, face]));
+    facesById = new Map();
     for (const card of data.cards) {
-      lanesById
-        .get(card.lane_id)
-        ?.members.push(
-          cardFace(
-            card,
-            priorities.get(card.priority_id),
-            users.get(card.owner_id),
-            data.board.actor_presentation,
-          ),
-        );
+      const lane = lanesById.get(card.lane_id);
+      if (!lane) continue;
+      const face = cardFace(card);
+      lane.members.push(face);
+      facesById.set(card.id, face);
     }
     boardStyle.replaceSync(data.board.user_css);
+    paintPending(options.pendingChanges?.() ?? []);
     paintFilter();
     strip.replaceChildren(...lanes.map(({ section }) => section));
     for (const mount of coverMounts) mount();
@@ -771,6 +942,7 @@ export function mountBoardView(
   root.replaceChildren(boundary);
   return {
     update,
+    refreshPending,
     refreshMovement,
     cancelMovement,
     revokeCovers() {
@@ -779,17 +951,23 @@ export function mountBoardView(
     laneMembership(laneId: string) {
       const lane = lanes.find(({ lane }) => lane.id === laneId);
       if (!lane) return undefined;
-      const visible = lane.members
-        .filter(
-          ({ item, opener }) =>
-            item.parentElement === lane.list &&
-            opener.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
-        )
-        .map(({ card }) => card);
+      const query = filter.value.trim().toLowerCase();
+      const visible: BoardCard[] = [];
+      for (const { card, item, opener } of lane.members) {
+        if (
+          item.parentElement === lane.list &&
+          (!query ||
+            card.title.toLowerCase().includes(query) ||
+            `#${card.ticket}`.includes(query)) &&
+          opener.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+        ) {
+          visible.push(card);
+        }
+      }
       return {
         cards: visible,
-        revision: renderedRevision,
-        complete: filter.value.trim() === "" && visible.length === lane.members.length,
+        revision: confirmedData.board.revision,
+        complete: !query && !lane.pendingMembership && visible.length === lane.members.length,
       };
     },
     captureViewport(): BoardViewport {

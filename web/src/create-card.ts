@@ -1,4 +1,5 @@
 import { ApiError, MAX_ATTACHMENT_BYTES, type RelationshipKind } from "../api.mjs";
+import type { ProjectBoardPending } from "./board-view.js";
 import type { AppContext } from "./model.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
 import {
@@ -53,6 +54,7 @@ type CreateCardOptions = AppContext &
     isPageActive?: () => boolean;
     beginWrite?: (relatedCardIds?: readonly string[]) => (() => void) | null;
     beginInspection?: () => (() => void) | null;
+    projectPending?: ProjectBoardPending;
     storage?: OperationStorage;
     stagedFiles?: Map<string, CreateCardFileDraft>;
     attachments?: Readonly<{
@@ -905,35 +907,58 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
   async function submitOriginal(submitted: SubmittedDraft, journal: () => boolean) {
     let dispatched: string | null = null;
-    const result = await submitOperation(
-      () => {
-        if (!journal()) return false;
-        dispatched = raw;
-        return true;
-      },
-      () => createOriginal(submitted),
-    );
-    if (dispatched !== null && !ownsJournal(dispatched)) {
-      superseded = true;
-      return "superseded";
-    }
-    if (result.kind === "confirmed") {
-      const { data, etag, boardEtag } = result.result;
-      const card = identifyCard(boardId, submitted, data);
-      if (card?.matchesDraft) {
-        const base = boardRevision(boardId, submitted.submission.etag);
-        const tag =
-          base !== null &&
-          boardEtag === revisionTag(boardId, base + 1) &&
-          etag === revisionTag(card.id, base + 1)
-            ? uploadValidator(card.id, base + 1, data, etag)
-            : null;
-        resolveCreation(card, true, tag);
-        return "created";
+    let clearProjection: (() => void) | undefined;
+    try {
+      const result = await submitOperation(
+        () => {
+          if (!journal()) return false;
+          dispatched = raw;
+          return true;
+        },
+        () => {
+          const { laneId, title, submission } = submitted;
+          const ownerId = submission.effectiveOwnerId ?? submission.ownerId;
+          const priorityId =
+            submission.savedPriorityId ?? submission.effectivePriorityId ?? submission.priorityId;
+          if (ownerId && priorityId) {
+            clearProjection = options.projectPending?.({
+              kind: "create",
+              boardId,
+              cardId: submission.id,
+              boardEtag: submission.etag,
+              laneId,
+              title,
+              ownerId,
+              priorityId,
+            });
+          }
+          return createOriginal(submitted);
+        },
+      );
+      if (dispatched !== null && !ownsJournal(dispatched)) {
+        superseded = true;
+        return "superseded";
       }
-      return "unknown";
+      if (result.kind === "confirmed") {
+        const { data, etag, boardEtag } = result.result;
+        const card = identifyCard(boardId, submitted, data);
+        if (card?.matchesDraft) {
+          const base = boardRevision(boardId, submitted.submission.etag);
+          const tag =
+            base !== null &&
+            boardEtag === revisionTag(boardId, base + 1) &&
+            etag === revisionTag(card.id, base + 1)
+              ? uploadValidator(card.id, base + 1, data, etag)
+              : null;
+          resolveCreation(card, true, tag);
+          return "created";
+        }
+        return "unknown";
+      }
+      return result.kind;
+    } finally {
+      clearProjection?.();
     }
-    return result.kind;
   }
 
   async function resolveSeeds(

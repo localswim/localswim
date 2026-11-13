@@ -613,6 +613,7 @@ export function mountSidebarGeometry(
       toggle.focus({ preventScroll: true });
     }
     paintVisibility();
+    measure();
     persist();
   }
 

@@ -18,7 +18,8 @@ and execution cost when changing the rule set.
   TypeScript and checked JavaScript. Give Node tooling its correct environment.
   Existing dynamic JavaScript test harnesses receive syntax linting; expand typed
   coverage when it provides useful checks without distorting their fixtures.
-- Check emitted browser assets against fresh compiler output. Generated files
+- Check emitted browser assets against fresh release-build output, including
+  the optimization in the [UI release standard](ui-standards.md). Generated files
   are verified through that comparison and excluded from linting and formatting.
 
 TypeScript 7.0 supports the chosen approach. ESLint core and `typescript-eslint`

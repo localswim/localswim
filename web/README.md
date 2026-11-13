@@ -248,7 +248,9 @@ service running and available for status inspection.
 
 Each action makes one write attempt. After an uncertain response, use
 **Refresh service status** to check the service and the original activation
-receipt before submitting another action.
+receipt. If the original running service is unchanged and the receipt is
+absent, **Retry original activation** uses the same receipt ID, staged build
+and service validator.
 
 ### Browser API client
 

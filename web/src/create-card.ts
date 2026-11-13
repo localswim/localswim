@@ -110,21 +110,27 @@ function parseDraft(raw: string): Draft {
   };
 }
 
-function confirmedTicket(boardId: string, draft: Draft, data: object): number | null {
+function identifyCard(boardId: string, draft: Draft, data: object) {
   if (!draft.submission || !record(data)) return null;
   const { id, ownerId, priorityId } = draft.submission;
-  return data.id === id &&
-    data.board_id === boardId &&
-    data.lane_id === draft.laneId &&
-    data.title === draft.title &&
-    data.description === draft.description &&
-    (ownerId === "" || data.owner_id === ownerId) &&
-    (priorityId === "" || data.priority_id === priorityId) &&
-    typeof data.ticket === "number" &&
-    Number.isSafeInteger(data.ticket) &&
-    data.ticket > 0
-    ? data.ticket
-    : null;
+  if (
+    data.id !== id ||
+    data.board_id !== boardId ||
+    typeof data.ticket !== "number" ||
+    !Number.isSafeInteger(data.ticket) ||
+    data.ticket <= 0
+  )
+    return null;
+  return {
+    id,
+    ticket: data.ticket,
+    matchesDraft:
+      data.lane_id === draft.laneId &&
+      data.title === draft.title &&
+      data.description === draft.description &&
+      (ownerId === "" || data.owner_id === ownerId) &&
+      (priorityId === "" || data.priority_id === priorityId),
+  };
 }
 
 export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
@@ -206,13 +212,16 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   const cancel = button("Cancel");
   const recovery = button("Inspect pending creation");
   recovery.className = "create-card-recovery";
+  const recoveryStatus = doc.createElement("p");
+  recoveryStatus.className = "create-card-status";
+  recoveryStatus.setAttribute("role", "status");
   actions.append(cancel, dismiss, inspect, add);
   const choices = doc.createElement("div");
   choices.className = "create-card-choices";
   choices.append(field("Destination", lane), field("Owner", owner), field("Priority", priority));
   form.append(field("Title", title), field("Description", description), choices, status, actions);
   dialog.append(heading, form);
-  host.append(dialog, recovery);
+  host.append(dialog, recovery, recoveryStatus);
 
   function button(label: string) {
     const element = doc.createElement("button");
@@ -341,21 +350,24 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     opener = undefined;
   }
 
-  function confirm(submitted: Draft, data: object) {
-    const cardId = submitted.submission?.id;
-    const ticket = confirmedTicket(boardId, submitted, data);
-    if (!cardId || ticket === null) return false;
+  function resolveCreation(card: NonNullable<ReturnType<typeof identifyCard>>) {
+    const { id, ticket, matchesDraft } = card;
     const wasOpen = dialog.open;
+    const difference = `Found the original card #${ticket}. Its saved details differ from the submitted draft.`;
     dismissibleSubmission = undefined;
     const cleared = persist(null);
     if (cleared) {
       draft = null;
-      if (!signal.aborted) close();
+      if (!signal.aborted) {
+        close();
+        if (!matchesDraft) recoveryStatus.textContent = difference;
+      }
     } else {
-      message = `Card #${ticket} was created. The stored draft could not be cleared.`;
+      message = matchesDraft
+        ? `Found the original card #${ticket}. The stored draft could not be cleared.`
+        : `${difference} The stored draft could not be cleared.`;
     }
-    if (!signal.aborted) options.onConfirmed(cardId, ticket, wasOpen && cleared);
-    return true;
+    if (!signal.aborted) options.onConfirmed(id, ticket, wasOpen && cleared);
   }
 
   async function submit() {
@@ -414,7 +426,13 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           },
           () => api.createCard(payload),
         );
-        if (result.kind === "confirmed" && confirm(submitted, result.result.data)) return;
+        if (result.kind === "confirmed") {
+          const card = identifyCard(boardId, submitted, result.result.data);
+          if (card?.matchesDraft) {
+            resolveCreation(card);
+            return;
+          }
+        }
         if (result.kind === "journal-failed") {
           message = "The draft could not be stored. Creation requires a stored draft.";
         } else if (result.kind === "stale" || result.kind === "refused") {
@@ -477,11 +495,12 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         try {
           const { data } = await options.readWithSession(() => api.getCard(id, signal), signal);
           if (signal.aborted) return;
-          if (!confirm(submitted, data)) {
-            dismissibleSubmission = id;
+          const card = identifyCard(boardId, submitted, data);
+          // A focused read can establish the original's identity after another actor changes its fields.
+          if (card) resolveCreation(card);
+          else
             message =
-              "The original card does not match the draft. You can inspect again or dismiss the unresolved creation and keep the draft.";
-          }
+              "The read did not identify the original card. Inspect again to retry the read.";
         } catch (error) {
           if (signal.aborted) return;
           if (error instanceof ApiError && error.status === 404) {
@@ -662,6 +681,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   }
 
   function showDialog(trigger: HTMLButtonElement, initial: Draft) {
+    recoveryStatus.textContent = "";
     title.value = initial.title;
     description.value = initial.description;
     for (const reset of resetTextInputs) reset();
@@ -697,6 +717,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       lifetime.abort();
       dialog.remove();
       recovery.remove();
+      recoveryStatus.remove();
     },
   };
 }

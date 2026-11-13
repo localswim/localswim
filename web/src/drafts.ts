@@ -29,7 +29,7 @@ export type CardTextController = Readonly<{
   snapshot(): CardTextState;
   beginEdit(): void;
   cancelEdit(): void;
-  edit(text: CardText): void;
+  edit(text: CardText, field?: keyof CardText): void;
   submit(): Promise<void>;
   inspect(): Promise<void>;
   dismiss(): void;
@@ -262,6 +262,16 @@ export function createCardTextDrafts({
       };
     }
 
+    function canChangeDraft() {
+      return (
+        current() &&
+        !operations.state(key) &&
+        entry.draft?.phase !== "submitted" &&
+        entry.storageProblem !== "invalid" &&
+        entry.storageProblem !== "unavailable"
+      );
+    }
+
     function snapshot(): CardTextState {
       const { confirmed, writable } = context();
       const { draft, inspected, storageProblem, inspectionFailed } = entry;
@@ -284,8 +294,7 @@ export function createCardTextDrafts({
                   ? "dirty"
                   : "idle");
       const available = current() && !active;
-      const storageBlocked = storageProblem === "invalid" || storageProblem === "unavailable";
-      const canEdit = available && !unknown && !storageBlocked && writable && confirmed !== null;
+      const canEdit = canChangeDraft() && writable && confirmed !== null;
       const changedFields: (keyof CardText)[] = [];
       if (draft?.titleChanged) changedFields.push("title");
       if (draft?.descriptionChanged) changedFields.push("description");
@@ -316,28 +325,44 @@ export function createCardTextDrafts({
       editBase = undefined;
     }
 
-    function edit(text: CardText) {
-      const base = editBase ?? context().confirmed;
+    function edit(text: CardText, field?: keyof CardText) {
+      const { confirmed, writable } = context();
+      // A composition that began while writable can finish locally while the
+      // board is fenced. Its original version still controls later submission.
+      const captured = editBase ?? (writable ? confirmed : null);
       cancelEdit();
-      if (!base || !snapshot().canEdit) return;
+      if (!captured || !canChangeDraft()) return;
+      const base = captured;
       const previous = entry.draft;
-      const canCompare = previous === null || sameVersion(previous.base, base);
-      const titleChanged = canCompare
-        ? text.title !== base.title
-        : previous.titleChanged || text.title !== previous.text.title;
-      const descriptionChanged = canCompare
-        ? text.description !== base.description
-        : previous.descriptionChanged || text.description !== previous.text.description;
-      if (previous && sameText(previous.text, text)) return;
+      function editField(key: keyof CardText, wasChanged: boolean) {
+        if (field && field !== key)
+          return { value: previous?.text[key] ?? base[key], changed: wasChanged };
+        const value = text[key];
+        // The untouched draft value may predate the text visible in the editor.
+        if (field || !previous || sameVersion(previous.base, base)) {
+          return { value, changed: value !== base[key] };
+        }
+        return { value, changed: wasChanged || value !== previous.text[key] };
+      }
+      const title = editField("title", previous?.titleChanged ?? false);
+      const description = editField("description", previous?.descriptionChanged ?? false);
+      const next = { title: title.value, description: description.value };
+      if (
+        previous &&
+        previous.titleChanged === title.changed &&
+        previous.descriptionChanged === description.changed &&
+        sameText(previous.text, next)
+      )
+        return;
       persist(
         key,
         entry,
-        titleChanged || descriptionChanged
+        title.changed || description.changed
           ? {
               base: previous?.base ?? version(base),
-              text: { title: text.title, description: text.description },
-              titleChanged,
-              descriptionChanged,
+              text: next,
+              titleChanged: title.changed,
+              descriptionChanged: description.changed,
               phase: previous?.phase === "stale" ? "stale" : "dirty",
             }
           : null,

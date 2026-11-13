@@ -56,6 +56,8 @@ type Selection = {
   loading: boolean;
   refreshQueued: boolean;
   restored: boolean;
+  staleReadRetried: boolean;
+  read: AbortController | undefined;
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -376,6 +378,7 @@ export function mountCardView(
     onTextReadiness?.(false);
     retryButton.setAttribute("aria-disabled", "true");
     const attempt = new AbortController();
+    current.read = attempt;
     const selectionSignal = AbortSignal.any([signal, current.lifetime.signal]);
     const requestSignal = AbortSignal.any([selectionSignal, attempt.signal]);
     let cardConfirmed = false;
@@ -394,8 +397,13 @@ export function mountCardView(
       ]);
       requestSignal.throwIfAborted();
       if (acceptTextVersion?.(card.id, card.revision, card.etag) === false) {
+        if (!current.staleReadRetried) {
+          current.staleReadRetried = true;
+          current.refreshQueued = true;
+        }
         throw new ApiError("invalid_response");
       }
+      current.staleReadRetried = false;
       renderCard(card, laneLabel, data);
       renderHierarchy(relations);
       onTextContext?.({
@@ -433,6 +441,7 @@ export function mountCardView(
     } finally {
       attempt.abort();
       current.loading = false;
+      current.read = undefined;
       if (!selectionSignal.aborted) {
         retryButton.removeAttribute("aria-disabled");
         if (current.refreshQueued) {
@@ -459,6 +468,8 @@ export function mountCardView(
       loading: false,
       refreshQueued: false,
       restored: !focus,
+      staleReadRetried: false,
+      read: undefined,
     };
     onSelectionChange?.(reference, focus);
     onTextReadiness?.(false);
@@ -498,6 +509,7 @@ export function mountCardView(
     "click",
     () => {
       if (!selection || selection.loading) return;
+      selection.staleReadRetried = false;
       setStatus("Retrying card read…", true);
       refresh();
     },
@@ -530,6 +542,10 @@ export function mountCardView(
       if (!selection) return;
       selection.restored = true;
       refresh();
+    },
+    suspendRead() {
+      selection?.read?.abort();
+      if (selection) selection.refreshQueued = false;
     },
     dispose,
     editor,

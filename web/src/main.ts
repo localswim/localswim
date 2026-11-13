@@ -361,6 +361,13 @@ export function mount(root: HTMLElement): () => void {
         editor?.update();
       },
       acceptTextVersion(cardId, revision, etag) {
+        const saved = drafts.latestConfirmed({ boardId: selectedBoardId, cardId });
+        if (
+          saved &&
+          (revision < saved.revision || (revision === saved.revision && etag !== saved.etag))
+        ) {
+          return false;
+        }
         return (
           drawerText?.cardId !== cardId ||
           confirmedText === null ||
@@ -424,6 +431,7 @@ export function mount(root: HTMLElement): () => void {
     }
     sidebar.suspend();
     attention.cancelReorder();
+    drawer?.suspendRead();
   }
 
   function resumeOnReturn(event: PageTransitionEvent) {

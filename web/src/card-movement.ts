@@ -304,6 +304,7 @@ export function createCardMovement({
   return {
     destinations,
     available,
+    hasPolicy: () => getPolicy() !== null,
     prepareDrag,
     move,
     async drop(
@@ -364,6 +365,7 @@ export function mountCardMovement(
   root: HTMLElement,
   controller: CardMovement,
   getCard: () => CardMoveContext | null,
+  focusedReady: () => boolean,
 ) {
   const doc = root.ownerDocument;
   const lifetime = new AbortController();
@@ -390,39 +392,60 @@ export function mountCardMovement(
   let original: CardMoveContext | null = null;
   let destination = "";
   let optionSignature = "";
+  let options: ReturnType<CardMovement["destinations"]> = [];
+  let selectionMessage = "";
+
+  function canChoose(card: CardMoveContext | null): card is CardMoveContext {
+    return Boolean(
+      card &&
+      !card.archived &&
+      focusedReady() &&
+      controller.hasPolicy() &&
+      controller.available(card),
+    );
+  }
+
+  function clearChoice() {
+    original = null;
+    destination = "";
+  }
 
   function update() {
     const card = getCard();
     if (card?.cardId !== cardId) {
       cardId = card?.cardId;
-      original = null;
-      destination = "";
+      clearChoice();
+      options = [];
+      selectionMessage = "";
     }
-    const destinations = card && !card.archived ? controller.destinations(card) : [];
-    const signature = JSON.stringify(destinations.map(({ id, label }) => [id, label]));
+    if (!card || card.archived) options = [];
+    else if (controller.hasPolicy()) options = controller.destinations(card);
+    const signature = JSON.stringify(options.map(({ id, label }) => [id, label]));
     if (optionSignature !== signature) {
       optionSignature = signature;
       const placeholder = doc.createElement("option");
       placeholder.value = "";
       placeholder.textContent = "Choose a lane";
-      const options = destinations.map(({ id, label }) => {
+      const laneOptions = options.map(({ id, label }) => {
         const option = doc.createElement("option");
         option.value = id;
         option.textContent = label;
         return option;
       });
-      select.replaceChildren(placeholder, ...options);
+      select.replaceChildren(placeholder, ...laneOptions);
     }
-    if (!destinations.some(({ id }) => id === destination)) {
-      original = null;
-      destination = "";
+    if (destination && !options.some(({ id }) => id === destination)) {
+      clearChoice();
+      selectionMessage = "The selected destination is no longer available.";
     }
-    select.value = destination;
-    form.hidden = destinations.length === 0;
-    select.disabled = !card || !controller.available(card);
-    submit.disabled = select.disabled || !original || !controller.available(original);
+    if (select.value !== destination) select.value = destination;
+    form.hidden = options.length === 0;
+    const ready = canChoose(card);
+    // Native disabled controls lose focus when an unrelated board refresh fences writes.
+    select.setAttribute("aria-disabled", String(!ready));
+    submit.setAttribute("aria-disabled", String(!ready || !original));
     const feedback = card ? controller.status(card.cardId) : undefined;
-    const message = feedback?.message ?? "";
+    const message = selectionMessage || feedback?.message || "";
     if (status.textContent !== message) status.textContent = message;
     status.hidden = !message;
     inspect.hidden = !feedback?.canInspect;
@@ -431,8 +454,12 @@ export function mountCardMovement(
   select.addEventListener(
     "change",
     () => {
-      destination = select.value;
-      original = getCard();
+      const card = getCard();
+      if (canChoose(card) && (!select.value || options.some(({ id }) => id === select.value))) {
+        destination = select.value;
+        original = destination ? card : null;
+        selectionMessage = "";
+      }
       update();
     },
     { signal },
@@ -441,11 +468,26 @@ export function mountCardMovement(
     "submit",
     (event) => {
       event.preventDefault();
-      if (submit.disabled || !original) return;
+      const saved = getCard();
+      if (!canChoose(saved) || !original) return;
       const requested = destination;
+      if (!controller.destinations(saved).some(({ id }) => id === requested)) {
+        update();
+        return;
+      }
       const card = original;
-      original = null;
-      destination = "";
+      clearChoice();
+      if (
+        saved.cardId !== card.cardId ||
+        saved.revision !== card.revision ||
+        saved.etag !== card.etag ||
+        saved.laneId !== card.laneId
+      ) {
+        selectionMessage = "The saved card changed. Choose a lane again.";
+        update();
+        return;
+      }
+      selectionMessage = "";
       update();
       void controller.move(card, requested);
     },

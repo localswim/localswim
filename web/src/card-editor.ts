@@ -393,7 +393,9 @@ export function mountCardEditor(
               exact = known;
             }
           }
-          const value = exact ?? applyInput(previous, input.value, isHistory ? undefined : change);
+          const value = isHistory
+            ? (exact ?? input.value)
+            : applyInput(previous, input.value, change);
           editField(field, text, previous, value, isHistory);
         }
         change = undefined;

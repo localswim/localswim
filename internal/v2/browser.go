@@ -1,6 +1,8 @@
 package v2
 
 import (
+	"errors"
+	"io/fs"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,33 +20,32 @@ func (x *request) serveBrowser() bool {
 	switch x.r.URL.Path {
 	case "/":
 		file, media = "index.html", "text/html; charset=utf-8"
-	case "/assets/app.mjs":
-		file, media = "app.mjs", "text/javascript; charset=utf-8"
-	case "/assets/operation-id.mjs":
-		file, media = "operation-id.mjs", "text/javascript; charset=utf-8"
-	case "/assets/api.mjs":
-		file, media = "api.mjs", "text/javascript; charset=utf-8"
-	case "/assets/board-updates.mjs":
-		file, media = "board-updates.mjs", "text/javascript; charset=utf-8"
-	case "/assets/card-prose.mjs":
-		file, media = "card-prose.mjs", "text/javascript; charset=utf-8"
+	case "/assets/operation-id.mjs", "/assets/api.mjs", "/assets/board-updates.mjs", "/assets/card-prose.mjs":
+		file, media = strings.TrimPrefix(x.r.URL.Path, "/assets/"), "text/javascript; charset=utf-8"
 	case "/assets/app.css":
 		file, media = "app.css", "text/css; charset=utf-8"
 	default:
-		id, ok := strings.CutPrefix(x.r.URL.Path, "/boards/")
-		if _, valid := normalizeID(id); !ok || !valid {
-			return false
+		if source, ok := strings.CutPrefix(x.r.URL.Path, "/assets/src/"); ok && fs.ValidPath(source) && strings.HasSuffix(source, ".js") {
+			file, media = "generated/src/"+source, "text/javascript; charset=utf-8"
+		} else {
+			id, ok := strings.CutPrefix(x.r.URL.Path, "/boards/")
+			if _, valid := normalizeID(id); !ok || !valid {
+				return false
+			}
+			file, media = "index.html", "text/html; charset=utf-8"
 		}
-		file, media = "index.html", "text/html; charset=utf-8"
+	}
+	data, err := web.Assets.ReadFile(file)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	if err != nil {
+		x.fail(err)
+		return true
 	}
 	if x.r.Method != http.MethodGet && x.r.Method != http.MethodHead {
 		x.w.Header().Set("Allow", "GET, HEAD")
 		x.problem(http.StatusMethodNotAllowed, "method_not_allowed", "This method is not available for the resource.", "", nil)
-		return true
-	}
-	data, err := web.Assets.ReadFile(file)
-	if err != nil {
-		x.fail(err)
 		return true
 	}
 	h := x.w.Header()

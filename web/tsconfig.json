@@ -3,6 +3,8 @@
     "target": "ES2024",
     "module": "ES2022",
     "moduleResolution": "bundler",
+    "rootDir": ".",
+    "newLine": "lf",
     "lib": [
       "ES2024",
       "DOM",
@@ -23,7 +25,9 @@
     "**/*.ts"
   ],
   "exclude": [
+    "build.mjs",
     "**/*.test.*",
+    "generated",
     "node_modules"
   ]
 }

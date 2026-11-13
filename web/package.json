@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node node_modules/typescript/lib/tsc.js --project tsconfig.json --noEmit",
+    "build": "node build.mjs",
+    "check": "node build.mjs --check",
     "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs"
   },
   "devDependencies": {

@@ -78,12 +78,12 @@ class Element extends EventTarget {
   }
 }
 
-function fixture(overrides = {}, saved, loseFirstWrite = false) {
+function fixture(overrides = {}, saved, loseFirstWrite = false, journal = new Map()) {
   const doc = { createElement: (name) => new Element(name, doc) };
   const root = new Element("div", doc);
   const reads = [];
   const writes = [];
-  const journal = new Map(saved ? [[key, JSON.stringify(saved)]] : []);
+  if (saved) journal.set(key, JSON.stringify(saved));
   let revision = 2;
   let cover = null;
   let inventory = [item];
@@ -141,6 +141,7 @@ function fixture(overrides = {}, saved, loseFirstWrite = false) {
     reads,
     writes,
     journal,
+    status: () => root.children[0].children[1].textContent,
     button: (label) =>
       root.querySelectorAll("button").find(({ textContent }) => textContent === label),
     image: () => root.querySelectorAll("img")[0],
@@ -206,11 +207,14 @@ for (const [saved, expected] of [
     ui.button(saved.kind === "cover" ? "Set cover" : "Detach").click();
     await settle();
     assert.deepEqual(ui.writes, [expected]);
-    assert.equal(ui.journal.get(key), JSON.stringify(saved));
+    const raw = ui.journal.get(key);
+    const { attempt, ...intent } = JSON.parse(raw);
+    assert.match(attempt, /^[a-f0-9-]{36}$/);
+    assert.deepEqual(intent, saved);
     assert.equal(ui.button("Retry saved change").hidden, true);
     ui.button("Inspect attachments").click();
     await settle();
-    assert.equal(ui.journal.get(key), JSON.stringify(saved));
+    assert.equal(ui.journal.get(key), raw);
     assert.deepEqual(ui.writes, [expected]);
     ui.button("Retry saved change").click();
     await settle();
@@ -218,3 +222,46 @@ for (const [saved, expected] of [
     assert.equal(ui.journal.has(key), false);
   });
 }
+
+test("an older refusal cannot clear or settle a newer retry from a second controller", async () => {
+  const first = Promise.withResolvers();
+  const second = Promise.withResolvers();
+  const journal = new Map();
+  const writes = [];
+  const record =
+    (waiting) =>
+    (...args) => {
+      writes.push(args);
+      return waiting.promise;
+    };
+  const old = fixture({ patchCard: record(first) }, undefined, false, journal);
+  await settle();
+  old.button("Set cover").click();
+  await settle();
+  const oldRaw = journal.get(key);
+
+  const next = fixture({ patchCard: record(second) }, undefined, false, journal);
+  await settle();
+  next.button("Inspect attachments").click();
+  await settle();
+  next.button("Retry saved change").click();
+  await settle();
+  const nextRaw = journal.get(key);
+  assert.notEqual(oldRaw, nextRaw);
+  assert.deepEqual(writes, [
+    [card, context.etag, { cover_attachment_id: attachment }],
+    [card, context.etag, { cover_attachment_id: attachment }],
+  ]);
+
+  first.reject(new ApiError("http_error", { status: 412 }));
+  await settle();
+  assert.equal(journal.get(key), nextRaw);
+  assert.doesNotMatch(old.status(), /changed\. Review/);
+  assert.equal(old.button("Set cover").disabled, true);
+  assert.equal(next.status(), "Saving attachment change…");
+
+  second.reject(new ApiError("transport_failed", { outcomeUnknown: true }));
+  await settle();
+  assert.equal(journal.get(key), nextRaw);
+  assert.match(next.status(), /could not be confirmed/);
+});

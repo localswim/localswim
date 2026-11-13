@@ -68,6 +68,13 @@ function readMutation(raw: string, cardId: string, boardId: string): SavedMutati
     return undefined;
   }
   if (typeof saved !== "object" || saved === null || !("kind" in saved)) return undefined;
+  const attempt = "attempt" in saved ? saved.attempt : undefined;
+  if (attempt !== undefined && (typeof attempt !== "string" || !uuid.test(attempt))) {
+    return undefined;
+  }
+  function canonical(intent: SavedMutation) {
+    return JSON.stringify({ ...intent, attempt }) === raw ? intent : undefined;
+  }
   if (
     saved.kind === "detach" &&
     "id" in saved &&
@@ -79,10 +86,14 @@ function readMutation(raw: string, cardId: string, boardId: string): SavedMutati
     saved.revision > 0 &&
     "boardEtag" in saved &&
     typeof saved.boardEtag === "string" &&
-    tagRevision(saved.boardEtag, boardId) !== undefined &&
-    Object.keys(saved).length === 4
+    tagRevision(saved.boardEtag, boardId) !== undefined
   ) {
-    return { kind: "detach", id: saved.id, revision: saved.revision, boardEtag: saved.boardEtag };
+    return canonical({
+      kind: "detach",
+      id: saved.id,
+      revision: saved.revision,
+      boardEtag: saved.boardEtag,
+    });
   }
   if (
     saved.kind === "cover" &&
@@ -90,10 +101,9 @@ function readMutation(raw: string, cardId: string, boardId: string): SavedMutati
     (saved.cover === null || (typeof saved.cover === "string" && uuid.test(saved.cover))) &&
     "cardEtag" in saved &&
     typeof saved.cardEtag === "string" &&
-    tagRevision(saved.cardEtag, cardId) !== undefined &&
-    Object.keys(saved).length === 3
+    tagRevision(saved.cardEtag, cardId) !== undefined
   ) {
-    return { kind: "cover", cover: saved.cover, cardEtag: saved.cardEtag };
+    return canonical({ kind: "cover", cover: saved.cover, cardEtag: saved.cardEtag });
   }
   return undefined;
 }
@@ -395,11 +405,11 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     }
   }
 
-  function journal(cardId: string, raw: string) {
+  function journal(cardId: string, raw: string, expected: string | null) {
     try {
       const store = storage();
       const key = operationKey(cardId);
-      if (!store || store.getItem(key) !== null) return false;
+      if (!store || store.getItem(key) !== expected) return false;
       store.setItem(key, raw);
       return store.getItem(key) === raw;
     } catch {
@@ -672,7 +682,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       let original = false;
       const intent = raw ? readMutation(raw, cardId, boardId) : undefined;
       if (inspectSaved) {
-        if (!intent || JSON.stringify(intent) !== raw) {
+        if (!intent) {
           current.message = "The saved attachment change could not be validated.";
           return;
         }
@@ -710,6 +720,10 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       const entries = await readEntries(cardId, readSignal);
       readSignal.throwIfAborted();
       if (!inspectSaved && current.context.etag !== etag) return;
+      if (inspectSaved && raw !== pending(cardId)) {
+        current.message = "The saved change was updated. Inspect the attachments again.";
+        return;
+      }
       const previous = current.entries;
       current.entries = entries;
       current.inventoryEtag = etag;
@@ -788,7 +802,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     if (!writable(current)) return;
     if (intent.kind === "cover") {
       const saved = { ...intent, cardEtag: current.context.etag };
-      await submit(current, saved, JSON.stringify(saved));
+      await submit(current, saved);
       return;
     }
     const boardEtag = getBoardEtag();
@@ -798,7 +812,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       return;
     }
     const saved = { ...intent, revision: entry.revision, boardEtag };
-    await submit(current, saved, JSON.stringify(saved));
+    await submit(current, saved);
   }
 
   async function retryMutation(current: Selection) {
@@ -806,16 +820,13 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     const { cardId } = current.context;
     if (!raw || !canWrite(current) || raw !== pending(cardId)) return;
     const intent = readMutation(raw, cardId, boardId);
-    if (intent) await submit(current, intent, raw, true);
+    if (intent) await submit(current, intent, raw);
   }
 
-  async function submit(
-    current: Selection,
-    intent: SavedMutation,
-    raw: string,
-    recovering = false,
-  ) {
+  async function submit(current: Selection, intent: SavedMutation, expected: string | null = null) {
     const { cardId } = current.context;
+    const recovering = expected !== null;
+    const raw = JSON.stringify({ ...intent, attempt: crypto.randomUUID() });
     const finish = beginWrite(cardId);
     if (!finish) {
       current.message = "Another card change is in progress.";
@@ -828,7 +839,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     update(current);
     try {
       const result = await submitOperation(
-        () => (recovering ? pending(cardId) === raw : journal(cardId, raw)),
+        () => journal(cardId, raw, expected),
         async () => {
           if (intent.kind === "detach") {
             await api.detachAttachment(intent.id, intent.revision, intent.boardEtag);
@@ -856,6 +867,12 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           }
         },
       );
+      if (result.kind !== "journal-failed" && pending(cardId) !== raw) {
+        if (active(current)) {
+          current.message = "The saved change was updated. Inspect the attachments again.";
+        }
+        return;
+      }
       if (
         result.kind === "confirmed" ||
         (!recovering && (result.kind === "stale" || result.kind === "refused"))

@@ -1304,7 +1304,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         method: "PUT",
         etag: strongTag(snapshotEtag),
         raw: file,
-        knownUnavailable: true,
+        knownUnavailable: [
+          "Verified recovery content is unavailable.",
+          "This board is closed or draining.",
+          "The service is draining.",
+          "Writes are paused after an uncertain commit. Inspect the saved state.",
+        ],
         timeoutMs: (uploadSeconds + replySeconds + 5) * 1000,
       });
       await requireJSONResponse(response, 200, true);

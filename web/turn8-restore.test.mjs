@@ -59,6 +59,23 @@ function live(revision, availability = "open") {
   );
 }
 
+function unavailableRestore(detail, fields = {}) {
+  return Response.json(
+    {
+      type: "about:blank",
+      title: "Service Unavailable",
+      status: 503,
+      code: "unavailable",
+      detail,
+      request_id: otherBoard,
+      outcome: "not_applied",
+      errors: [],
+      ...fields,
+    },
+    { status: 503, headers: { "Content-Type": "application/problem+json" } },
+  );
+}
+
 class Element extends EventTarget {
   constructor(tagName, doc) {
     super();
@@ -264,22 +281,13 @@ test("a lost response survives reload and only newer reconciled readback release
   assert.deepEqual(refreshes, [[boardId], [boardId], [boardId], [boardId]]);
 });
 
-test("definite damaged ZIP refusals offer inspection at the unchanged revision", async () => {
+test("damaged ZIP and exact unavailable refusals permit inspection at the unchanged revision", async () => {
   for (const response of [
     new Response(null, { status: 400 }),
-    Response.json(
-      {
-        type: "about:blank",
-        title: "Service Unavailable",
-        status: 503,
-        code: "unavailable",
-        detail: "Verified recovery content is unavailable.",
-        request_id: otherBoard,
-        outcome: "not_applied",
-        errors: [],
-      },
-      { status: 503, headers: { "Content-Type": "application/problem+json" } },
-    ),
+    unavailableRestore("Verified recovery content is unavailable."),
+    unavailableRestore("This board is closed or draining."),
+    unavailableRestore("The service is draining."),
+    unavailableRestore("Writes are paused after an uncertain commit. Inspect the saved state."),
   ]) {
     let writes = 0;
     const { mount, tab } = fixture((path, request) => {
@@ -300,6 +308,39 @@ test("definite damaged ZIP refusals offer inspection at the unchanged revision",
     current.inspect.click();
     await flush();
     assert.equal(tab.has(key), false);
+    assert.equal(writes, 1);
+  }
+});
+
+test("unrelated or uncertain restore 503 replies keep the original attempt fenced", async () => {
+  for (const response of [
+    unavailableRestore("Durable backup content is unavailable."),
+    unavailableRestore("Verified recovery content is unavailable.", { title: "Unavailable" }),
+    unavailableRestore("Inspect the saved state before attempting another write.", {
+      code: "outcome_unknown",
+      outcome: "unknown",
+    }),
+  ]) {
+    let writes = 0;
+    const { mount, tab, doc } = fixture((path, request) => {
+      if (request.method === "PUT") {
+        writes++;
+        return response;
+      }
+      if (path === snapshotPath) return snapshot(3);
+      if (path === `${prefix}/verifications/${boardId}`) return verification(3);
+      return live(3);
+    });
+    const current = mount();
+    current.choose();
+    current.confirm.click();
+    await flush();
+    assert.equal(JSON.parse(tab.get(key)).phase, "submitted");
+    assert.match(current.status.textContent, /outcome is unknown/);
+    current.inspect.click();
+    await flush();
+    assert.match(current.status.textContent, /remains unknown/);
+    assert.equal(hasPendingBoardRestore(doc, boardId), true);
     assert.equal(writes, 1);
   }
 });

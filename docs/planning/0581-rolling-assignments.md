@@ -14,9 +14,9 @@ Each assignment uses its named epic #0581 story as scope. Sol Medium is GPT-6.1 
 | #0586 / R05 | Sol Medium 0586 Author | Sol Medium 0586 Review | R03 accepted | In Progress. Paired search and scroll verified. Candidate review. |
 | #0587 / R06 | Sol Medium 0587 Render<br>Sol Medium 0587 Data | Sol Medium 0587 Review | R03 accepted | In Progress. Archived child and literal long prose verified. Candidate review. |
 | #0588 / R09 | Sol Medium 0588 Form<br>Sol Medium 0588 Transaction | Sol High 0588 Review | R03 accepted | In Progress. Paired create forms and recovery verified. Visual gaps recorded. |
-| #0589 / R11 | Sol Medium 0589 Author | Sol High 0589 Review | R03 accepted | In Progress. Permitted drag, stale refusal and recovery verified. Forbidden drop and focus evidence remain. |
+| #0589 / R11 | Sol Medium 0589 Author | Sol High 0589 Review | R03 accepted | In Progress. Permitted and denied drag, stale refusal and recovery verified. Matched focus and scroll evidence remains. |
 | #0590 / R13 | Sol Medium 0590 Author | Sol High 0590 Review | R03 accepted | In Progress. Filtered approval and delayed confirmation verified. Candidate review. |
-| #0591 / R14 | Sol Medium 0591 Author | Sol High 0591 Review | R03 accepted | In Progress. Changed plan, stale refusal and live recovery verified. Scoped V1 evidence remains. |
+| #0591 / R14 | Sol Medium 0591 Author | Sol High 0591 Review | R03 accepted | In Progress. Changed plan, stale refusal, live recovery and Completed scope verified. |
 | #0592 / R15 | Sol Medium 0592 Author | Sol High 0592 Review | R03 accepted | In Progress. CLI/API verification passed independent review. Live floor and stale refusal verified. |
 | #0593 / R18 | Sol High 0593 Live<br>Sol Medium 0593 Status | Sol High 0593 Review | R02 and R03 accepted | In Progress. Paired reconnect, Human cues and confirmed Bot move replay captured. Visual gaps recorded. |
 

@@ -2967,7 +2967,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched forbidden pointer drop and focus/scroll evidence"
+          "missing_input": "Matched drag focus and scroll evidence"
         },
         {
           "ticket": 590,
@@ -3013,7 +3013,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Ticket-order Completed scope evidence if enabled"
+          "missing_input": "Candidate review after stale refusal, receipt presentation and paired Completed scope verification"
         },
         {
           "ticket": 592,

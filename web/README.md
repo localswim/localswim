@@ -5,6 +5,13 @@ the service's loopback URL or a board link at `/boards/{board_id}`. The page ope
 a same-origin Human session and keeps the capability in memory. The HTML and
 local assets are independent of the capability.
 
+The TypeScript entry point is `src/main.ts`. After editing TypeScript, run
+`npm --prefix web ci` if dependencies are missing, then
+`npm --prefix web run build`. Commit the corresponding files in
+`generated/src/`. The Go build embeds that output, and
+`npm --prefix web run check` checks types and compares the embedded output
+with a fresh compilation.
+
 The selected board updates when another client commits an edit. Live connection
 status is separate from the loaded board, so an interruption leaves the last
 view and drafts available. A replacement connection checks the current board

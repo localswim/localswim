@@ -129,7 +129,8 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 	for _, tc := range []struct{ path, media string }{
 		{"/", "text/html"},
 		{"/boards/" + newID(), "text/html"},
-		{"/assets/app.mjs", "text/javascript"},
+		{"/assets/src/main.js", "text/javascript"},
+		{"/assets/src/model.js", "text/javascript"},
 		{"/assets/api.mjs", "text/javascript"},
 		{"/assets/board-updates.mjs", "text/javascript"},
 		{"/assets/card-prose.mjs", "text/javascript"},
@@ -147,6 +148,9 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 		}
 		if tc.path == "/assets/operation-id.mjs" && !strings.Contains(string(body), "export function newOperationId()") {
 			t.Fatal("operation ID module was not served")
+		}
+		if tc.media == "text/html" && !strings.Contains(string(body), `src="/assets/src/main.js"`) {
+			t.Fatalf("UI route %s did not reference the compiled shell", tc.path)
 		}
 		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), tc.media) ||
 			res.Header.Get("Content-Security-Policy") != browserCSP || res.Header.Get("Cache-Control") != "no-store" ||

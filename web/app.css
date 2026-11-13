@@ -2,6 +2,8 @@
 @import "./src/board.css";
 @import "./src/attention.css";
 @import "./src/drawer.css";
+@import "./src/create-card.css";
+@import "./src/movement.css";
 
 :root {
   color-scheme: light;
@@ -70,6 +72,23 @@ header a {
 #attention,
 #board-region {
   min-width: 0;
+}
+
+#workspace-tools {
+  min-width: 0;
+  max-width: 50rem;
+}
+
+#workspace-tools > section,
+#route-content > details,
+.board-card-search {
+  margin-block: 0.6rem;
+}
+
+.board-card-search form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 @media (max-width: 750px) {
   [data-app][data-route="board"] #workspace-layout {

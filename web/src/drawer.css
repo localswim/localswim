@@ -222,6 +222,37 @@
   overflow-wrap: anywhere;
 }
 
+.card-drawer-tools > section {
+  border-block-start: 1px solid var(--board-view-lane-border);
+  margin-block: 0.9rem;
+  padding-block-start: 0.65rem;
+}
+
+.card-drawer-tools form,
+.card-comment-actions,
+.card-attachment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 0.4rem;
+}
+
+.card-comment-input {
+  inline-size: 100%;
+  min-block-size: 4rem;
+}
+
+.card-comment-prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.card-attachment-preview {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
 .card-drawer-links {
   display: grid;
   gap: 0.35rem;

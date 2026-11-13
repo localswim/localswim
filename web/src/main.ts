@@ -1,5 +1,6 @@
 import { mountAttention } from "./attention.js";
 import { mountCardArchive } from "./archive.js";
+import { mountAttachmentCover, mountAttachments } from "./attachments.js";
 import { mountBoardLifecycle } from "./board-lifecycle.js";
 import { readBoardPolicy, readBrowserPrincipal } from "./board-policy.js";
 import type { BoardPolicyContext, BrowserPrincipal } from "./board-policy.js";
@@ -8,8 +9,11 @@ import type { BoardStateView } from "./board-state.js";
 import { mountBoardView } from "./board-view.js";
 import type { BoardViewData } from "./board-view.js";
 import { mountCardAssignment } from "./card-assignment.js";
+import { createCardMovement, mountCardMovement } from "./card-movement.js";
 import { mountCardEditor } from "./card-editor.js";
 import { mountCardView } from "./card-view.js";
+import { mountCardComments } from "./comments.js";
+import { mountCreateCard } from "./create-card.js";
 import type { DrawerTextContext } from "./card-view.js";
 import { createCardTextDrafts } from "./drafts.js";
 import type { ConfirmedCardText } from "./drafts.js";
@@ -17,6 +21,7 @@ import { parseRoute } from "./model.js";
 import { mountPublishingSettings } from "./publishing-settings.js";
 import { createRecentBoards } from "./recent-boards.js";
 import type { RecentBoards } from "./recent-boards.js";
+import { mountRelationships } from "./relationships.js";
 import { mountCardSearch } from "./search.js";
 import { mountServiceTools } from "./service-tools.js";
 import { createSidebarPins } from "./sidebar-state.js";
@@ -92,6 +97,16 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let lifecycle: ReturnType<typeof mountBoardLifecycle> | undefined;
   let search: ReturnType<typeof mountCardSearch> | undefined;
   let archive: ReturnType<typeof mountCardArchive> | undefined;
+  let movement: ReturnType<typeof createCardMovement> | undefined;
+  let movementPanel: ReturnType<typeof mountCardMovement> | undefined;
+  let createCard: ReturnType<typeof mountCreateCard> | undefined;
+  let comments: ReturnType<typeof mountCardComments> | undefined;
+  let commentsBinding: AbortController | undefined;
+  let commentsHost: HTMLElement | undefined;
+  let attachments: ReturnType<typeof mountAttachments> | undefined;
+  let relationships: ReturnType<typeof mountRelationships> | undefined;
+  let previewsAllowed = false;
+  let policyRefreshFrame = 0;
   const assignmentVersions = new Map<string, { revision: number; etag: string }>();
   let writesBlocked = true;
   let focusedTextConfirmed = false;
@@ -229,7 +244,22 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       editor?.update();
       assignment?.update();
       updateArchive();
+      movementPanel?.update();
+      comments?.update();
+      updateDrawerTools();
     };
+  }
+
+  function beginCardWrite(cardId: string, related?: string): (() => void) | null {
+    if (
+      writesBlocked ||
+      lifecycle?.blocksWrites() ||
+      movement?.blocksCard(cardId) ||
+      (related && movement?.blocksCard(related)) ||
+      (selectedBoardId && runtime.writes.has(selectedBoardId))
+    )
+      return null;
+    return beginWrite(cardId, related);
   }
 
   function refreshPolicy() {
@@ -252,6 +282,15 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           publishing?.updatePermission();
           lifecycle?.update();
           updateArchive();
+          movementPanel?.update();
+          board?.refreshMovement();
+          createCard?.update();
+          view?.cancelAnimationFrame(policyRefreshFrame);
+          policyRefreshFrame =
+            view?.requestAnimationFrame(() => {
+              if (!signal.aborted && board && boardData) board.update(boardData);
+            }) ?? 0;
+          updateDrawerTools();
         },
         () => {
           if (policyVersion === version) policyVersion = "";
@@ -358,6 +397,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       drawerText = null;
       confirmedText = null;
       editor = undefined;
+      commentsBinding?.abort();
+      commentsBinding = undefined;
+      comments = undefined;
+      updateDrawerTools();
       return;
     }
     const sameCard = drawerText?.cardId === next.cardId;
@@ -372,6 +415,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     }
     if (sameCard) {
       editor?.update();
+      comments?.update();
+      updateDrawerTools();
       return;
     }
     textBinding?.abort();
@@ -387,10 +432,13 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             !writesBlocked &&
             focusedTextConfirmed &&
             drawerText?.editable === true &&
-            policy?.capabilities.has("edit_card") === true,
+            policy?.capabilities.has("edit_card") === true &&
+            !lifecycle?.blocksWrites() &&
+            !movement?.blocksCard(next.cardId) &&
+            !assignment?.hasUncertainSubmission(next.cardId),
         }),
         onChange: () => editor?.update(),
-        beginWrite: () => beginWrite(next.cardId),
+        beginWrite: () => beginCardWrite(next.cardId),
         onConfirmed(saved) {
           if (confirmedText === null || saved.revision >= confirmedText.revision) {
             confirmedText = saved;
@@ -407,6 +455,41 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       title: drawer.title,
       description: drawer.description,
     });
+    commentsBinding?.abort();
+    if (commentsHost) {
+      commentsBinding = new AbortController();
+      comments = mountCardComments(commentsHost, {
+        ...context,
+        signal: AbortSignal.any([signal, commentsBinding.signal]),
+        readWithSession,
+        scope: { boardId: selectedBoardId, cardId: next.cardId },
+        context: () => {
+          const card = drawerText;
+          const actorId = principal?.principalId;
+          const boardEtag = boardSnapshot?.confirmedEtag;
+          if (!card || card.cardId !== next.cardId || !actorId || !boardEtag) return null;
+          return {
+            actorId,
+            boardEtag,
+            cardEtag: card.etag,
+            revision: card.revision,
+            commentCount: card.commentCount,
+            writable:
+              !writesBlocked &&
+              focusedTextConfirmed &&
+              policy?.capabilities.has("comment") === true &&
+              !lifecycle?.blocksWrites(),
+          };
+        },
+        authorName: (id) =>
+          boardData?.users.find((user) => user.id === id)?.label ?? "Unknown author",
+        ticketLink: drawer.ticketLink,
+        beginWrite: beginCardWrite,
+        onConfirmed: refreshBoardAndDrawer,
+        onStale: refreshBoardAndDrawer,
+      });
+    }
+    updateDrawerTools();
   }
 
   function renderBoard(state: BoardStateView) {
@@ -414,10 +497,22 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     refreshPolicy();
     const { availability, connection, data, name, readiness, retryAvailable, writesFenced } = state;
     writesBlocked = writesFenced;
+    const previewReady =
+      state.availability === "open" &&
+      state.confirmedRevision !== null &&
+      state.connection === "connected" &&
+      state.readiness === "ready";
+    const previewChanged = previewsAllowed !== previewReady;
+    previewsAllowed = previewReady;
     editor?.update();
     assignment?.update();
     lifecycle?.update();
     updateArchive();
+    movementPanel?.update();
+    board?.refreshMovement();
+    createCard?.update();
+    comments?.update();
+    updateDrawerTools();
     retry.hidden = !retryAvailable;
     root.dataset.boardWritesFenced = String(writesFenced);
     root.dataset.boardConnection = connection;
@@ -467,6 +562,32 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         board = mountBoardView(boardHost, data, {
           onOpenCard: (card, opener) => drawer?.open({ id: card.id }, opener),
           onViewChange: queueBoardViewSave,
+          movement,
+          mountCover(host, card, coverSignal) {
+            if (!previewsAllowed || !selectedBoardId) return;
+            mountAttachmentCover(host, {
+              api: workspace.api,
+              signal: AbortSignal.any([signal, coverSignal]),
+              boardId: selectedBoardId,
+              cardId: card.id,
+              coverAttachmentId: card.cover_attachment_id,
+              readWithSession,
+            });
+          },
+          renderLaneActions(lane, host) {
+            if (
+              policy?.createLaneIds.has(lane.id) !== true ||
+              !policy.capabilities.has("create_card")
+            )
+              return;
+            const add = doc.createElement("button");
+            add.type = "button";
+            add.textContent = "New card";
+            add.disabled = writesBlocked;
+            add.dataset.laneCreate = lane.id;
+            add.addEventListener("click", () => createCard?.open(lane.id, add), { signal });
+            host.append(add);
+          },
         });
         restoreBoardView();
       }
@@ -474,7 +595,15 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         drawer?.refresh();
         if (!writesFenced) drawerNeedsConfirmation = false;
       }
+    } else if (previewChanged && board && boardData) {
+      board.update(boardData);
     }
+    boardHost
+      .querySelector(".board-view-host")
+      ?.shadowRoot?.querySelectorAll<HTMLButtonElement>("[data-lane-create]")
+      .forEach((button) => {
+        button.disabled = writesBlocked || lifecycle?.blocksWrites() === true;
+      });
     if (!writesFenced && drawerNeedsConfirmation) {
       drawerNeedsConfirmation = false;
       drawer?.refresh();
@@ -541,6 +670,36 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     );
   }
 
+  function updateDrawerTools() {
+    const card = drawerText;
+    const boardEtag = boardSnapshot?.confirmedEtag;
+    const writable = !writesBlocked && focusedTextConfirmed && !lifecycle?.blocksWrites();
+    attachments?.show(
+      card && previewsAllowed
+        ? {
+            cardId: card.cardId,
+            etag: card.etag,
+            attachmentCount: card.attachmentCount,
+            coverAttachmentId: card.coverAttachmentId,
+            editable:
+              writable && card.editable && policy?.capabilities.has("manage_attachments") === true,
+          }
+        : null,
+    );
+    relationships?.update(
+      card && boardEtag && boardData
+        ? {
+            cardId: card.cardId,
+            archived: card.archived,
+            boardEtag,
+            canManage: policy?.capabilities.has("manage_relationships") === true,
+            cards: boardData.cards,
+          }
+        : null,
+      writable,
+    );
+  }
+
   function refreshBoardAndDrawer() {
     if (signal.aborted) return;
     search?.suspend();
@@ -562,10 +721,19 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         editor?.update();
         assignment?.update();
         updateArchive();
+        movementPanel?.update();
+        comments?.update();
+        updateDrawerTools();
       },
       acceptTextVersion(cardId, revision, etag) {
         const saved = drafts.latestConfirmed({ boardId: selectedBoardId, cardId });
         const assigned = assignmentVersions.get(cardId);
+        const moved = movement?.latestConfirmed(cardId);
+        if (
+          moved &&
+          (revision < moved.revision || (revision === moved.revision && etag !== moved.etag))
+        )
+          return false;
         if (
           assigned &&
           (revision < assigned.revision ||
@@ -649,12 +817,84 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     );
     const assignmentHost = doc.createElement("section");
     const archiveHost = doc.createElement("section");
-    drawer.tools.append(assignmentHost, archiveHost);
+    const movementHost = doc.createElement("section");
+    const attachmentsHost = doc.createElement("section");
+    const relationshipsHost = doc.createElement("section");
+    commentsHost = doc.createElement("section");
+    drawer.tools.append(
+      assignmentHost,
+      movementHost,
+      archiveHost,
+      attachmentsHost,
+      relationshipsHost,
+      commentsHost,
+    );
+    attachments = mountAttachments(attachmentsHost, {
+      ...context,
+      readWithSession,
+      boardId: selectedBoardId,
+      getBoardEtag: () => boardSnapshot?.confirmedEtag,
+      beginWrite: beginCardWrite,
+      onChange: refreshBoardAndDrawer,
+    });
+    relationships = mountRelationships(relationshipsHost, {
+      ...context,
+      readWithSession,
+      boardId: selectedBoardId,
+      ticketLink: drawer.ticketLink,
+      beginWrite: beginCardWrite,
+      refresh: refreshBoardAndDrawer,
+    });
+    movement = createCardMovement({
+      ...context,
+      readWithSession,
+      boardId: selectedBoardId,
+      getBoardData: () => boardData,
+      getPolicy: () => policy,
+      canWrite: () =>
+        !writesBlocked &&
+        !lifecycle?.blocksWrites() &&
+        policy?.capabilities.has("edit_card") === true &&
+        !runtime.writes.has(selectedBoardId),
+      beginWrite,
+      onChange() {
+        movementPanel?.update();
+        board?.refreshMovement();
+        editor?.update();
+      },
+      onRefresh: refreshBoardAndDrawer,
+    });
+    movementPanel = mountCardMovement(movementHost, movement, () => drawerText);
+    createCard = mountCreateCard(shellElement("#card-create-root"), {
+      ...context,
+      readWithSession,
+      boardId: selectedBoardId,
+      context: () => {
+        if (!boardData || !policy || !boardSnapshot?.confirmedEtag) return null;
+        return {
+          etag: boardSnapshot.confirmedEtag,
+          writable: !writesBlocked && !lifecycle?.blocksWrites(),
+          lanes: policy.capabilities.has("create_card")
+            ? boardData.lanes.filter(({ id }) => policy?.createLaneIds.has(id))
+            : [],
+          users: boardData.users,
+          priorities: boardData.priorities,
+          defaultOwnerId: boardData.board.default_owner_id,
+          defaultPriorityId: policy.defaultPriorityId,
+        };
+      },
+      onConfirmed(cardId, _ticket, showCreatedCard) {
+        refreshBoardAndDrawer();
+        if (showCreatedCard && !signal.aborted) drawer?.open({ id: cardId });
+      },
+      onStale: refreshBoardAndDrawer,
+      focusFallback: () => board?.focusFilter(),
+    });
     archive = mountCardArchive(archiveHost, {
       ...context,
       readWithSession,
       boardId: selectedBoardId,
-      beginWrite,
+      beginWrite: beginCardWrite,
       onRefresh: refreshBoardAndDrawer,
     });
     assignment = mountCardAssignment(assignmentHost, {
@@ -671,7 +911,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             drawerText.editable &&
             policy?.capabilities.has("edit_card") === true,
         },
-      beginWrite,
+      beginWrite: beginCardWrite,
       onChange: () => editor?.update(),
       onConfirmed(saved) {
         assignmentVersions.set(saved.cardId, saved);
@@ -702,11 +942,17 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     if (signal.aborted) return;
     saveBoardView();
     lifetime.abort();
+    view?.cancelAnimationFrame(policyRefreshFrame);
     textBinding?.abort();
+    commentsBinding?.abort();
     editor?.dispose();
     drawer?.dispose();
     boardState?.dispose();
     board?.dispose();
+    movementPanel?.dispose();
+    createCard?.dispose();
+    attachments?.dispose();
+    relationships?.dispose();
     attention.dispose();
     runtime.streamClosed = workspace.dispose();
     if (runtime.workspace === workspace) runtime.workspace = undefined;
@@ -733,6 +979,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     search?.suspend();
     publishing?.suspend();
     attention.cancelReorder();
+    board?.cancelMovement();
     drawer?.suspendRead();
   }
 

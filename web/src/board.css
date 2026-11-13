@@ -206,6 +206,12 @@
   white-space: pre-wrap;
 }
 
+.board-view-card-cover {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
 .board-view .board-view-card-meta {
   display: flex;
   flex-wrap: wrap;

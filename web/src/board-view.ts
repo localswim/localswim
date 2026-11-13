@@ -24,6 +24,7 @@ type BoardCard = Readonly<{
   completed_at: string | null;
   comment_count: number;
   attachment_count: number;
+  cover_attachment_id: string | null;
 }>;
 
 type BoardContents = Readonly<{
@@ -51,6 +52,7 @@ export type BoardViewOptions = Readonly<{
   onOpenCard?: (card: BoardCard, opener: HTMLButtonElement) => void;
   renderLaneActions?: (lane: BoardLane, container: HTMLElement) => void;
   onViewChange?: () => void;
+  mountCover?: (host: HTMLElement, card: BoardCard, signal: AbortSignal) => void;
   movement?: CardMovement;
 }>;
 
@@ -250,6 +252,7 @@ export function mountBoardView(
   let lanes: LaneFace[] = [];
   let showOlderCompleted = false;
   const { onOpenCard, renderLaneActions, onViewChange, movement } = options;
+  let coverLifetime = new AbortController();
   const lifetime = new AbortController();
   const listenerOptions = { signal: lifetime.signal };
   type Drag = {
@@ -426,6 +429,11 @@ export function mountBoardView(
       });
     }
     item.append(opener);
+    if (options.mountCover && card.attachment_count > 0) {
+      const cover = element("span", "board-view-cover-slot");
+      opener.prepend(cover);
+      options.mountCover(cover, card, coverLifetime.signal);
+    }
     return { card, item, opener };
   }
 
@@ -603,6 +611,8 @@ export function mountBoardView(
       return;
     }
     if (!sameBoard) cancelMovement();
+    coverLifetime.abort();
+    coverLifetime = new AbortController();
     const focused = shadow.activeElement;
     const focusLane = focused?.closest<HTMLElement>("[data-lane-id]")?.dataset.laneId;
     const focusCard = focused?.getAttribute("data-card-id");
@@ -778,6 +788,7 @@ export function mountBoardView(
     dispose() {
       cancelMovement();
       lifetime.abort();
+      coverLifetime.abort();
       cancelViewportRestore();
       boundary.remove();
     },

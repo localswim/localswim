@@ -113,6 +113,7 @@ function attachment(cardId, item, revision = 4) {
       id: item.id,
       board_id: board,
       card_id: cardId,
+      original_name: item.name,
       size: item.size,
       sha2_256: item.digest,
       active: true,
@@ -257,6 +258,13 @@ test("raster paste stops on ambiguous response and inspects the original without
   assert.equal(reopened.blocksCard(first), true);
 
   response = attachment(first, attempt);
+  response.data.original_name = "another-name.png";
+  reopened.inspect.click();
+  await until(() => !reopened.leased.size);
+  assert.match(reopened.status.textContent, /could not be verified/);
+  assert.equal(reopened.blocksCard(first), true);
+
+  response = attachment(first, attempt);
   reopened.inspect.click();
   await until(() => !reopened.leased.size);
   assert.equal(reopened.blocksCard(first), false);
@@ -310,4 +318,31 @@ test("unavailable journal storage stops the batch before sending any bytes", asy
   await until(() => !ui.leased.size);
   assert.equal(posted, 0);
   assert.match(ui.status.textContent, /could not be verified/);
+});
+
+test("the upload receipt must name the exact original multipart file", async () => {
+  const stored = new Map();
+  const ui = harness(
+    {
+      uploadAttachment(cardId) {
+        const [item] = journal(stored).remaining;
+        const response = attachment(cardId, item);
+        response.data.original_name =
+          item.name === 'daily"report.txt' ? "daily%22report.txt" : "wrong-name.txt";
+        return Promise.resolve(response);
+      },
+    },
+    stored,
+  );
+  ui.select(first);
+  ui.pick(new File(["one"], 'daily"report.txt'));
+  await until(() => !ui.leased.size);
+  assert.equal(ui.blocksCard(first), false);
+  assert.equal(ui.outcomes.children[0].textContent, 'daily"report.txt — Uploaded.');
+
+  ui.select(first, 4);
+  ui.pick(new File(["two"], "correct-name.txt"));
+  await until(() => !ui.leased.size);
+  assert.equal(ui.blocksCard(first), true);
+  assert.match(ui.outcomes.children[0].textContent, /Outcome uncertain/);
 });

@@ -2,6 +2,8 @@ import type { CardDto, LaneDto, PriorityDto, Uuid } from "../api-types.js";
 import { bindBoardMoves } from "./move.js";
 import { projectCards } from "./filter.js";
 import { laneApprovalAvailability } from "./approve-lane.js";
+import { readAttachments, readAttachmentContent } from "../drawer/attachment-data.js";
+import { attachmentThumbnail, displayedCover } from "../drawer/attachment-view.js";
 import type {
   BoardData,
   BoardProps,
@@ -18,6 +20,10 @@ interface CardElements {
   readonly title: HTMLSpanElement;
   readonly comments: HTMLSpanElement;
   readonly commentCount: HTMLSpanElement;
+  readonly cover: HTMLImageElement;
+  coverKey?: string;
+  coverRead?: AbortController;
+  coverUrl?: string;
 }
 
 interface LaneElements {
@@ -118,6 +124,15 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   let configuredCss = "";
   let stylesLoaded = false;
   const lanes = new Map<Uuid, LaneElements>();
+  const coverCards = new Map<Element, { nodes: CardElements; card: CardDto; revision: number }>();
+  const coverObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      coverObserver.unobserve(entry.target);
+      const item = coverCards.get(entry.target);
+      if (item) void loadCover(item.nodes, item.card, item.revision);
+    }
+  });
   const moveReplays = new Set<Animation>();
   const focusTargets = new WeakMap<HTMLElement, FocusTarget>();
   const lifetime = new AbortController();
@@ -266,25 +281,61 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     const priority = element("span", "lsw-board-card-priority");
     const ticket = element("span", "lsw-board-card-ticket");
     const title = element("span", "lsw-board-card-title");
+    const cover = element("img", "lsw-board-card-cover");
+    cover.alt = "";
+    cover.hidden = true;
     const comments = element("span", "lsw-board-card-comments");
     const icon = element("span", "lsw-board-icon-comment");
     icon.setAttribute("aria-hidden", "true");
     const commentCount = element("span", "lsw-board-card-comment-count");
     comments.append(icon, commentCount);
     meta.append(priority, ticket);
-    open.append(meta, title, comments);
+    open.append(meta, cover, title, comments);
     trackFocus(open, "open-card", cardId);
-    return { button: open, priority, ticket, title, comments, commentCount };
+    return { button: open, priority, ticket, title, comments, commentCount, cover };
+  }
+
+  function releaseCover(nodes: CardElements): void {
+    coverObserver.unobserve(nodes.button);
+    coverCards.delete(nodes.button);
+    nodes.coverRead?.abort();
+    if (nodes.coverUrl) URL.revokeObjectURL(nodes.coverUrl);
+    nodes.coverUrl = undefined;
+    nodes.cover.hidden = true;
+    nodes.cover.removeAttribute("src");
+  }
+
+  async function loadCover(nodes: CardElements, card: CardDto, revision: number): Promise<void> {
+    const attempt = new AbortController();
+    nodes.coverRead = attempt;
+    const { signal } = attempt;
+    try {
+      const attachments = await readAttachments(card, revision, signal);
+      const image = displayedCover(attachments, card.cover_attachment_id);
+      if (!image || signal.aborted) return;
+      const bytes = await readAttachmentContent(image, "inline", signal);
+      const thumbnail = await attachmentThumbnail(bytes, nodes.button.clientWidth, 100);
+      if (signal.aborted || !nodes.button.isConnected) return;
+      nodes.coverUrl = URL.createObjectURL(thumbnail.bytes);
+      nodes.cover.width = thumbnail.width;
+      nodes.cover.height = thumbnail.height;
+      nodes.cover.src = nodes.coverUrl;
+      nodes.cover.hidden = false;
+    } catch {
+      // The drawer offers the focused attachment inspection path.
+    }
   }
 
   function renderCards(
     lane: LaneElements,
     cards: readonly CardDto[],
     priorities: ReadonlyMap<Uuid, PriorityDto>,
+    revision: number,
   ): void {
     const visible = new Set(cards.map((card) => card.id));
     for (const [id, nodes] of lane.cards) {
       if (visible.has(id)) continue;
+      releaseCover(nodes);
       nodes.button.remove();
       lane.cards.delete(id);
     }
@@ -292,6 +343,15 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       const nodes = lane.cards.get(card.id) ?? createCard(card.id);
       lane.cards.set(card.id, nodes);
       updateCard(nodes, card, priorities.get(card.priority_id));
+      const coverKey = `${card.attachment_count}:${card.cover_attachment_id ?? ""}:${card.revision}`;
+      if (nodes.coverKey !== coverKey) {
+        releaseCover(nodes);
+        nodes.coverKey = coverKey;
+        if (card.attachment_count > 0) {
+          coverCards.set(nodes.button, { nodes, card, revision });
+          coverObserver.observe(nodes.button);
+        }
+      }
       place(lane.list, nodes.button, index);
     }
   }
@@ -318,6 +378,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     const visibleIds = new Set(visible.map((lane) => lane.id));
     for (const [id, nodes] of lanes) {
       if (visibleIds.has(id)) continue;
+      for (const card of nodes.cards.values()) releaseCover(card);
       nodes.section.remove();
       lanes.delete(id);
     }
@@ -374,7 +435,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       nodes.older.checked = props.route.showCompleted;
       setText(nodes.olderText, `Unhide old (${projection.olderCompleted})`);
       setText(nodes.caption, permissions(data, lane.id));
-      renderCards(nodes, cards, priorities);
+      renderCards(nodes, cards, priorities, data.view.board.revision);
       place(track, nodes.section, index);
     }
   }
@@ -503,13 +564,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   function replayMove(card: CardDto, from: DOMRect): void {
     const destination = lanes.get(card.lane_id)?.cards.get(card.id)?.button;
     const to = visibleCardBounds(card);
-    if (
-      !destination ||
-      shadow.activeElement === destination ||
-      !to ||
-      Math.hypot(to.left - from.left, to.top - from.top) < 1
-    )
-      return;
+    if (!destination || !to || Math.hypot(to.left - from.left, to.top - from.top) < 1) return;
     const ghost = destination.cloneNode(true);
     if (!(ghost instanceof HTMLButtonElement)) return;
     ghost.removeAttribute("data-card-id");
@@ -526,13 +581,18 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       ],
       { duration: 430, easing: "cubic-bezier(.25, .75, .28, 1)" },
     );
-    const hideDestination = destination.animate([{ opacity: 0 }, { opacity: 0 }], 430);
+    const hideDestination =
+      shadow.activeElement === destination
+        ? null
+        : destination.animate([{ opacity: 0 }, { opacity: 0 }], 430);
     moveReplays.add(movement);
-    moveReplays.add(hideDestination);
+    if (hideDestination) moveReplays.add(hideDestination);
     const finish = () => {
       moveReplays.delete(movement);
-      moveReplays.delete(hideDestination);
-      hideDestination.cancel();
+      if (hideDestination) {
+        moveReplays.delete(hideDestination);
+        hideDestination.cancel();
+      }
       ghost.remove();
     };
     void movement.finished.then(finish, finish);
@@ -626,6 +686,8 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     dispose() {
       lifetime.abort();
       movement.dispose();
+      for (const lane of lanes.values()) for (const card of lane.cards.values()) releaseCover(card);
+      coverObserver.disconnect();
       replayResize.disconnect();
       stopMoveReplays();
       shadow.adoptedStyleSheets = [];

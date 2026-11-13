@@ -3,6 +3,12 @@
 @import "./workspace/pins.css";
 @import "./board/filter.css";
 @import "./drawer/drawer.css";
+@import "./drawer/edit-text.css";
+@import "./drawer/card-actions.css";
+@import "./drawer/post-comment.css";
+@import "./drawer/edit-relationships.css";
+@import "./drawer/attachment-view.css";
+@import "./workspace/cache-settings.css";
 @import "./create/create.css";
 @import "./board/ticket-order.css";
 @import "./board/approve-lane.css";

@@ -37,6 +37,33 @@ import { createCard, inspectCardCreation } from "./create/write.js";
 import type { DrawerData } from "./drawer/contracts.js";
 import { readDrawer, readDrawerTicket } from "./drawer/read.js";
 import { mountDrawer } from "./drawer/render.js";
+import { createCardApproval } from "./drawer/approve-card.js";
+import {
+  prepareCardPatch,
+  requestCardPatch,
+  inspectCardPatch,
+  type CardPatch,
+} from "./drawer/card-actions.js";
+import {
+  postComment,
+  inspectComment,
+  readPendingComments,
+  writePendingComment,
+  type CommentPostInput,
+  type CommentReceipt,
+} from "./drawer/post-comment.js";
+import {
+  prepareRelationshipOperation,
+  writeRelationshipOperation,
+  inspectRelationshipOperation,
+  type RelationshipIntent,
+} from "./drawer/edit-relationships.js";
+import {
+  requestAttachmentWrite,
+  inspectAttachmentWrite,
+  type AttachmentWrite,
+} from "./drawer/attachment-data.js";
+import type { InspectionResult, MutationResult, ReadFailure } from "./contracts.js";
 import {
   startLive,
   type LiveConnection,
@@ -47,6 +74,8 @@ import { readLiveActor } from "./live/activity.js";
 import type { ActorKind } from "./api-types.js";
 import { readService, readSession, readWorkspace } from "./workspace/read.js";
 import { mountWorkspace } from "./workspace/render.js";
+import { createRetainedBoardCache } from "./workspace/retained-cache.js";
+import { readWorkspaceHistory, writeWorkspaceHistory } from "./workspace/history.js";
 
 type BoardRoute = Extract<RouteState, { kind: "board" }>;
 interface BoardMemory {
@@ -111,6 +140,28 @@ function start(host: HTMLElement): void {
   let drawerData: ReadState<DrawerData> = { status: "loading", previous: null };
   let drawer: ReturnType<typeof mountDrawer> | undefined;
   let drawerKey: Uuid | null = null;
+  type DrawerOperation = {
+    readonly boardId: Uuid;
+    readonly actorId: Uuid;
+    readonly inspect: () => Promise<InspectionResult<unknown>>;
+    readonly accepted: (value: unknown) => void;
+    readonly comment: boolean;
+    phase: "pending" | "unknown" | "checking";
+    requestId?: Uuid;
+    refused?: () => void;
+  };
+  const drawerOperations = new Map<Uuid, DrawerOperation>();
+  const drawerMessages = new Map<Uuid, string>();
+  const commentMessageCards = new Set<Uuid>();
+  const relationshipOperations = new Map<Uuid, Uuid>();
+  let drawerPresentation: Confirmed<DrawerData> | null = null;
+  const commentDrafts = new Map<Uuid, { readonly text: string }>();
+  const committedRelationships = new Map<Uuid, RelationshipIntent>();
+  const committedText = new Map<
+    Uuid,
+    { readonly field: "title" | "description"; readonly value: string }
+  >();
+  const recoverableApprovals = new Map<Uuid, Uuid>();
   let ticketRead: AbortController | undefined;
   let creating: ReturnType<typeof mountCreate> | undefined;
   let draft: CreateDraft | undefined;
@@ -126,6 +177,11 @@ function start(host: HTMLElement): void {
   const pendingMoves = new Map<Uuid, { prepared: PreparedCardMove; requestId: Uuid }>();
   const inspectingMoves = new Set<Uuid>();
   const memory = new Map<Uuid, BoardMemory>();
+  const cache = createRetainedBoardCache();
+  let cacheActor: Uuid | null = null;
+  let historyTimer = 0;
+  let restoreHistoryOnEntry = true;
+  let traversingHistory = false;
   const overlay = document.createElement("div");
   overlay.className = "lsw-interaction-overlay";
   const notice = document.createElement("div");
@@ -143,10 +199,14 @@ function start(host: HTMLElement): void {
   checkCreate.type = "button";
   checkCreate.textContent = "Check creation status";
   checkCreate.hidden = true;
+  const checkApproval = document.createElement("button");
+  checkApproval.type = "button";
+  checkApproval.textContent = "Check approval status";
+  checkApproval.hidden = true;
   const orderChecks = new Map<Uuid, HTMLButtonElement>();
   const recovery = document.createElement("div");
   recovery.className = "lsw-operation-recovery";
-  recovery.append(checkMove, checkCreate);
+  recovery.append(checkMove, checkCreate, checkApproval);
   overlay.append(notice, successNotice, recovery);
   host.append(overlay);
   const live = startLive({
@@ -170,14 +230,50 @@ function start(host: HTMLElement): void {
     },
     onStateChange: render,
   });
+  const singleApproval = createCardApproval({
+    current: () => {
+      const context = drawerContext();
+      return context && !drawerOperations.has(context.drawer.card.id) ? context : null;
+    },
+    currentBoard: () => {
+      const value = currentBoard(true);
+      return value && session ? { board: value, session } : null;
+    },
+    currentActor: () => session?.principal_id ?? cacheActor,
+    onStart: () => closeDrawer(true),
+    onStateChange(id, state) {
+      if (state.actorId !== cacheActor) return;
+      if (state.status === "unknown") recoverableApprovals.set(id, state.cardId);
+      else if (state.status !== "checking" && recoverableApprovals.get(id) === state.cardId)
+        recoverableApprovals.delete(id);
+      if (!isSelected(id)) return;
+      if (state.status === "committed" && state.receipt) {
+        presentConfirmedWrite(id, state.receipt);
+        notice.textContent = "";
+        showSuccess(state.message);
+      } else {
+        notice.textContent = state.message;
+      }
+      if (state.status === "committed" || state.status === "failed") {
+        void refreshBoard(id);
+      }
+      render();
+    },
+  });
+  checkApproval.addEventListener("click", () => {
+    if (route.kind !== "board") return;
+    const id = recoverableApprovals.get(route.boardId);
+    if (id) singleApproval.checkStatus(route.boardId, id);
+  });
 
-  function currentBoard(): BoardData | null {
+  function currentBoard(forApproval = false): BoardData | null {
     const id = route.kind === "board" ? route.boardId : null;
     const present = last(workspace)?.value.boards.some(
       (item) => item.id === id && item.availability === "open",
     );
     return board.status === "ready" &&
       confirmedPresentation === null &&
+      (forApproval || id === null || !singleApproval.awaitsConfirmation(id)) &&
       (id === null || !ticketOrderInFlight(id)) &&
       workspace.status === "ready" &&
       session !== null &&
@@ -194,6 +290,104 @@ function start(host: HTMLElement): void {
 
   function isSelected(id: Uuid): boolean {
     return route.kind === "board" && route.boardId === id;
+  }
+
+  function persistHistory(next = route, mode: "push" | "replace" = "replace", path?: string): void {
+    window.clearTimeout(historyTimer);
+    const state = next.kind === "board" ? stateFor(next.boardId) : null;
+    writeWorkspaceHistory(
+      history,
+      {
+        route: next,
+        sidebarScroll,
+        boardScroll: state?.scroll ?? noBoardScroll,
+        focus: state?.focus ?? null,
+      },
+      mode,
+      path,
+    );
+  }
+
+  function scheduleHistory(): void {
+    window.clearTimeout(historyTimer);
+    historyTimer = window.setTimeout(() => persistHistory(), 250);
+  }
+
+  function setSession(next: SessionDto | null): void {
+    session = next;
+    if (!next || next.principal_id === cacheActor) return;
+    cache.setPrincipal(next.principal_id);
+    if (cacheActor !== null) {
+      boardReadEpoch += 1;
+      boardRead?.abort();
+      searchRead?.abort();
+      ticketRead?.abort();
+      for (const state of memory.values()) state.confirmed = null;
+      board = { status: "loading", previous: null };
+      confirmedPresentation = null;
+      drawerRead?.abort();
+      drawerPresentation = null;
+      drawerData = { status: "loading", previous: null };
+      drawer?.dispose();
+      drawer = undefined;
+      commentDrafts.clear();
+      drawerMessages.clear();
+      commentMessageCards.clear();
+      relationshipOperations.clear();
+      committedRelationships.clear();
+      committedText.clear();
+      drawerOperations.clear();
+      recoverableApprovals.clear();
+    }
+    cacheActor = next.principal_id;
+    for (const input of readPendingComments(next.principal_id)) {
+      if (drawerOperations.has(input.cardId)) continue;
+      const draft = { text: input.text };
+      commentDrafts.set(input.cardId, draft);
+      drawerOperations.set(input.cardId, {
+        boardId: input.boardId,
+        actorId: input.authorId,
+        requestId: input.requestId,
+        phase: "unknown",
+        comment: true,
+        inspect: () => inspectComment(input),
+        accepted: (value) => acceptDrawerComment(input, draft, value as CommentReceipt),
+      });
+      drawerMessages.set(input.cardId, "Check the original comment before posting again.");
+    }
+  }
+
+  function hidesRetained(error: ReadFailure): boolean {
+    return error.kind === "http" && [401, 403, 404].includes(error.problem.status);
+  }
+
+  function redactBoard(id: Uuid): void {
+    cache.evict(id);
+    stateFor(id).confirmed = null;
+    if (!isSelected(id)) return;
+    confirmedPresentation = null;
+    drawerPresentation = null;
+    drawerRead?.abort();
+    ticketRead?.abort();
+    searchRead?.abort();
+    drawerData = { status: "loading", previous: null };
+    drawer?.dispose();
+    drawer = undefined;
+  }
+
+  function reconcileRetained(catalog: WorkspaceData): void {
+    const allowed = new Set(catalog.boards.map(({ id }) => id));
+    cache.retainOnly(allowed);
+    if (route.kind === "board" && !allowed.has(route.boardId)) redactBoard(route.boardId);
+  }
+
+  function redactWorkspace(failure: ReadFailure): void {
+    cache.setPrincipal(null);
+    cacheActor = null;
+    session = null;
+    for (const [id] of memory) redactBoard(id);
+    workspace = { status: "unavailable", previous: null, failure };
+    board = { status: "unavailable", previous: null, failure };
   }
 
   function invalidateLive(event: LiveEvent): void {
@@ -270,10 +464,14 @@ function start(host: HTMLElement): void {
         moveEnabled: !moveBusy && !pendingMoves.has(id),
         onNavigate: navigate,
         onScrollChange: (scroll) => {
-          if (state.search === "") state.scroll = scroll;
+          if (state.search === "") {
+            state.scroll = scroll;
+            scheduleHistory();
+          }
         },
         onFocusChange: (focus) => {
           state.focus = focus;
+          scheduleHistory();
         },
         onRefresh: () => {
           void refreshWorkspace();
@@ -299,9 +497,11 @@ function start(host: HTMLElement): void {
       overlayOpen: drawerKey !== null || createOpen || ordering !== undefined,
       scroll: sidebarScroll,
       slots: { mountBoard },
+      cache,
       onNavigate: navigate,
       onScrollChange: (scroll) => {
         sidebarScroll = scroll;
+        scheduleHistory();
       },
       onRefresh: () => {
         void refreshWorkspace();
@@ -324,6 +524,7 @@ function start(host: HTMLElement): void {
     ordering?.update();
     checkMove.hidden = route.kind !== "board" || !pendingMoves.has(route.boardId);
     checkCreate.hidden = createPhase !== "unknown" || createOpen;
+    checkApproval.hidden = route.kind !== "board" || !recoverableApprovals.has(route.boardId);
     renderOrderChecks();
   }
 
@@ -359,6 +560,7 @@ function start(host: HTMLElement): void {
     const wasFiltered = cardSearchQuery(state.search) !== "";
     state.search = value;
     route = { ...route, search: value };
+    scheduleHistory();
     searchRead?.abort();
     const query = cardSearchQuery(value);
     if (query === "") {
@@ -395,14 +597,17 @@ function start(host: HTMLElement): void {
     );
   }
 
-  function closeDrawer(): void {
+  function closeDrawer(animate = false): void {
     if (route.kind !== "board") return;
     route = { ...route, cardId: null };
+    scheduleHistory();
     drawerRead?.abort();
     ticketRead?.abort();
     const opener = drawerKey;
     drawerKey = null;
-    drawer?.dispose();
+    drawerPresentation = null;
+    if (animate) drawer?.closeAnimated();
+    else drawer?.dispose();
     drawer = undefined;
     render();
     if (opener !== null && document.activeElement === document.body) {
@@ -416,8 +621,10 @@ function start(host: HTMLElement): void {
 
   function openDrawer(id: Uuid): void {
     if (route.kind !== "board") return;
+    if (drawerKey !== id) drawerPresentation = null;
     const boardId = route.boardId;
     route = { ...route, cardId: id };
+    scheduleHistory();
     drawerRead?.abort();
     ticketRead?.abort();
     const attempt = new AbortController();
@@ -450,6 +657,7 @@ function start(host: HTMLElement): void {
           epoch !== boardReadEpoch ||
           board.status !== "ready" ||
           approval.awaitsConfirmation(boardId) ||
+          singleApproval.awaitsConfirmation(boardId) ||
           ticketOrderInFlight(boardId) ||
           (state.confirmed?.value.view.board.revision ?? 0) > current.view.board.revision
         ) {
@@ -461,16 +669,25 @@ function start(host: HTMLElement): void {
         lastActor = null;
         lastActorAt = null;
         state.confirmed = confirmed(current);
+        cache.retain(state.confirmed);
         board = { status: "ready", current: state.confirmed };
       }
       drawerData = { status: "ready", current: confirmed(data) };
+      if (drawerPresentation && data.boardRevision >= drawerPresentation.value.boardRevision)
+        drawerPresentation = null;
       if (refreshSearch) {
         changeSearch(state.search);
         return;
       }
     } catch (error) {
       if (signal.aborted) return;
-      drawerData = { status: "unavailable", previous, failure: readFailure(error) };
+      const failure = readFailure(error);
+      if (hidesRetained(failure)) drawerPresentation = null;
+      drawerData = {
+        status: "unavailable",
+        previous: hidesRetained(failure) ? null : previous,
+        failure,
+      };
     }
     render();
   }
@@ -478,13 +695,60 @@ function start(host: HTMLElement): void {
   function renderDrawer(): void {
     const id = drawerKey;
     if (id === null) return;
+    const context = drawerContext();
+    const work = drawerOperations.get(id);
+    const writable =
+      context !== null &&
+      work === undefined &&
+      !singleApproval.awaitsConfirmation(context.board.view.board.id);
+    const comment = commentDrafts.get(id)?.text ?? "";
+    const displayedDrawer = drawerPresentation ?? last(drawerData);
+    const displayedBoard = (confirmedPresentation ?? last(board))?.value ?? null;
+    const presentation =
+      drawerPresentation === null
+        ? drawerData
+        : drawerData.status === "unavailable"
+          ? { ...drawerData, previous: drawerPresentation }
+          : { status: "ready" as const, current: drawerPresentation };
+    const canComment =
+      displayedDrawer !== null &&
+      displayedBoard?.policy.resource_grants.some(
+        (grant) =>
+          grant.user_id === (session?.principal_id ?? cacheActor) &&
+          grant.capabilities.includes("comment"),
+      ) === true;
+    const operationMessage = drawerMessages.get(id) ?? "";
+    const commentMessage = work?.comment || commentMessageCards.has(id);
     const props = {
-      data: drawerData,
+      data: presentation,
       board:
-        last(board)?.value.boardEtag === last(drawerData)?.value.boardEtag
-          ? (last(board)?.value ?? null)
+        displayedBoard?.view.board.id === displayedDrawer?.value.card.board_id
+          ? displayedBoard
           : null,
       session,
+      writable,
+      operationMessage: commentMessage ? "" : operationMessage,
+      onInspectOperation:
+        work?.phase === "unknown" ? () => void inspectDrawerOperation(id) : undefined,
+      onPatch: (patch: CardPatch) => void patchDrawerCard(patch),
+      onRelationship: (intent: RelationshipIntent) => void changeDrawerRelationship(intent),
+      committedRelationship: committedRelationships.get(id),
+      committedText: committedText.get(id),
+      onAttachment: (action: AttachmentWrite["action"]) => void changeDrawerAttachment(action),
+      onApprove: () => singleApproval.approve(),
+      comment: {
+        draft: comment,
+        canEdit: canComment || comment.length > 0,
+        canSubmit: writable && canComment && comment !== "",
+        canInspect: work?.comment === true && work.phase === "unknown",
+        status: commentMessage ? operationMessage : "",
+      },
+      onCommentDraft: (text: string) => {
+        if (text === "") commentDrafts.delete(id);
+        else commentDrafts.set(id, { text });
+        renderDrawer();
+      },
+      onCommentSubmit: () => void submitDrawerComment(),
       onClose: closeDrawer,
       onRefresh: () => openDrawer(id),
       onOpenCard: openDrawer,
@@ -515,6 +779,313 @@ function start(host: HTMLElement): void {
     };
     if (drawer) drawer.update(props);
     else drawer = mountDrawer(overlay, props);
+  }
+
+  function drawerContext() {
+    const data = currentBoard();
+    if (!data || !session || drawerPresentation !== null || drawerData.status !== "ready")
+      return null;
+    const value = drawerData.current.value;
+    return value.card.id === drawerKey &&
+      value.card.board_id === data.view.board.id &&
+      value.boardEtag === data.boardEtag &&
+      value.boardRevision === data.view.board.revision
+      ? { board: data, session, drawer: value }
+      : null;
+  }
+
+  type DrawerContext = NonNullable<ReturnType<typeof drawerContext>>;
+
+  async function runDrawerOperation<T>(
+    context: DrawerContext,
+    send: (beforeDispatch: (actual: SessionDto) => void) => Promise<MutationResult<T>>,
+    inspect: () => Promise<InspectionResult<T>>,
+    accepted: (value: T) => void = () => {},
+    comment = false,
+    refused?: () => void,
+  ): Promise<void> {
+    const id = context.drawer.card.id;
+    if (drawerOperations.has(id) || singleApproval.awaitsConfirmation(context.drawer.card.board_id))
+      return;
+    const work: DrawerOperation = {
+      boardId: context.drawer.card.board_id,
+      actorId: context.session.principal_id,
+      phase: "pending",
+      inspect,
+      accepted: (value) => accepted(value as T),
+      comment,
+      refused,
+    };
+    drawerOperations.set(id, work);
+    if (comment) commentMessageCards.add(id);
+    else commentMessageCards.delete(id);
+    drawerMessages.set(id, comment ? "Posting comment…" : "Saving…");
+    render();
+    let dispatched = false;
+    let result: MutationResult<T> | undefined;
+    try {
+      result = await send((actual) => {
+        const current = drawerContext();
+        if (
+          !current ||
+          current.drawer.card.id !== id ||
+          current.drawer.cardEtag !== context.drawer.cardEtag ||
+          current.board.boardEtag !== context.board.boardEtag ||
+          current.session.principal_id !== work.actorId ||
+          actual.principal_id !== work.actorId
+        )
+          throw new Error("Card context changed");
+        dispatched = true;
+      });
+    } catch {
+      // A request that reached the service needs inspection before another write.
+    }
+    if (drawerOperations.get(id) !== work) return;
+    if (result?.outcome === "committed") {
+      settleDrawerOperation(id, work, result.value);
+    } else if (dispatched && result?.outcome !== "not_applied") {
+      work.requestId = result?.requestId;
+      work.phase = "unknown";
+      await inspectDrawerOperation(id, work);
+    } else {
+      work.refused?.();
+      drawerOperations.delete(id);
+      drawerMessages.set(
+        id,
+        result?.outcome === "not_applied"
+          ? result.problem.detail
+          : "The card changed. Refresh before saving.",
+      );
+      if (isSelected(work.boardId)) refreshSelected();
+      render();
+    }
+  }
+
+  function settleDrawerOperation(id: Uuid, work: DrawerOperation, value: unknown): void {
+    if (drawerOperations.get(id) !== work) return;
+    drawerOperations.delete(id);
+    drawerMessages.delete(id);
+    commentMessageCards.delete(id);
+    work.accepted(value);
+    if (isSelected(work.boardId)) refreshSelected();
+    render();
+  }
+
+  async function inspectDrawerOperation(id: Uuid, expected?: DrawerOperation): Promise<void> {
+    const work = drawerOperations.get(id);
+    if (
+      !work ||
+      work.phase !== "unknown" ||
+      (expected && expected !== work) ||
+      session?.principal_id !== work.actorId
+    )
+      return;
+    work.phase = "checking";
+    drawerMessages.set(id, "Checking the original change…");
+    render();
+    try {
+      const result = await work.inspect();
+      if (result.outcome === "committed") {
+        settleDrawerOperation(id, work, result.value);
+        return;
+      }
+    } catch {
+      // Keep the original request available for inspection.
+    }
+    if (drawerOperations.get(id) !== work) return;
+    work.phase = "unknown";
+    drawerMessages.set(id, "The original change could not be confirmed.");
+    if (isSelected(work.boardId)) refreshSelected();
+    render();
+  }
+
+  async function patchDrawerCard(patch: CardPatch): Promise<void> {
+    const context = drawerContext();
+    if (!context) return;
+    const prepared = prepareCardPatch(context.board, context.drawer, context.session, patch);
+    if (!prepared) {
+      drawerMessages.set(
+        context.drawer.card.id,
+        "The field could not be saved. Check the value and try again.",
+      );
+      renderDrawer();
+      return;
+    }
+    committedText.delete(context.drawer.card.id);
+    await runDrawerOperation(
+      context,
+      (guard) => requestCardPatch(prepared, undefined, guard),
+      () => inspectCardPatch(prepared),
+      (card) => {
+        if ("title" in patch) committedText.set(card.id, { field: "title", value: patch.title });
+        if ("description" in patch)
+          committedText.set(card.id, { field: "description", value: patch.description });
+        if (!isSelected(card.board_id)) return;
+        if ("owner_id" in patch) {
+          const from = context.board.users.find(({ id }) => id === prepared.card.owner_id)?.kind;
+          const to = context.board.users.find(({ id }) => id === patch.owner_id)?.kind;
+          const actor = context.board.view.board.actor_presentation?.human?.label ?? "Terry";
+          if (from && to)
+            showSuccess(
+              `#${String(card.ticket).padStart(4, "0")} ownership change: ${from === "human" ? actor.toLowerCase() : from} → ${to === "human" ? actor.toLowerCase() : to} (by ${actor.toLowerCase()})`,
+            );
+        }
+        const base = (confirmedPresentation ?? last(board))?.value;
+        if (
+          base?.boardEtag === prepared.boardEtag &&
+          card.revision === prepared.boardRevision + 1 &&
+          !("priority_id" in patch) &&
+          !("archived" in patch)
+        ) {
+          minimumBoardRevisions.set(
+            card.board_id,
+            Math.max(card.revision, minimumBoardRevisions.get(card.board_id) ?? 0),
+          );
+          confirmedPresentation = confirmed({
+            ...base,
+            view: {
+              ...base.view,
+              board: {
+                ...base.view.board,
+                revision: card.revision,
+                updated_at: card.updated_at,
+                last_card_edit_at: card.updated_at,
+              },
+              cards: base.view.cards.map((item) => (item.id === card.id ? card : item)),
+            },
+          });
+        }
+        if (drawerKey === card.id && (last(drawerData)?.value.boardRevision ?? 0) < card.revision) {
+          drawerPresentation = confirmed({ ...context.drawer, card, boardRevision: card.revision });
+        }
+      },
+    );
+  }
+
+  async function submitDrawerComment(): Promise<void> {
+    const context = drawerContext();
+    if (!context) return;
+    const { card, cardEtag, boardEtag } = context.drawer;
+    const draft = commentDrafts.get(card.id);
+    const text = draft?.text ?? "";
+    if (!text) return;
+    const input = {
+      commentId: crypto.randomUUID(),
+      requestId: crypto.randomUUID(),
+      boardId: card.board_id,
+      cardId: card.id,
+      cardEtag,
+      boardEtag,
+      authorId: context.session.principal_id,
+      text,
+    };
+    await runDrawerOperation<CommentReceipt>(
+      context,
+      (guard) =>
+        postComment(input, undefined, (actual) => {
+          writePendingComment(input);
+          try {
+            guard(actual);
+          } catch (error) {
+            writePendingComment(input, true);
+            throw error;
+          }
+        }),
+      () => inspectComment(input),
+      (value) => acceptDrawerComment(input, draft, value),
+      true,
+      () => writePendingComment(input, true),
+    );
+  }
+
+  function acceptDrawerComment(
+    input: CommentPostInput,
+    draft: { readonly text: string } | undefined,
+    value: CommentReceipt,
+  ): void {
+    writePendingComment(input, true);
+    if (commentDrafts.get(input.cardId) === draft) commentDrafts.delete(input.cardId);
+    const current = (drawerPresentation ?? last(drawerData))?.value;
+    const receipt = value.comment;
+    if (
+      drawerKey === input.cardId &&
+      current?.card.id === input.cardId &&
+      !current.comments.some(({ id }) => id === receipt.id)
+    ) {
+      const comments = [{ ...receipt, ticket: current.card.ticket }, ...current.comments].toSorted(
+        (a, b) => b.created_at.localeCompare(a.created_at),
+      );
+      drawerPresentation = confirmed({ ...current, comments });
+    }
+  }
+
+  async function changeDrawerRelationship(intent: RelationshipIntent): Promise<void> {
+    const context = drawerContext();
+    if (!context) return;
+    const { card } = context.drawer;
+    const linkId = intent.action === "create" ? intent.id : intent.original.id;
+    if (relationshipOperations.has(linkId) || drawerOperations.has(card.id)) return;
+    relationshipOperations.set(linkId, card.id);
+    const requestId = crypto.randomUUID();
+    let input: Awaited<ReturnType<typeof prepareRelationshipOperation>>;
+    await runDrawerOperation<unknown>(
+      context,
+      async (guard) => {
+        input = await prepareRelationshipOperation(
+          context.drawer,
+          intent,
+          context.session.principal_id,
+        );
+        return writeRelationshipOperation(input, requestId, undefined, guard);
+      },
+      async () =>
+        input
+          ? inspectRelationshipOperation(input, await readDrawer(card.board_id, card.id))
+          : { outcome: "unknown" },
+      () => {
+        relationshipOperations.delete(linkId);
+        committedRelationships.set(card.id, intent);
+      },
+    );
+    if (!drawerOperations.has(card.id)) relationshipOperations.delete(linkId);
+  }
+
+  async function changeDrawerAttachment(action: AttachmentWrite["action"]): Promise<void> {
+    const context = drawerContext();
+    if (!context) return;
+    const write = { drawer: context.drawer, actorId: context.session.principal_id, action };
+    await runDrawerOperation(
+      context,
+      (guard) => requestAttachmentWrite(write, undefined, guard),
+      () => inspectAttachmentWrite(write),
+      () => {
+        const current = (drawerPresentation ?? last(drawerData))?.value;
+        const revision = context.drawer.boardRevision + 1;
+        if (
+          drawerKey !== context.drawer.card.id ||
+          current?.card.id !== drawerKey ||
+          current.boardRevision >= revision
+        )
+          return;
+        const detached = action.kind === "detach" ? action.attachment.id : null;
+        const cover =
+          action.kind === "cover"
+            ? (action.attachment?.id ?? null)
+            : current.card.cover_attachment_id === detached
+              ? null
+              : current.card.cover_attachment_id;
+        drawerPresentation = confirmed({
+          ...current,
+          boardRevision: revision,
+          card: {
+            ...current.card,
+            cover_attachment_id: cover,
+            attachment_count: current.card.attachment_count - (detached === null ? 0 : 1),
+          },
+          attachments: current.attachments?.filter((item) => item.id !== detached),
+        });
+      },
+    );
   }
 
   function closeCreate(): void {
@@ -849,12 +1420,17 @@ function start(host: HTMLElement): void {
     boardRead = attempt;
     const epoch = ++boardReadEpoch;
     const state = stateFor(id);
-    board = { status: "loading", previous: state.confirmed };
+    board = { status: "loading", previous: state.confirmed ?? cache.previous(id) };
     render();
     try {
       const value = await readBoard(id, attempt.signal);
       if (attempt.signal.aborted || epoch !== boardReadEpoch) return;
-      if (approval.awaitsConfirmation(id) || ticketOrderInFlight(id)) return;
+      if (
+        approval.awaitsConfirmation(id) ||
+        singleApproval.awaitsConfirmation(id) ||
+        ticketOrderInFlight(id)
+      )
+        return;
       if (value.view.board.revision < (minimumBoardRevisions.get(id) ?? 0)) {
         live.retry();
         return;
@@ -872,6 +1448,7 @@ function start(host: HTMLElement): void {
         lastActorAt = null;
       }
       state.confirmed = confirmed(value);
+      cache.retain(state.confirmed);
       board = { status: "ready", current: state.confirmed };
       confirmedPresentation = null;
       if (route.kind === "board" && route.boardId === id && state.search !== "") {
@@ -898,7 +1475,10 @@ function start(host: HTMLElement): void {
     } catch (error) {
       if (attempt.signal.aborted || epoch !== boardReadEpoch) return;
       const failure = readFailure(error);
-      board = { status: "unavailable", previous: state.confirmed, failure };
+      if (hidesRetained(failure)) {
+        redactBoard(id);
+      }
+      board = { status: "unavailable", previous: state.confirmed ?? cache.previous(id), failure };
       if (
         connection === "connected" &&
         ((failure.kind === "http" && failure.problem.status === 503) ||
@@ -915,6 +1495,7 @@ function start(host: HTMLElement): void {
     const was = route.kind === "board" ? route.boardId : null;
     const nextId = next.kind === "board" ? next.boardId : null;
     if (was !== nextId) {
+      if (was !== null) stateFor(was).confirmed = null;
       confirmedPresentation = null;
       liveMoveRevision = undefined;
       notice.textContent = "";
@@ -934,6 +1515,7 @@ function start(host: HTMLElement): void {
       drawer?.dispose();
       drawer = undefined;
       drawerKey = null;
+      drawerPresentation = null;
       ordering?.dispose();
       ordering = undefined;
     }
@@ -941,9 +1523,12 @@ function start(host: HTMLElement): void {
     approval.updateSelection();
     if (route.kind === "board" && workspace.status === "unavailable") {
       boardRead?.abort();
+      if (hidesRetained(workspace.failure)) redactBoard(route.boardId);
       board = {
         status: "unavailable",
-        previous: stateFor(route.boardId).confirmed,
+        previous: hidesRetained(workspace.failure)
+          ? null
+          : (stateFor(route.boardId).confirmed ?? cache.previous(route.boardId)),
         failure: workspace.failure,
       };
       render();
@@ -975,8 +1560,10 @@ function start(host: HTMLElement): void {
     }
     const path = next.kind === "board" ? boardPath(next.boardId) : "/";
     if (location.pathname !== path) {
-      if (request.history === "push") history.pushState(null, "", path);
-      else history.replaceState(null, "", path);
+      persistHistory();
+      persistHistory(next, request.history, path);
+    } else {
+      persistHistory(next);
     }
     missingKey = undefined;
     chooseRoute(next);
@@ -999,6 +1586,20 @@ function start(host: HTMLElement): void {
     }
     if (key === null) history.replaceState(null, "", boardPath(found.id));
     const state = stateFor(found.id);
+    const restored = restoreHistoryOnEntry
+      ? readWorkspaceHistory(history.state, location.pathname)
+      : null;
+    const restoreDrawer =
+      traversingHistory && restored?.route.kind === "board" ? restored.route.cardId : null;
+    traversingHistory = false;
+    if (restoreHistoryOnEntry && workspace.status === "ready") restoreHistoryOnEntry = false;
+    if (restored?.route.kind === "board" && restored.route.boardId === found.id) {
+      sidebarScroll = restored.sidebarScroll;
+      state.scroll = restored.boardScroll;
+      state.focus = restored.focus;
+      state.search = restored.route.search;
+      state.showCompleted = restored.route.showCompleted;
+    }
     const cardId = route.kind === "board" && route.boardId === found.id ? route.cardId : null;
     chooseRoute(
       {
@@ -1009,6 +1610,8 @@ function start(host: HTMLElement): void {
       },
       reload,
     );
+    if (restoreDrawer !== null) openDrawer(restoreDrawer);
+    else if (restored && drawerKey !== null) closeDrawer();
   }
 
   async function refreshWorkspace(): Promise<void> {
@@ -1033,7 +1636,7 @@ function start(host: HTMLElement): void {
     workspaceRead = undefined;
     const ownsIdentity = identityEpoch === identityReadEpoch;
     const ownsService = serviceEpoch === serviceReadEpoch;
-    if (ownsIdentity) session = identity.status === "fulfilled" ? identity.value : null;
+    if (ownsIdentity) setSession(identity.status === "fulfilled" ? identity.value : null);
     if (ownsService) {
       service =
         status.status === "fulfilled"
@@ -1072,6 +1675,8 @@ function start(host: HTMLElement): void {
               setupFailed ??
               (catalog.status === "rejected" ? readFailure(catalog.reason) : { kind: "transport" }),
           };
+    if (workspace.status === "ready") reconcileRetained(workspace.current.value);
+    else if (hidesRetained(workspace.failure)) redactWorkspace(workspace.failure);
     if (workspace.status === "ready") {
       applyLocation(true);
     } else {
@@ -1117,10 +1722,13 @@ function start(host: HTMLElement): void {
       const liveCatalog = workspaceEpoch === workspaceReadEpoch ? catalog : null;
       if (liveCatalog !== null && liveCatalog.workspace.revision < minimumWorkspaceRevision)
         return false;
-      if (liveCatalog !== null) workspace = { status: "ready", current: confirmed(liveCatalog) };
+      if (liveCatalog !== null) {
+        workspace = { status: "ready", current: confirmed(liveCatalog) };
+        reconcileRetained(liveCatalog);
+      }
       if (serviceEpoch === serviceReadEpoch && status !== null)
         service = { status: "ready", current: confirmed(status) };
-      if (identityEpoch === identityReadEpoch && identity !== null) session = identity;
+      if (identityEpoch === identityReadEpoch && identity !== null) setSession(identity);
       if (
         boardEpoch === boardReadEpoch &&
         route.kind === "board" &&
@@ -1136,9 +1744,11 @@ function start(host: HTMLElement): void {
           if (
             (!previous || value.view.board.revision >= previous.view.board.revision) &&
             !approval.awaitsConfirmation(route.boardId) &&
+            !singleApproval.awaitsConfirmation(route.boardId) &&
             !ticketOrderInFlight(route.boardId)
           ) {
             state.confirmed = confirmed(value);
+            cache.retain(state.confirmed);
             board = { status: "ready", current: state.confirmed };
             confirmedPresentation = null;
             if (previous && previous.view.board.revision < value.view.board.revision)
@@ -1186,7 +1796,14 @@ function start(host: HTMLElement): void {
               changeSearch(state.search);
           }
         } else {
-          board = { status: "unavailable", previous: state.confirmed, failure: value };
+          if (hidesRetained(value)) {
+            redactBoard(route.boardId);
+          }
+          board = {
+            status: "unavailable",
+            previous: state.confirmed ?? cache.previous(route.boardId),
+            failure: value,
+          };
           if (
             value.kind === "http" &&
             value.problem.status === 503 &&
@@ -1210,18 +1827,34 @@ function start(host: HTMLElement): void {
             if (board.status === "unavailable" && request.boardId === null)
               void refreshBoard(selected);
           } else {
+            if (!present) redactBoard(selected);
             boardReadEpoch += 1;
             board = {
               status: "unavailable",
               previous: stateFor(selected).confirmed,
               failure: { kind: "transport" },
             };
+            render();
             live.update(null);
           }
         }
       }
       return true;
-    } catch {
+    } catch (error) {
+      const failure = readFailure(error);
+      if (hidesRetained(failure)) redactWorkspace(failure);
+      else if (
+        !signal.aborted &&
+        selectedRequest &&
+        boardEpoch === boardReadEpoch &&
+        route.kind === "board"
+      ) {
+        board = {
+          status: "unavailable",
+          previous: stateFor(route.boardId).confirmed ?? cache.previous(route.boardId),
+          failure,
+        };
+      }
       return false;
     } finally {
       if (liveRefreshSignal === signal) {
@@ -1232,9 +1865,13 @@ function start(host: HTMLElement): void {
   }
 
   addEventListener("popstate", () => {
+    window.clearTimeout(historyTimer);
+    restoreHistoryOnEntry = true;
+    traversingHistory = true;
     applyLocation();
   });
   addEventListener("pagehide", (event) => {
+    persistHistory();
     if (!event.persisted) live.dispose();
   });
   addEventListener("pageshow", (event) => {

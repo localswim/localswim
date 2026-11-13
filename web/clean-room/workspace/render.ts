@@ -2,6 +2,7 @@ import type { AttentionDto, BoardSummaryDto, Uuid } from "../api-types.js";
 import { mountPins } from "./pins.js";
 import { mountSidebar } from "./sidebar.js";
 import { mountWorkspaceStatus, workspaceTabTitle } from "../live/status.js";
+import { mountCacheSettings } from "./retained-cache.js";
 import type {
   BoardProps,
   MountComponent,
@@ -104,7 +105,7 @@ function makeSidebar() {
   sidebar.append(heading, search, legend, list, footer, grip);
   const pinStatus = element("div", "lsw-workspace-pin-status");
   sidebar.insertBefore(pinStatus, footer);
-  return { sidebar, list, empty, external, title, toggle, grip, search, pinStatus };
+  return { sidebar, list, empty, external, title, toggle, grip, search, pinStatus, cache };
 }
 
 interface BoardRow {
@@ -187,6 +188,7 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
   const root = element("div", "lsw-workspace");
   const header = makeHeader();
   const sidebar = makeSidebar();
+  const cacheSettings = initial.cache && mountCacheSettings(sidebar.cache, initial.cache);
   const body = element("div", "lsw-workspace-body");
   const main = element("main", "lsw-workspace-main");
   const boardHost = element("div", "lsw-workspace-board-host");
@@ -484,6 +486,7 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
       }
     },
     dispose() {
+      cacheSettings?.dispose();
       listeners.abort();
       sidebarControls.dispose();
       pins.dispose();

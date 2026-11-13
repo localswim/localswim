@@ -1,5 +1,9 @@
 import type { CardDto, EntityTag, SessionDto, Timestamp, Uuid, UuidV7 } from "../api-types.js";
 import type { BoardData, ReadState } from "../contracts.js";
+import type { Attachment, AttachmentWrite } from "./attachment-data.js";
+import type { CardPatch } from "./card-actions.js";
+import type { RelationshipIntent } from "./edit-relationships.js";
+import type { CommentComposerState } from "./post-comment.js";
 
 export type DrawerCardLink = Pick<CardDto, "id" | "ticket" | "title" | "archived">;
 export interface DrawerRelationship {
@@ -41,11 +45,24 @@ export interface DrawerData {
   readonly relationships: readonly DrawerRelationship[];
   readonly comments: readonly DrawerComment[];
   readonly activity: readonly DrawerActivity[];
+  readonly attachments?: readonly Attachment[];
 }
 export interface DrawerProps {
   readonly data: ReadState<DrawerData>;
   readonly board: BoardData | null;
   readonly session: SessionDto | null;
+  readonly writable?: boolean;
+  readonly operationMessage?: string;
+  readonly onInspectOperation?: () => void;
+  readonly onPatch?: (patch: CardPatch) => void;
+  readonly onRelationship?: (intent: RelationshipIntent) => void;
+  readonly committedRelationship?: RelationshipIntent | null;
+  readonly committedText?: { readonly field: "title" | "description"; readonly value: string };
+  readonly onAttachment?: (action: AttachmentWrite["action"]) => void;
+  readonly onApprove?: () => void;
+  readonly comment?: CommentComposerState;
+  readonly onCommentDraft?: (text: string) => void;
+  readonly onCommentSubmit?: () => void;
   readonly onClose: () => void;
   readonly onRefresh: () => void;
   readonly onOpenCard: (id: Uuid) => void;

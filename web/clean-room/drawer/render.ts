@@ -1,13 +1,11 @@
 import type { Timestamp, Uuid } from "../api-types.js";
 import type { BoardData, MountComponent } from "../contracts.js";
 import type { DrawerActivity, DrawerCardLink, DrawerData, DrawerProps } from "./contracts.js";
-
-const relationshipLabels = {
-  blocks: { outgoing: "Blocks", incoming: "Blocked by" },
-  duplicates: { outgoing: "Duplicates", incoming: "Duplicated by" },
-  references: { outgoing: "References", incoming: "Referenced by" },
-  relates_to: { outgoing: "Relates to", incoming: "Relates to" },
-};
+import { mountCardActions } from "./card-actions.js";
+import { mountTextEditor } from "./edit-text.js";
+import { mountRelationshipEditor } from "./edit-relationships.js";
+import { mountAttachmentView } from "./attachment-view.js";
+import { updateCommentComposer, wireCommentComposer } from "./post-comment.js";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, name: string, text?: string) {
   const node = document.createElement(tag);
@@ -232,7 +230,10 @@ function activeControl(): HTMLElement | null {
   return active instanceof HTMLElement ? active : null;
 }
 
-export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => {
+export const mountDrawer: (
+  host: HTMLElement,
+  props: DrawerProps,
+) => ReturnType<MountComponent<DrawerProps>> & { closeAnimated(): void } = (host, initialProps) => {
   let props = initialProps;
   let renderedData: DrawerData | undefined;
   let renderedBoard: BoardData | null = null;
@@ -250,8 +251,7 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
   drawer.setAttribute("aria-labelledby", "lsw-drawer-title");
   const header = element("header", "header");
   const heading = element("div", "heading");
-  const priority = control("priority", "", true);
-  const prioritySlot = slot("span", "priority", priority);
+  const prioritySlot = slot("span", "priority");
   const approval = control("approval", "", true);
   const approvalSlot = slot("span", "approval", approval);
   const ticket = element("span", "ticket");
@@ -265,25 +265,33 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
   const title = element("h2", "title");
   title.id = "lsw-drawer-title";
   const location = element("p", "location");
-  const owner = control("owner-badge", "", true);
+  const ownerSlot = slot("span", "owner");
   const ownerRow = element("div", "owner");
-  ownerRow.append(element("span", "label", "Owner"), slot("span", "owner", owner));
-  header.append(heading, slot("div", "title", title), location, slot("div", "move"), ownerRow);
+  ownerRow.append(element("span", "label", "Owner"), ownerSlot);
+  const titleButton = control("title-edit", "");
+  title.append(titleButton);
+  const titleEditor = slot("div", "title-editor");
+  header.append(
+    heading,
+    slot("div", "title", title, titleEditor),
+    location,
+    slot("div", "move"),
+    ownerRow,
+  );
 
   const body = element("div", "body");
   const message = element("p", "message");
   message.setAttribute("role", "status");
   const retry = control("retry", "Retry");
   const content = element("div", "content");
-  const description = section(
-    "Description",
-    slot("span", "description", control("text-action", "Edit", true)),
-  );
+  const editDescription = control("text-action", "edit", true);
+  const description = section("Description", slot("span", "description", editDescription));
   const descriptionText = element("div", "prose");
-  description.append(descriptionText);
+  const descriptionEditor = slot("div", "description-editor");
+  description.append(descriptionText, descriptionEditor);
 
   const attachments = section("Attachments");
-  const attachmentEmpty = element("p", "empty");
+  const attachmentHost = slot("div", "attachment-view");
   attachments.append(
     slot(
       "div",
@@ -294,7 +302,7 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
         "hint",
         "Upload a file or paste a screen clip (Ctrl+V) anywhere in this card. Maximum 10 MiB per file.",
       ),
-      attachmentEmpty,
+      attachmentHost,
     ),
   );
 
@@ -303,7 +311,8 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
   const relationships = section("Relationships", slot("span", "relationships", addRelationship));
   const relationshipList = element("ul", "links");
   const relationshipEmpty = element("p", "empty", "No relationships.");
-  relationships.append(relationshipEmpty, relationshipList);
+  const relationshipForm = slot("div", "relationship-form");
+  relationships.append(relationshipForm, relationshipEmpty, relationshipList);
 
   const comments = section("Comments");
   const commentInput = element("textarea", "comment-input");
@@ -311,6 +320,9 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
   commentInput.placeholder = "Leave a note on this card...";
   commentInput.setAttribute("aria-label", "Comment");
   const commentSubmit = control("comment-submit", "Comment", true);
+  const commentStatus = element("p", "comment-status");
+  commentStatus.setAttribute("role", "status");
+  const inspectComment = control("comment-inspect", "Check comment status");
   const commentEmpty = element("p", "empty", "No comments yet.");
   const commentList = element("ul", "comments");
   comments.append(
@@ -320,6 +332,8 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
       commentInput,
       element("p", "hint", "Enter posts. Shift+Enter adds a line break."),
       commentSubmit,
+      commentStatus,
+      inspectComment,
     ),
     commentEmpty,
     commentList,
@@ -329,8 +343,129 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
   const auditList = element("ul", "audit");
   audit.append(auditList);
   content.append(description, attachments, relationships, comments, audit);
-  body.append(message, retry, content);
+  const operationStatus = element("p", "operation-status");
+  operationStatus.setAttribute("role", "status");
+  const operationInspect = control("retry", "Check result");
+  body.append(message, retry, operationStatus, operationInspect, content);
   drawer.append(header, body);
+
+  const emptyComment = {
+    draft: "",
+    canEdit: false,
+    canSubmit: false,
+    canInspect: false,
+    status: "",
+  };
+  const commentElements = {
+    input: commentInput,
+    submit: commentSubmit,
+    status: commentStatus,
+    inspect: inspectComment,
+  };
+  wireCommentComposer(
+    commentElements,
+    () => props.comment ?? emptyComment,
+    {
+      onDraft: (value) => props.onCommentDraft?.(value),
+      onSubmit: () => props.onCommentSubmit?.(),
+      onInspect: () => props.onInspectOperation?.(),
+    },
+    lifetime.signal,
+  );
+  const cardActions = mountCardActions(
+    { priority: prioritySlot, owner: ownerSlot },
+    {
+      board: null,
+      drawer: null,
+      session: null,
+      writable: false,
+      onPatch: (patch) => props.onPatch?.(patch),
+    },
+  );
+  const relations = mountRelationshipEditor(addRelationship, relationshipForm, relationshipEmpty);
+  const attachmentView = mountAttachmentView(attachmentHost, {
+    attachments: null,
+    coverId: null,
+    canManage: false,
+    pending: false,
+    onCover() {},
+    onDetach() {},
+  });
+  let editor: ReturnType<typeof mountTextEditor> | null = null;
+  let editorField: "title" | "description" | null = null;
+  let editorBaseValue = "";
+  let editorConflict = false;
+  let submittedText: { readonly prior: string; readonly requested: string } | null = null;
+
+  function closeEditor(focus = true): void {
+    const opener = editorField === "title" ? titleButton : editDescription;
+    editor?.dispose();
+    editor = null;
+    editorField = null;
+    editorConflict = false;
+    submittedText = null;
+    title.hidden = false;
+    descriptionText.hidden = false;
+    if (focus) opener.focus({ preventScroll: true });
+  }
+
+  function editorProps(field: "title" | "description", value: string) {
+    return {
+      field,
+      value,
+      pending: props.writable !== true && submittedText !== null,
+      error: editorConflict
+        ? "This field changed. Copy your draft or cancel and reopen the editor."
+        : props.operationMessage || null,
+      onSave(requested: string) {
+        if (!props.writable) return;
+        if (value !== editorBaseValue) {
+          editorConflict = true;
+          editor?.update(editorProps(field, value));
+          return;
+        }
+        if (requested === value) {
+          closeEditor();
+          return;
+        }
+        submittedText = { prior: value, requested };
+        props.onPatch?.(field === "title" ? { title: requested } : { description: requested });
+      },
+      onCancel: closeEditor,
+    };
+  }
+
+  function beginEdit(field: "title" | "description"): void {
+    const data = renderedData;
+    if (!data || editor || !props.writable || !can("edit_card")) return;
+    editorField = field;
+    editorBaseValue = data.card[field];
+    title.hidden = field === "title";
+    descriptionText.hidden = field === "description";
+    editor = mountTextEditor(
+      field === "title" ? titleEditor : descriptionEditor,
+      editorProps(field, data.card[field]),
+    );
+  }
+
+  function can(
+    capability: NonNullable<
+      DrawerProps["board"]
+    >["policy"]["resource_grants"][number]["capabilities"][number],
+  ): boolean {
+    return (
+      props.board?.policy.resource_grants.some(
+        (grant) =>
+          grant.user_id === props.session?.principal_id && grant.capabilities.includes(capability),
+      ) ?? false
+    );
+  }
+
+  titleButton.addEventListener("click", () => beginEdit("title"), listeners);
+  editDescription.addEventListener("click", () => beginEdit("description"), listeners);
+  descriptionText.addEventListener("click", () => beginEdit("description"), listeners);
+  operationInspect.addEventListener("click", () => props.onInspectOperation?.(), listeners);
+  approval.addEventListener("click", () => props.onApprove?.(), listeners);
 
   close.addEventListener("click", () => props.onClose(), listeners);
   shade.addEventListener("click", () => props.onClose(), listeners);
@@ -387,6 +522,49 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
     const approved = data === undefined ? "" : approvalLabel(next, data);
     approvalSlot.hidden = approved === "";
     approval.textContent = approved;
+    approval.disabled = !next.writable || next.onApprove === undefined;
+    operationStatus.hidden = !next.operationMessage;
+    operationStatus.textContent = next.operationMessage ?? "";
+    operationInspect.hidden =
+      next.onInspectOperation === undefined || next.comment?.canInspect === true;
+    updateCommentComposer(commentElements, next.comment ?? emptyComment);
+    const editable =
+      next.writable === true && data !== undefined && data.card.completed_at === null;
+    cardActions.update({
+      board: next.board,
+      drawer: data ?? null,
+      session: next.session,
+      writable: editable,
+      onPatch: (patch) => props.onPatch?.(patch),
+    });
+    titleButton.disabled = editDescription.disabled = !editable || !can("edit_card");
+    attachmentView.update({
+      attachments: data?.attachments ?? null,
+      coverId: data?.card.cover_attachment_id ?? null,
+      canManage: data?.card.completed_at === null && can("manage_attachments"),
+      pending: !editable,
+      onCover: (id) => {
+        const attachment = data?.attachments?.find((item) => item.id === id) ?? null;
+        props.onAttachment?.({ kind: "cover", attachment });
+      },
+      onDetach: (attachment) => props.onAttachment?.({ kind: "detach", attachment }),
+    });
+    relations.update(
+      data === undefined
+        ? null
+        : {
+            data,
+            targets: next.board?.view.cards ?? [],
+            writable: editable && can("manage_relationships"),
+            committed: next.committedRelationship,
+            onSubmit: (intent) => props.onRelationship?.(intent),
+          },
+    );
+    for (const control of relationshipList.querySelectorAll<HTMLButtonElement | HTMLSelectElement>(
+      "li[data-relationship-id] :is(select, button:not([data-drawer-card-id]))",
+    )) {
+      control.disabled = !editable || !can("manage_relationships");
+    }
     message.hidden =
       next.data.status === "ready" || (next.data.status === "loading" && data !== undefined);
     retry.hidden = next.data.status !== "unavailable";
@@ -400,51 +578,46 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
     ticket.hidden = location.hidden = ownerRow.hidden = data === undefined;
     if (active === retry && retry.hidden) close.focus({ preventScroll: true });
     if (data === undefined) {
-      title.textContent = "Card";
+      titleButton.textContent = "Card";
       prioritySlot.hidden = true;
       renderedData = undefined;
       if (content.contains(active)) close.focus({ preventScroll: true });
       return;
     }
+    if (
+      editorField &&
+      editor &&
+      next.committedText?.field === editorField &&
+      submittedText?.requested === next.committedText.value &&
+      submittedText.prior !== submittedText.requested
+    )
+      closeEditor();
+    else if (editorField && editor) editor.update(editorProps(editorField, data.card[editorField]));
     if (renderedData === data && renderedBoard === next.board) return;
     renderedData = data;
     renderedBoard = next.board;
 
     const { card } = data;
     const newCard = renderedCard !== card.id;
+    if (newCard && editor) closeEditor(false);
     renderedCard = card.id;
     const currentLane = laneLabel(next.board, card.lane_id) ?? "";
-    const cardPriority = next.board?.priorities.find((item) => item.id === card.priority_id);
-    const ownerDisplay = actor(next.board, card.owner_id);
-    prioritySlot.hidden = cardPriority === undefined;
-    priority.dataset.priority = cardPriority?.key.toUpperCase() ?? "";
-    priority.textContent =
-      cardPriority === undefined ? "" : `${cardPriority.key.toUpperCase()} · ${cardPriority.label}`;
-    priority.style.backgroundColor = cardPriority?.color ?? "";
+    prioritySlot.hidden = !next.board?.priorities.some((item) => item.id === card.priority_id);
     ticket.textContent = ticketLabel(card.ticket);
-    title.textContent = card.title;
+    titleButton.textContent = card.title;
+    titleButton.setAttribute("aria-label", `Rename card title: ${card.title}`);
     location.textContent = [currentLane, card.archived ? "Archived" : ""]
       .filter(Boolean)
       .join(" · ");
-    owner.textContent = ownerDisplay.label;
-    owner.style.color = ownerDisplay.color;
     descriptionText.replaceChildren();
     if (card.description === "") descriptionText.append(element("p", "empty", "No description."));
     else descriptionText.textContent = card.description;
-    attachmentEmpty.textContent =
-      card.attachment_count === 0
-        ? "No attachments."
-        : `${card.attachment_count} ${card.attachment_count === 1 ? "attachment" : "attachments"}`;
 
     const rows: HTMLLIElement[] = [];
     if (data.parent !== null) rows.push(relatedRow("Parent", data.parent));
     for (const child of data.children) rows.push(relatedRow("Child", child));
     for (const relation of data.relationships) {
-      const label =
-        relationshipLabels[relation.kind][
-          relation.direction === "incoming" ? "incoming" : "outgoing"
-        ];
-      rows.push(relatedRow(label, relation.card));
+      rows.push(relations.renderRow(relation, cardLink(relation.card)));
     }
     relationshipEmpty.hidden = rows.length > 0;
     relationshipList.replaceChildren(...rows);
@@ -482,15 +655,37 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
   host.append(shade, drawer);
   update(initialProps);
   close.focus({ preventScroll: true });
-  return {
-    update,
-    dispose() {
-      lifetime.abort();
-      const active = activeControl();
-      const restore = active === document.body || drawer.contains(active);
+  function dispose(animate = false): void {
+    lifetime.abort();
+    cardActions.dispose();
+    relations.dispose();
+    attachmentView.dispose();
+    editor?.dispose();
+    const active = activeControl();
+    const restore = active === document.body || drawer.contains(active);
+    if (animate && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      drawer.inert = true;
+      shade.inert = true;
+      shade.style.pointerEvents = "none";
+      const slide = drawer.animate(
+        [{ transform: "translateX(0)" }, { transform: "translateX(100%)" }],
+        { duration: 180, easing: "ease-in", fill: "forwards" },
+      );
+      shade.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: "forwards" });
+      const remove = () => {
+        drawer.remove();
+        shade.remove();
+      };
+      void slide.finished.then(remove, remove);
+    } else {
       drawer.remove();
       shade.remove();
-      if (restore && opener?.isConnected === true) opener.focus({ preventScroll: true });
-    },
+    }
+    if (restore && opener?.isConnected === true) opener.focus({ preventScroll: true });
+  }
+  return {
+    update,
+    dispose,
+    closeAnimated: () => dispose(true),
   };
 };

@@ -357,6 +357,15 @@
   white-space: pre-wrap;
 }
 
+.lsw-board-card-cover {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 100px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
 .lsw-board-card-comments {
   display: flex;
   align-items: center;

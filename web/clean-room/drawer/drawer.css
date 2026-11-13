@@ -358,3 +358,15 @@
 .lsw-drawer-message {
   margin: 0 0 16px;
 }
+.lsw-drawer-title-edit {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.lsw-drawer-title-edit:not(:disabled) {
+  cursor: text;
+}

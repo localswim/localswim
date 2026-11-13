@@ -1,0 +1,80 @@
+.lsw-attachment-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lsw-attachment-row {
+  padding: 10px;
+  border: 1px solid #dedfe2;
+  border-radius: 6px;
+}
+
+.lsw-attachment-preview {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.lsw-attachment-image {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 4px;
+}
+
+.lsw-attachment-download {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: underline;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.lsw-attachment-size {
+  margin: 4px 0 0;
+  color: #666e7e;
+  font-size: 11px;
+}
+
+.lsw-attachment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.lsw-attachment-action {
+  min-height: 33px;
+  padding: 3px 8px;
+  border: 1px solid #a9a9a9;
+  border-radius: 2px;
+  background: #efefef;
+  color: #141414;
+  font:
+    14px/21px Arial,
+    sans-serif;
+  cursor: pointer;
+}
+
+.lsw-attachment-action:disabled,
+.lsw-attachment-download[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.lsw-attachment-error {
+  margin: 0 0 5px;
+  color: #822e22;
+  font-size: 11px;
+}

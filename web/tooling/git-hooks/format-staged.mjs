@@ -2,6 +2,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import {
   configFile,
   formatPolicyFiles,
@@ -42,6 +43,25 @@ function indexFile(file) {
   return git(["show", `:${file}`]);
 }
 
+/** @param {string} file @param {Buffer} working @param {Buffer} staged */
+function sameFormatterPolicy(file, working, staged) {
+  const workingText = sourceText(working).replace(/\r\n/gu, "\n");
+  const stagedText = sourceText(staged).replace(/\r\n/gu, "\n");
+  if (workingText === stagedText) return true;
+  if (file !== configFile) return false;
+
+  // Git's clean filter can normalize this JSON before the hook compares the two copies.
+  try {
+    /** @type {unknown} */
+    const workingConfig = JSON.parse(workingText);
+    /** @type {unknown} */
+    const stagedConfig = JSON.parse(stagedText);
+    return isDeepStrictEqual(workingConfig, stagedConfig);
+  } catch {
+    return false;
+  }
+}
+
 function usesPathLimitedIndex() {
   const index = process.env.GIT_INDEX_FILE;
   if (!index || !isAbsolute(index) || !/^next-index-\d+\.lock$/u.test(basename(index))) {
@@ -56,8 +76,7 @@ async function formatStaged() {
   if (!files.length) return;
 
   for (const file of formatPolicyFiles) {
-    const normalizeLf = (/** @type {Buffer} */ bytes) => bytes.toString().replace(/\r\n/gu, "\n");
-    if (normalizeLf(readFileSync(file)) !== normalizeLf(indexFile(file))) {
+    if (!sameFormatterPolicy(file, readFileSync(file), indexFile(file))) {
       throw new Error(
         `The working copy of ${file} differs from this commit's version. Include its full change in the commit or restore the working copy to the staged version.`,
       );

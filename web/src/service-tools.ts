@@ -388,25 +388,28 @@ export function mountServiceTools(
     sync();
     const readSignal = AbortSignal.any([signal, AbortSignal.timeout(activationCheckMs)]);
     try {
-      do {
+      while (!readSignal.aborted && canManage()) {
         try {
           const {
             service_instance_id: instance,
             port,
             state,
           } = await readActivationService(readSignal);
+          if (!canManage()) return;
           const replaced =
             state === "running" && port === original.port && instance !== original.instanceId;
           if (replaced && reconnectedInstance !== instance && onReconnect) {
             await onReconnect(readSignal);
             readSignal.throwIfAborted();
+            if (!canManage()) return;
             reconnectedInstance = instance;
           }
-          const receipt = await readWithSession(
-            () => api.getActivation(original.id, original.buildId, readSignal),
-            readSignal,
-          );
+          const receipt = await readWithSession(() => {
+            if (!canManage()) throw new Error("Workspace administrator access is required.");
+            return api.getActivation(original.id, original.buildId, readSignal);
+          }, readSignal);
           readSignal.throwIfAborted();
+          if (!canManage()) return;
           let activated = false;
           if (receipt.state === "activated" && replaced && instance === reconnectedInstance) {
             const confirmed = await readActivationService(readSignal);
@@ -431,8 +434,9 @@ export function mountServiceTools(
         } catch {
           // A missing receipt or an unavailable service can be temporary during handoff.
         }
-        if (poll) await waitForRetry(readSignal, activationRetryMs);
-      } while (poll && !readSignal.aborted && canManage());
+        if (!poll) break;
+        await waitForRetry(readSignal, activationRetryMs);
+      }
       if (!signal.aborted) {
         lifecycle.activationMessage = `Activation outcome is unconfirmed. Refresh service status to inspect receipt ${original.id}.`;
       }

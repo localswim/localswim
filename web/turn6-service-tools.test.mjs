@@ -241,6 +241,43 @@ test("a refused activation refreshes only on request and never replays the origi
   assert.equal(writes, 1);
 });
 
+test("replacement session renewal must preserve administrator access before receipt inspection", async (t) => {
+  const { storage, mount } = fixture(t);
+  const id = "019aa833-7652-746b-a3f0-e2f7af0b9e3f";
+  storage.setItem(
+    "localswim.service-activation.v1",
+    JSON.stringify({ id, buildId: candidate, instanceId, etag: serviceEtag, port: 12345 }),
+  );
+  let managed = true;
+  let receiptReads = 0;
+  let renewals = 0;
+  const panel = mount(
+    {
+      getService: async () => ({
+        ...initialService,
+        data: { ...initialService.data, service_instance_id: replacementId, build_id: candidate },
+      }),
+      getActivation: async () => {
+        receiptReads++;
+        return { id, build_id: candidate, state: "activated", error_code: null };
+      },
+    },
+    {
+      recoveryOnly: true,
+      canManage: () => managed,
+      onReconnect: async () => {
+        renewals++;
+        managed = false;
+      },
+    },
+  );
+  await until(() => renewals === 1 && !panel.refresh.disabled);
+  panel.update();
+  assert.equal(receiptReads, 0);
+  assert.equal(hasPendingServiceActivation(storage), true);
+  assert.equal(panel.section.hidden, true);
+});
+
 for (const cachedBeforeRefusal of [true, false]) {
   test(`a detached activation refusal fences a remounted service read (${cachedBeforeRefusal ? "cached" : "in flight"})`, async (t) => {
     const { storage, mount } = fixture(t);

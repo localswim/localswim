@@ -7,6 +7,11 @@
   and explicitly authorizes every turn-N card to move to Ready for Review.
 - The UI Lead sends the exact candidate commits, scoped changes, checks, technical
   review and Terra evidence for that review. Corrections remain in the current turn.
+- T3 entry requires the Architect to verify that the integrated candidate meets
+  all applicable standards documented in Git, including the TypeScript quality
+  standard and UI source and release standards. Implementation, passing checks
+  and independent review evidence must establish compliance before T3 opens.
+  Maintain that standard throughout subsequent turns.
 - Terry retains control of Completed. Owner demos follow technical handoff.
 - The UI Lead owns execution, the Architect owns acceptance, and Terry owns
   production cutover approval. After all T1-T9 cards reach RFR, the Architect

@@ -1,5 +1,5 @@
 {
-  "revision": "0514-staff-r5",
+  "revision": "0514-staff-r6",
   "epic": 514,
   "board_id": "39b278e7-d1ac-4e5a-88fb-8eabf141dd4d",
   "goal": "Fresh TypeScript UI with V1 look and workflows and current V2 browser capabilities.",
@@ -2171,6 +2171,16 @@
   "turn_entry_policy": {
     "authority": "Architect",
     "next_turn_condition": "Architect independently reviews all prior-turn work and explicitly authorizes every prior-turn card to move to RFR.",
+    "t3_quality_gate": {
+      "condition": "Architect verifies the integrated candidate meets all applicable standards documented in Git before opening T3.",
+      "standards": [
+        "AGENTS.md",
+        "docs/typescript-standard.md",
+        "docs/ui-standards.md"
+      ],
+      "evidence": "T2 handoff includes implementation, passing checks and independent review evidence establishing compliance.",
+      "subsequent_turns": "Maintain compliance throughout subsequent turns."
+    },
     "review_packet": [
       "exact candidate commits",
       "scoped diff",

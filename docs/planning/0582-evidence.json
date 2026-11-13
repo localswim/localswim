@@ -1,0 +1,108 @@
+{
+  "images": [
+    {
+      "width": 1800,
+      "sha256": "c0e2c04d451378b27fbe671fd12758d3de723b8cb34a2d8b1ed761f77107bdb6",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-back-restored.jpg",
+      "file": "0582-v1-back-restored.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 133719
+    },
+    {
+      "width": 1800,
+      "sha256": "f6fbee8a50d8ff48726e3d903799d5398edbe67e01d33da8ac93ea94bf035bd2",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-collapsed.jpg",
+      "file": "0582-v1-collapsed.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 124556
+    },
+    {
+      "width": 1800,
+      "sha256": "804a64ed2ee5a08a5eedf94ca57932337c0a891ac523647c7312dbd5904548c0",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-create.jpg",
+      "file": "0582-v1-create.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 141632
+    },
+    {
+      "width": 1800,
+      "sha256": "b41e0c623d32c20e81ac053855e9290b7871bc319d752e4b26b8cb19fd01ec66",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-drawer.jpg",
+      "file": "0582-v1-drawer.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 123337
+    },
+    {
+      "width": 1800,
+      "sha256": "fac2fd7baffc41a5c6ace7b683f32ea8810bb9dd2693d11e3acd52bbbb435bac",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-empty-alpha.jpg",
+      "file": "0582-v1-empty-alpha.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 66662
+    },
+    {
+      "width": 1800,
+      "sha256": "e0f1d574478992f75ba4df344335e96bc5e2b0f35c2d1c2bf01379b0fe457c56",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-empty-beta.jpg",
+      "file": "0582-v1-empty-beta.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 65832
+    },
+    {
+      "width": 1800,
+      "sha256": "779f058c064219fcf0aac3ea1a62c47d41e75f67b44c1af7bdc046f768307cea",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-empty-workspace.jpg",
+      "file": "0582-v1-empty-workspace.jpg",
+      "format": "JPEG",
+      "height": 1262,
+      "bytes": 38134
+    },
+    {
+      "width": 1800,
+      "sha256": "c500d158eeb2603a355abc30713b686e441924f672cb47c33ba517b09d56ff6c",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-filter.jpg",
+      "file": "0582-v1-filter.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 73787
+    },
+    {
+      "width": 1800,
+      "sha256": "36c273efee59d4faf79f1d40c7554c4d16bc5b5d0b434c985fce9c5a0b234d03",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-populated.jpg",
+      "file": "0582-v1-populated.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 131911
+    },
+    {
+      "width": 1800,
+      "sha256": "001033863d4d7b0189b04aa353252183b56496c6a9ce1a529bd7c674521f0615",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-scrolled.jpg",
+      "file": "0582-v1-scrolled.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 133300
+    },
+    {
+      "width": 1800,
+      "sha256": "91074211f54c2f985cc4442977843a42bccccfaa632bfbc1593cf2bd2d81762e",
+      "path": "C:\\Users\\TDO-XPS15-2024\\.codex\\visualizations\\2026\\11\\13\\01a1d4d6-5f2d-7d83-bacb-8b91564f53f8\\output\\0582-v1-unavailable.jpg",
+      "file": "0582-v1-unavailable.jpg",
+      "format": "JPEG",
+      "height": 1318,
+      "bytes": 41987
+    }
+  ],
+  "ticket": 582,
+  "v1_build": "46d5d58",
+  "captured": "2026-11-13",
+  "private_root": "C:/Users/TDO-XPS15-2024/.codex/visualizations/2026/11/13/01a1d4d6-5f2d-7d83-bacb-8b91564f53f8",
+  "scale_and_zoom": "No override applied; explicit CSS viewport and DPR verification required in T2"
+}

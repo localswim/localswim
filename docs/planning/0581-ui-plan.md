@@ -7,7 +7,7 @@ the V2 API. This plan passed independent review of scope, dependencies and staff
 
 T1 is authorized. T2 requires Architect release after T1 review. T3 also requires
 Terry's direct visual confirmation of the integrated workspace and board at T2.
-Later turn entry follows Architect review. Terry controls Completed and cutover.
+Later turn entry requires Architect approval and squash merge of all preceding-turn PRs into ui/v1-clean-room. Terry controls Completed, the final demo/project approval and UI-branch merge to main. See [PR workflow](0581-pr-workflow.md).
 
 ## Board mapping
 

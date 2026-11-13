@@ -27,9 +27,11 @@ ownership to the new plan's turns. Historical T1-T9 acceptance does not accept
 the restarted UI. The first integrated workspace/board comparison requires
 Terry's visual confirmation before implementation expands to remaining workflows.
 
-- The Architect chat owns entry gates for T1-T9. The UI Lead owns execution and integration.
+- The Architect chat owns entry gates for the six-turn #0581 plan. UI Lead owns
+  implementation and submits PRs to `ui/v1-clean-room`.
 - Before opening turn N+1, the Architect independently reviews all work from turn N
-  and explicitly authorizes every turn-N card to move to Ready for Review.
+  and approves and squash-merges all turn-N PRs into `ui/v1-clean-room`, verifies
+  the integrated result, then authorizes turn-N cards into Ready for Review.
 - The UI Lead sends the exact candidate commits, scoped changes, checks, technical
   review and Terra evidence for that review. Corrections remain in the current turn.
 - T3 entry requires the Architect to verify that the integrated candidate meets
@@ -37,11 +39,10 @@ Terry's visual confirmation before implementation expands to remaining workflows
   standard and UI source and release standards. Implementation, passing checks
   and independent review evidence must establish compliance before T3 opens.
   Maintain that standard throughout subsequent turns.
-- Terry retains control of Completed. Owner demos follow technical handoff.
-- The UI Lead owns execution, the Architect owns acceptance, and Terry owns
-  production cutover approval. After all T1-T9 cards reach RFR, the Architect
-  demos all V1 functionality in the replacement UI. Production cutover requires
-  Terry's explicit approval after those demos.
+- Terry retains control of Completed, the final demo, project approval and the
+  merge from `ui/v1-clean-room` to `main`. Architect owns independent acceptance
+  and squash merges into the UI branch. Follow
+  [the PR workflow](docs/planning/0581-pr-workflow.md).
 
 ## Implementation conventions
 

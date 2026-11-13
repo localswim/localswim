@@ -41,7 +41,7 @@ T6 uses a Sol / High qualification author and two bounded evidence workers. One 
 3. As author slots free, launch fresh reviewers for completed, integrated stories. Reviewers must be independent of every coauthor on that story. They can overlap authors working on other stories.
 4. Use Sol / High for authentication, concurrency, original-write recovery and atomic operations. Use Sol / Medium for ordinary presentation review. #0583 now requires Sol / High review because its scope includes the session boundary.
 5. Run Terra / Medium as soon as the rendered integrated surface is ready. It checks matched V1/V2 state, viewport, layout and interaction. Terra exits after that packet and returns only for a material visual correction.
-6. Route findings to bounded correction work, then obtain independent re-review. Integrate at the Lead and submit the complete turn to Architect for RFR and next-turn authorization.
+6. Route findings to bounded correction work, then obtain independent re-review. UI Lead prepares cohesive PRs targeting ui/v1-clean-room. Architect independently approves and squash-merges every turn PR, validates integration, then authorizes RFR and next-turn entry.
 
 No developer/reviewer pair reserves idle capacity. Authors supply test fixtures and module checks. One compiler lease and one browser operator remain shared. Independent checks may overlap when they do not contend for those resources.
 
@@ -56,3 +56,7 @@ All authors use observed V1 behavior, screenshots and written specifications. Th
 ## Current rolling assignments
 
 The next three remaining turns are in [0581-rolling-assignments.md](0581-rolling-assignments.md). The complete named packet roster and model/effort values are in [0581-ui-plan.json](0581-ui-plan.json). Refresh the next three turns after each handoff, preserving actual T1 work and prior rosters as evidence.
+
+## PR ownership
+
+Follow [0581-pr-workflow.md](0581-pr-workflow.md). Terry owns the final demo, project approval and merge to main. Architect owns squash merges into the UI integration branch.

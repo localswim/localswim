@@ -34,9 +34,9 @@
     "Every deliberate visible departure explicitly approved by Terry"
   ],
   "ownership": {
-    "ui_lead": "Fresh chat. execution, integration, leases, evidence and handoff",
-    "architect": "Independent turn review, explicit RFR authority and next-turn gate",
-    "terry": "Early foundation acceptance, visible exceptions, Completed and production cutover"
+    "ui_lead": "Implementation, author branches and PRs targeting ui/v1-clean-room; integration preparation and evidence",
+    "architect": "Independent PR review/approval, squash merges into ui/v1-clean-room, integrated validation, RFR authority and turn entry",
+    "terry": "Early T2 visual confirmation, final demo/project approval, Completed and final UI branch merge to main"
   },
   "staffing": {
     "authors": "On-demand gpt-6.1-sol / medium or high as explicitly assigned by coauthor_assignments; high for authentication, concurrency/recovery state and architecture",
@@ -60,7 +60,9 @@
     "Architect explicitly authorizes RFR before the next turn",
     "Terry explicit approval after demos before production cutover",
     "Integrated T2 owner checkpoint accepted before broad feature implementation",
-    "Bounded qualification defects are separately scoped and independently resolved before epic handoff"
+    "Bounded qualification defects are separately scoped and independently resolved before epic handoff",
+    "Every turn PR approved and squash-merged into ui/v1-clean-room by Architect before next turn entry",
+    "Only Terry approves final demo/project and merge of UI branch into main"
   ],
   "estimates": "Engineering hours below three per story, including focused checks and correction allowance. Review/owner waiting excluded. Qualification is a bounded run. discovered defects receive scoped cards.",
   "rolling_refresh": "After every turn reconcile unfinished work and owner outcomes, rebase remaining turns from 1, refresh authors and fresh reviewers for the next three turns in human-readable and JSON plans, retain superseded revisions",
@@ -2317,5 +2319,7 @@
         "model": "gpt-6.1-sol"
       }
     }
-  ]
+  ],
+  "integration_branch": "ui/v1-clean-room",
+  "pr_workflow": "docs/planning/0581-pr-workflow.md"
 }

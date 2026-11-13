@@ -62,7 +62,12 @@ type SubmissionBase = Readonly<{
   cardEtag: string;
   cardRevision: number;
 }>;
-type Draft = Readonly<{ text: string; id: string | null; base?: SubmissionBase }>;
+type Draft = Readonly<{
+  text: string;
+  id: string | null;
+  base?: SubmissionBase;
+  dispatch?: string;
+}>;
 type Journal = {
   key: string;
   raw: string | null | undefined;
@@ -122,7 +127,14 @@ function journalDraft(raw: string, scope: CardScope): Draft {
     throw new TypeError("Invalid comment draft.");
   }
   const base = "base" in value && validBase(value.base, scope) ? value.base : undefined;
-  return { text: value.text, id: value.id, base };
+  const dispatch =
+    "dispatch" in value &&
+    typeof value.dispatch === "string" &&
+    value.dispatch.length === 36 &&
+    uuid.test(value.dispatch)
+      ? value.dispatch
+      : undefined;
+  return { text: value.text, id: value.id, base, dispatch };
 }
 
 export function mountCardComments(
@@ -268,10 +280,15 @@ export function mountCardComments(
     }
   }
 
-  function persist(entry: Journal, draft: Draft, keepLocally = false): boolean {
+  function persist(
+    entry: Journal,
+    draft: Draft,
+    keepLocally = false,
+    expected = entry.raw,
+  ): boolean {
     try {
       const store = tabStorage();
-      if (store.getItem(entry.key) !== entry.raw) throw new TypeError("Comment draft changed.");
+      if (store.getItem(entry.key) !== expected) throw new TypeError("Comment draft changed.");
       const raw = draft.text ? JSON.stringify(draft) : null;
       if (raw === null) store.removeItem(entry.key);
       else store.setItem(entry.key, raw);
@@ -434,10 +451,10 @@ export function mountCardComments(
     }
   }
 
-  function confirmed(entry: Journal, boardEtag: string | null) {
-    persist(entry, emptyDraft);
+  function confirmed(entry: Journal, boardEtag: string | null, expected: string) {
+    const cleared = persist(entry, emptyDraft, false, expected);
     inspection = undefined;
-    notice = "Comment posted.";
+    if (cleared) notice = "Comment posted.";
     refreshComments();
     activityHistory.reset();
     onConfirmed(boardId, cardId, boardEtag);
@@ -460,7 +477,10 @@ export function mountCardComments(
         };
     const id = retrying ? entry.draft.id : crypto.randomUUID();
     if (!base || !id) return;
-    const draft = { text: entry.draft.text, id, base };
+    // Identical server requests still need distinct ownership in the local journal.
+    const draft = { text: entry.draft.text, id, base, dispatch: crypto.randomUUID() };
+    const previous = entry.raw;
+    const owned = JSON.stringify(draft);
     const release = beginWrite(cardId);
     if (!release) return;
     try {
@@ -471,7 +491,7 @@ export function mountCardComments(
           notice = "";
           inspection = undefined;
           const result = await submitOperation(
-            () => persist(entry, draft),
+            () => persist(entry, draft, false, previous),
             async () => {
               publish(entry);
               const reply = await api.createComment(
@@ -490,7 +510,7 @@ export function mountCardComments(
           );
           switch (result.kind) {
             case "confirmed":
-              confirmed(entry, result.result);
+              confirmed(entry, result.result, owned);
               break;
             case "stale":
             case "refused":
@@ -500,11 +520,12 @@ export function mountCardComments(
                 onStale(boardId, cardId);
                 break;
               }
-              persist(entry, { text: draft.text, id: null });
-              notice =
-                result.kind === "stale"
-                  ? "The card changed. Your comment draft is still available."
-                  : "The post was refused. Your comment draft is still available.";
+              if (persist(entry, { text: draft.text, id: null }, false, owned)) {
+                notice =
+                  result.kind === "stale"
+                    ? "The card changed. Your comment draft is still available."
+                    : "The post was refused. Your comment draft is still available.";
+              }
               if (result.kind === "stale") onStale(boardId, cardId);
               break;
             case "unknown":
@@ -599,7 +620,7 @@ export function mountCardComments(
           }
           if (reply) {
             prove(reply, actor, draft);
-            confirmed(entry, null);
+            confirmed(entry, null, raw);
           } else {
             notice =
               inspection?.kind === "dismiss"
@@ -666,7 +687,7 @@ export function mountCardComments(
       ) {
         return;
       }
-      if (persist(entry, { text: entry.draft.text, id: null })) {
+      if (persist(entry, { text: entry.draft.text, id: null }, false, inspection.raw)) {
         inspection = undefined;
         notice = "Unresolved post dismissed. Your exact draft is still available.";
       }

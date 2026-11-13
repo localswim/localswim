@@ -14,9 +14,10 @@ const { outputFiles } = await build({
   format: "esm",
   write: false,
 });
-const { mountCardComments, ApiError } = await import(
-  "data:text/javascript;base64," + Buffer.from(outputFiles[0].text).toString("base64")
-);
+const compiled =
+  "data:text/javascript;base64," + Buffer.from(outputFiles[0].text).toString("base64");
+const { mountCardComments, ApiError } = await import(compiled);
+const secondDocument = await import(`${compiled}#second-document`);
 
 globalThis.InputEvent = class InputEvent extends Event {};
 const doc = { createElement: (tag) => new Element(tag) };
@@ -91,10 +92,10 @@ function harness() {
     return { data, boardEtag: tag(boardId, boardRevision) };
   }
 
-  function mount() {
+  function mount(controller = { mountCardComments, ApiError }) {
     const lifetime = new AbortController();
     const root = doc.createElement("main");
-    mountCardComments(root, {
+    const view = controller.mountCardComments(root, {
       api: {
         listComments: async () => ({ data: { comments: [], next_cursor: null } }),
         getBoardAvailability: async (id) => {
@@ -111,7 +112,7 @@ function harness() {
           reads.push(id);
           if (!committed.has(id)) {
             afterMissing?.();
-            throw new ApiError("http_error", { status: 404 });
+            throw new controller.ApiError("http_error", { status: 404 });
           }
           return { data: committed.get(id) };
         },
@@ -119,7 +120,7 @@ function harness() {
           const write = { cardEtag, boardEtag, text, id };
           writes.push(write);
           if (writes.length === 1) return response.promise;
-          beforeRetry?.();
+          if (beforeRetry) return beforeRetry(write, controller.ApiError);
           return commit(write);
         },
       },
@@ -149,6 +150,7 @@ function harness() {
     const find = (label) => root.descendants().find((node) => node.textContent === label);
     return {
       close: () => lifetime.abort(),
+      update: view.update,
       dismiss: find("Dismiss unresolved post"),
       retry: find("Retry original post"),
       inspect: () => find("Inspect original comment").dispatchEvent(new Event("click")),
@@ -168,6 +170,9 @@ function harness() {
     committed,
     advanceBoard: () => ++boardRevision,
     commitOriginal: () => commit(writes[0]),
+    commitRetry: () => commit(writes[1]),
+    mount,
+    rejectOriginal: (status) => response.reject(new ApiError("http_error", { status })),
     onMissing: (action) => {
       afterMissing = action;
     },
@@ -177,12 +182,16 @@ function harness() {
     onRetry: (action) => {
       beforeRetry = action;
     },
-    async restore(rewriteJournal) {
+    submitOriginal() {
       const original = mount();
       original.input.value = text;
       original.input.dispatchEvent(new Event("input"));
       original.submit();
       assert.equal(writes.length, 1);
+      return original;
+    },
+    async restore(rewriteJournal) {
+      const original = this.submitOriginal();
       original.close();
       response.reject(new ApiError("transport_failed", { outcomeUnknown: true }));
       await setImmediate();
@@ -199,7 +208,9 @@ test("a missing original at the submission revision remains fenced across remoun
   const fixture = harness();
   const restored = await fixture.restore();
   const original = fixture.writes[0].id;
-  assert.deepEqual(JSON.parse([...fixture.journal.values()][0]), {
+  const { dispatch, ...pending } = JSON.parse([...fixture.journal.values()][0]);
+  assert.match(dispatch, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(pending, {
     text,
     id: original,
     base: {
@@ -249,16 +260,18 @@ test("a stale or refused retry keeps the original journal for reconciliation", a
   for (const status of [412, 403]) {
     const fixture = harness();
     const restored = await fixture.restore();
-    const before = [...fixture.journal.values()][0];
+    const before = JSON.parse([...fixture.journal.values()][0]);
     restored.inspect();
     await setImmediate();
-    fixture.onRetry(() => {
-      throw new ApiError("http_error", { status });
+    fixture.onRetry((_write, ErrorType) => {
+      throw new ErrorType("http_error", { status });
     });
     restored.retry.dispatchEvent(new Event("click"));
     await setImmediate();
     assert.deepEqual(fixture.writes[0], fixture.writes[1]);
-    assert.equal([...fixture.journal.values()][0], before);
+    const after = JSON.parse([...fixture.journal.values()][0]);
+    assert.notEqual(after.dispatch, before.dispatch);
+    assert.deepEqual({ ...after, dispatch: before.dispatch }, before);
     assert.equal(restored.retry.hidden, true);
     assert.equal(restored.dismiss.hidden, true);
     restored.submit();
@@ -268,6 +281,41 @@ test("a stale or refused retry keeps the original journal for reconciliation", a
     await setImmediate();
     assert.equal(fixture.journal.size, 0);
     assert.equal(fixture.committed.size, 1);
+    restored.close();
+  }
+});
+
+test("an older refusal cannot clear the retry journal in another document", async () => {
+  for (const status of [401, 412]) {
+    const fixture = harness();
+    const original = fixture.submitOriginal();
+    const before = JSON.parse([...fixture.journal.values()][0]);
+    const restored = fixture.mount(secondDocument);
+    restored.inspect();
+    await setImmediate();
+    assert.equal(restored.retry.hidden, false);
+    fixture.onRetry((_write, ErrorType) => {
+      throw new ErrorType("transport_failed", { outcomeUnknown: true });
+    });
+    restored.retry.dispatchEvent(new Event("click"));
+    await setImmediate();
+    const owned = [...fixture.journal.values()][0];
+    assert.notEqual(JSON.parse(owned).dispatch, before.dispatch);
+    assert.deepEqual(fixture.writes[0], fixture.writes[1]);
+
+    // Refresh the first controller too so its mutable entry sees the retry record.
+    original.update();
+    fixture.rejectOriginal(status);
+    await setImmediate();
+    assert.equal([...fixture.journal.values()][0], owned);
+    fixture.commitRetry();
+    restored.submit();
+    assert.equal(fixture.writes.length, 2);
+    restored.inspect();
+    await setImmediate();
+    assert.equal(fixture.journal.size, 0);
+    assert.equal(fixture.committed.size, 1);
+    original.close();
     restored.close();
   }
 });

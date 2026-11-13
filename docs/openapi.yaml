@@ -7104,7 +7104,6 @@ paths:
         capability: read
       x-milestones:
       - 7
-        and operation filters.
     head:
       operationId: headListActivity
       summary: Read headers without content
@@ -12115,7 +12114,6 @@ paths:
         capability: read
       x-milestones:
       - 31
-        release the subscription.
     options:
       operationId: options_events
       summary: Validate same-origin preflight

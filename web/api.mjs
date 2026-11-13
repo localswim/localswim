@@ -9,7 +9,7 @@ const REQUEST_TIMEOUT_MS = 15000;
 export const MAX_LANE_APPROVAL_CARDS = 5000;
 export const MAX_BULK_APPROVAL_COMMENT_LENGTH = 1024;
 export const DEFAULT_APPROVAL_COMMENT = "Reviewed & approved, moving to Completed.";
-const MAX_LANE_NOTES_LENGTH = 4096;
+export const MAX_LANE_NOTES_LENGTH = 4096;
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
@@ -309,8 +309,12 @@ function validActorPresentation(value) {
   );
 }
 
+/** @typedef {{id: string, board_id: string, revision: number, retired: boolean,
+ * position: number, key: string, label: string, role: string, approval_enabled: boolean,
+ * reorder_enabled: boolean, notes?: string, bulk_approval_comment?: string}} LaneSettings */
+
 /** @param {unknown} lane @param {string} [id] @param {string} [boardId]
- * @returns {lane is Record<string, unknown> & {id: string, board_id: string, revision: number, retired: boolean, position: number}} */
+ * @returns {lane is Record<string, unknown> & LaneSettings} */
 function validLane(lane, id, boardId) {
   if (!isObject(lane)) return false;
   const hasBulkComment = Object.hasOwn(lane, "bulk_approval_comment");
@@ -1974,8 +1978,24 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("invalid_response", { status: response.status });
       }
     },
+    /** @param {string} boardId @param {string} laneId @param {AbortSignal} [signal] */
+    async getLaneSettings(boardId, laneId, signal) {
+      const id = resourceId(laneId).toLowerCase();
+      const board = resourceId(boardId).toLowerCase();
+      const { data, etag } = await request("/lanes/" + id, { signal });
+      if (
+        !validLane(data, id, board) ||
+        data.id !== id ||
+        data.board_id !== board ||
+        etag !== versionTag(id, data.revision)
+      ) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return data;
+    },
     /** @param {string} boardId @param {string} laneId @param {number} revision @param {string} boardEtag
-     * @param {({retired: true}|{approval_enabled?: boolean, bulk_approval_comment?: string}|{key: string}|{notes: string}) & {notes?: string}} change */
+     * @param {{retired?: true, label?: string, approval_enabled?: boolean,
+     * bulk_approval_comment?: string, key?: string, notes?: string}} change */
     async updateLaneSettings(boardId, laneId, revision, boardEtag, change) {
       const id = resourceId(laneId);
       const board = resourceId(boardId);
@@ -1983,6 +2003,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         method: "PATCH",
         etag: versionTag(id, revision),
         data: { board_etag: strongTag(boardEtag), ...change },
+        knownUnavailable: true,
       });
       const saved = /** @type {Record<string, unknown>} */ (result.data);
       if (
@@ -1996,26 +2017,34 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       ) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
-      return result;
+      return { data: saved, etag: result.etag };
     },
     /** @param {unknown} boardId @param {unknown} boardEtag
-     * @param {{label: string, after_id: string, create_for: string[], connect_for: string[], notes?: string}} lane */
+     * @param {{id?: string, label: string, after_id: string, create_for: string[], connect_for: string[], notes?: string}} lane */
     async createLane(boardId, boardEtag, lane) {
       const id = resourceId(boardId);
+      const laneId = lane.id === undefined ? undefined : resourceId(lane.id).toLowerCase();
       const data = { ...lane, board_id: id, board_etag: strongTag(boardEtag) };
       const result = await request("/lanes", {
         method: "POST",
         successStatus: 201,
         data,
+        knownUnavailable: true,
       });
-      const saved = /** @type {{notes?: unknown}} */ (result.data);
+      const saved = result.data;
       if (
-        !validLane(saved, undefined, id) ||
+        !validLane(saved, laneId, id) ||
+        (laneId !== undefined &&
+          (saved.id !== laneId ||
+            saved.label !== lane.label ||
+            saved.role !== "ordinary" ||
+            saved.retired ||
+            result.etag !== versionTag(laneId, saved.revision))) ||
         (data.notes !== undefined && (saved.notes ?? "") !== data.notes)
       ) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
-      return result;
+      return { data: saved, etag: result.etag };
     },
     /** @param {unknown} laneId @param {unknown} revision @param {unknown} boardEtag @param {string} label */
     async renameLane(laneId, revision, boardEtag, label) {

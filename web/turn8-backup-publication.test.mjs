@@ -163,6 +163,10 @@ test("uncertain and nonterminal receipts keep the original scope across reload",
       case 3:
         return receipt(id, "succeeded", { finished_at: null });
       case 4:
+        return receipt(id, "succeeded", { finished_at: "2026-02-30 15:00:00+00:00" });
+      case 5:
+        return receipt(id, "failed", { finished_at: "2026-11-13 24:00:00+00:00" });
+      case 6:
         return receipt(id, "running");
       default:
         return receipt(id, "failed");
@@ -180,7 +184,7 @@ test("uncertain and nonterminal receipts keep the original scope across reload",
   assert.equal(restored.publish.hidden, true);
   assert.match(restored.scope.textContent, /captured revision 3/);
 
-  for (let read = 0; read < 3; read++) {
+  for (let read = 0; read < 5; read++) {
     restored.inspect.click();
     await flush();
     assert.equal(pending.get(journalKey), original);
@@ -200,7 +204,7 @@ test("uncertain and nonterminal receipts keep the original scope across reload",
   );
   assert.deepEqual(calls, [
     [prefix, "POST"],
-    ...Array.from({ length: 5 }, () => [`${prefix}/${id}`, "GET"]),
+    ...Array.from({ length: 7 }, () => [`${prefix}/${id}`, "GET"]),
   ]);
 });
 

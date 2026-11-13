@@ -119,7 +119,7 @@ function isInteger(value) {
   return typeof value === "number" && Number.isSafeInteger(value);
 }
 
-/** @param {unknown} value */
+/** @param {unknown} value @returns {value is string} */
 function isTimestamp(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\+00:00$/.test(value);
 }
@@ -243,6 +243,14 @@ function validBackup(value, boardId, id) {
  * )} BackupPublication
  */
 
+/** @param {unknown} value */
+function validPublicationFinishTime(value) {
+  if (!isTimestamp(value) || value === "0001-01-01 00:00:00+00:00") return false;
+  const iso = value.replace(" ", "T").replace("+00:00", ".000Z");
+  const date = new Date(iso);
+  return Number.isFinite(date.getTime()) && date.toISOString() === iso;
+}
+
 /** @param {object} value @param {string} id @param {string} boardId @param {string} backupId
  * @returns {value is BackupPublication} */
 function validPublication(value, id, boardId, backupId) {
@@ -260,10 +268,10 @@ function validPublication(value, id, boardId, backupId) {
     case "running":
       return item.finished_at === null && item.error_code === null;
     case "succeeded":
-      return isTimestamp(item.finished_at) && item.error_code === null;
+      return validPublicationFinishTime(item.finished_at) && item.error_code === null;
     case "failed":
       return (
-        isTimestamp(item.finished_at) &&
+        validPublicationFinishTime(item.finished_at) &&
         typeof item.error_code === "string" &&
         /^[a-z0-9_]{1,80}$/.test(item.error_code)
       );

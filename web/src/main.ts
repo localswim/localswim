@@ -452,6 +452,7 @@ export function mount(root: HTMLElement): () => void {
   function resumeOnReturn(event: PageTransitionEvent) {
     if (!event.persisted) return;
     pageActive = true;
+    workspace.requireFreshCatalog();
     boardState?.requireFreshConfirmation();
     focusedTextConfirmed = false;
     editor?.update();

@@ -182,6 +182,7 @@ export function createWorkspaceState({
   let tail = Promise.resolve();
   let queued: Promise<void> | undefined;
   let queuedPeriodic = false;
+  let catalogEpoch = 0;
 
   async function readCatalog(): Promise<WorkspaceView> {
     const timeout = new AbortController();
@@ -259,12 +260,16 @@ export function createWorkspaceState({
         const checkRecovery = queuedPeriodic;
         queuedPeriodic = false;
         if (signal.aborted) return;
+        const epoch = catalogEpoch;
+        let next: WorkspaceView;
         try {
-          view = await readCatalog();
+          next = await readCatalog();
         } catch {
-          view = Object.freeze({ ...view, status: "error" });
+          next = Object.freeze({ ...view, status: "error" });
         }
-        if (!signal.aborted) onChange(view, checkRecovery);
+        if (signal.aborted || epoch !== catalogEpoch) return;
+        view = next;
+        onChange(view, checkRecovery);
       })
       .catch((error: unknown) => {
         globalThis.reportError(error);
@@ -313,5 +318,14 @@ export function createWorkspaceState({
     }
   }
 
-  return { api, readWithSession, refresh, restartWatch, dispose: () => lifetime.abort() };
+  return {
+    api,
+    readWithSession,
+    refresh,
+    requireFreshCatalog() {
+      catalogEpoch++;
+    },
+    restartWatch,
+    dispose: () => lifetime.abort(),
+  };
 }

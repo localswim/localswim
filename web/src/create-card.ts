@@ -23,6 +23,8 @@ type CreateCardOptions = AppContext &
     onConfirmed: (cardId: string, ticket: number, showCreatedCard: boolean) => void;
     onStale: () => void;
     focusFallback: () => void;
+    beginWrite?: () => (() => void) | null;
+    beginInspection?: () => (() => void) | null;
     storage?: OperationStorage;
   }>;
 
@@ -133,6 +135,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   let storedDraftInvalid = false;
   let hasUnstoredChanges = false;
   let opener: HTMLButtonElement | undefined;
+  let dismissibleSubmission: string | undefined;
   let message = "";
   let composing = false;
   const resetTextInputs: (() => void)[] = [];
@@ -143,6 +146,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       if (stored === undefined || stored === raw) return;
       raw = stored;
       draft = null;
+      dismissibleSubmission = undefined;
       draft = stored === null ? null : parseDraft(stored);
       storedDraftInvalid = false;
       message = "";
@@ -192,14 +196,17 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   const add = button("Add card");
   add.className = "create-card-submit";
   const inspect = button("Inspect creation");
+  const dismiss = button("Dismiss unresolved creation");
   const cancel = button("Cancel");
-  actions.append(cancel, inspect, add);
+  const recovery = button("Inspect pending creation");
+  recovery.className = "create-card-recovery";
+  actions.append(cancel, dismiss, inspect, add);
   const choices = doc.createElement("div");
   choices.className = "create-card-choices";
   choices.append(field("Destination", lane), field("Owner", owner), field("Priority", priority));
   form.append(field("Title", title), field("Description", description), choices, status, actions);
   dialog.append(heading, form);
-  host.append(dialog);
+  host.append(dialog, recovery);
 
   function button(label: string) {
     const element = doc.createElement("button");
@@ -265,7 +272,10 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   }
 
   function update() {
-    if (signal.aborted || !dialog.open || !draft) return;
+    if (signal.aborted) return;
+    if (!dialog.open) loadStoredDraft();
+    recovery.hidden = dialog.open || !draft?.submission;
+    if (!dialog.open || !draft) return;
     const current = context();
     const active = operations.state(key);
     const locked = Boolean(active || draft.submission);
@@ -284,6 +294,8 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     cancel.disabled = composing;
     inspect.hidden = !draft.submission;
     inspect.disabled = Boolean(active);
+    dismiss.hidden = !draft.submission || draft.submission.id !== dismissibleSubmission;
+    dismiss.disabled = Boolean(active);
     cancel.textContent = draft.submission ? "Close" : "Cancel";
     const nextStatus =
       active === "submitting"
@@ -316,7 +328,9 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     dialog.close();
     if (draft === initialDraft) draft = null;
     initialDraft = null;
-    if (opener?.isConnected && !opener.disabled) opener.focus({ preventScroll: true });
+    update();
+    if (opener?.isConnected && !opener.disabled && !opener.hidden)
+      opener.focus({ preventScroll: true });
     else options.focusFallback();
     opener = undefined;
   }
@@ -326,6 +340,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     const ticket = confirmedTicket(boardId, submitted, data);
     if (!cardId || ticket === null) return false;
     const wasOpen = dialog.open;
+    dismissibleSubmission = undefined;
     const cleared = persist(null);
     if (cleared) {
       draft = null;
@@ -339,7 +354,14 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
   async function submit() {
     const current = context();
-    if (!dialog.open || !draft || draft.submission || composing || !canCreate(draft, current))
+    if (
+      !dialog.open ||
+      !draft ||
+      draft.submission ||
+      composing ||
+      operations.state(key) ||
+      !canCreate(draft, current)
+    )
       return;
     const titleValid = titleHasText.test(draft.title) && draft.title.isWellFormed();
     if (!titleValid || !draft.description.isWellFormed()) {
@@ -350,6 +372,12 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     }
     const previous = draft;
     const focused = doc.activeElement;
+    const release = options.beginWrite?.();
+    if (release === null) {
+      message = "Another board operation is active. Try adding the card again when it finishes.";
+      update();
+      return;
+    }
     await operations.run(
       key,
       "submitting",
@@ -403,6 +431,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         }
       },
       () => {
+        release?.();
         update();
         if (
           !signal.aborted &&
@@ -417,9 +446,23 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   }
 
   async function inspectCreation() {
-    if (!dialog.open || !draft?.submission) return;
+    if (!dialog.open || !draft?.submission || operations.state(key)) return;
+    const release = options.beginInspection?.();
+    if (release === null) {
+      message = "Another board operation is active. Inspect again when it finishes.";
+      update();
+      return;
+    }
+    const original = draft.submission.id;
+    loadStoredDraft();
+    if (draft?.submission?.id !== original) {
+      release?.();
+      close();
+      return;
+    }
     const submitted = draft;
     const { id } = draft.submission;
+    dismissibleSubmission = undefined;
     await operations.run(
       key,
       "inspecting",
@@ -428,17 +471,26 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         try {
           const { data } = await options.readWithSession(() => api.getCard(id, signal), signal);
           if (signal.aborted) return;
-          if (!confirm(submitted, data))
-            message = "The original card does not match the submitted draft.";
+          if (!confirm(submitted, data)) {
+            dismissibleSubmission = id;
+            message =
+              "The original card does not match the draft. You can inspect again or dismiss the unresolved creation and keep the draft.";
+          }
         } catch (error) {
           if (signal.aborted) return;
-          message =
-            error instanceof ApiError && error.status === 404
-              ? "The original card was not found. The draft is retained for another inspection."
-              : "The original card could not be checked. Inspect again to retry the read.";
+          if (error instanceof ApiError && error.status === 404) {
+            dismissibleSubmission = id;
+            message =
+              "The original card was not found. You can inspect again or dismiss the unresolved creation and keep the draft.";
+          } else {
+            message = "The original card could not be checked. Inspect again to retry the read.";
+          }
         }
       },
-      update,
+      () => {
+        release?.();
+        update();
+      },
     );
   }
 
@@ -447,11 +499,42 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     update();
   }
 
+  function dismissCreation() {
+    if (
+      !dialog.open ||
+      !draft?.submission ||
+      operations.state(key) ||
+      draft.submission.id !== dismissibleSubmission
+    )
+      return;
+    const retained = { ...draft, submission: undefined };
+    if (persist(retained)) {
+      draft = retained;
+      dismissibleSubmission = undefined;
+      message = "Unresolved creation dismissed. Your draft is still available.";
+      title.focus();
+    } else {
+      message = "The stored submission could not be cleared. Your draft is still available.";
+    }
+    update();
+  }
+
   form.addEventListener("submit", (event) => event.preventDefault(), { signal });
   add.addEventListener("click", () => void submit().catch(reportActionError), { signal });
   inspect.addEventListener("click", () => void inspectCreation().catch(reportActionError), {
     signal,
   });
+  dismiss.addEventListener("click", dismissCreation, { signal });
+  recovery.addEventListener(
+    "click",
+    () => {
+      if (signal.aborted || dialog.open) return;
+      loadStoredDraft();
+      if (draft?.submission) showDialog(recovery, draft);
+      else update();
+    },
+    { signal },
+  );
   cancel.addEventListener("click", close, { signal });
   dialog.addEventListener(
     "cancel",
@@ -571,6 +654,18 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     control.addEventListener("change", () => edit({ [field]: control.value }), { signal });
   }
 
+  function showDialog(trigger: HTMLButtonElement, initial: Draft) {
+    title.value = initial.title;
+    description.value = initial.description;
+    for (const reset of resetTextInputs) reset();
+    composing = false;
+    opener = trigger;
+    dialog.showModal();
+    update();
+    (initial.submission ? inspect : title).focus();
+  }
+
+  update();
   return {
     open(laneId: string, trigger: HTMLButtonElement) {
       const current = context();
@@ -587,20 +682,14 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         initialDraft = draft;
         message = "";
       }
-      title.value = draft.title;
-      description.value = draft.description;
-      for (const reset of resetTextInputs) reset();
-      composing = false;
-      opener = trigger;
-      dialog.showModal();
-      update();
-      (draft.submission ? inspect : title).focus();
+      showDialog(trigger, draft);
     },
     update,
     hasUncertainSubmission: () => Boolean(draft?.submission),
     dispose() {
       lifetime.abort();
       dialog.remove();
+      recovery.remove();
     },
   };
 }

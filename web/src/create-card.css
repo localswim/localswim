@@ -100,6 +100,22 @@
   cursor: default;
 }
 
+.create-card-recovery {
+  margin: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--board-view-lane-border);
+  border-radius: 0.35rem;
+  background: var(--board-view-card-fill);
+  color: var(--board-view-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.create-card-recovery:focus-visible {
+  outline: 2px solid var(--board-view-focus);
+  outline-offset: 2px;
+}
+
 @media (width <= 36rem) {
   .create-card-choices {
     grid-template-columns: 1fr;

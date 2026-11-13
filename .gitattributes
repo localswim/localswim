@@ -4,3 +4,16 @@
 *.zip binary
 *.bin binary
 *.pdf binary
+
+web/**/*.ts filter=localswim-prettier
+web/**/*.js filter=localswim-prettier
+web/**/*.mjs filter=localswim-prettier
+web/**/*.cjs filter=localswim-prettier
+web/**/*.css filter=localswim-prettier
+web/**/*.html filter=localswim-prettier
+web/**/*.json filter=localswim-prettier
+web/**/dist/** -filter
+web/**/generated/** -filter
+web/**/node_modules/** -filter
+web/**/package-lock.json -filter
+web/**/testdata/** -filter

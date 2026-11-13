@@ -1,8 +1,15 @@
 /// <reference types="node" />
 
-import { lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { git, lockfile, setup, withScratch } from "./support.mjs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join } from "node:path";
+import {
+  configFile,
+  formatPolicyFiles,
+  formatter,
+  ignoreFile,
+  sourceText,
+} from "./source-format.mjs";
+import { git, setup, withScratch } from "./support.mjs";
 
 function stagedFiles() {
   const changed = new Set(
@@ -35,53 +42,35 @@ function indexFile(file) {
   return git(["show", `:${file}`]);
 }
 
-async function formatter() {
-  /** @type {unknown} */
-  const lock = JSON.parse(indexFile(lockfile).toString());
-  if (typeof lock !== "object" || !lock || !("packages" in lock)) {
-    throw new Error("The staged package lock has no packages map.");
+function usesPathLimitedIndex() {
+  const index = process.env.GIT_INDEX_FILE;
+  if (!index || !isAbsolute(index) || !/^next-index-\d+\.lock$/u.test(basename(index))) {
+    return false;
   }
-  const { packages } = lock;
-  if (typeof packages !== "object" || !packages || !("node_modules/prettier" in packages)) {
-    throw new Error("The staged package lock has no Prettier entry.");
-  }
-  const entry = packages["node_modules/prettier"];
-  const prettier = await import("prettier");
-  if (
-    typeof entry !== "object" ||
-    !entry ||
-    !("version" in entry) ||
-    entry.version !== prettier.version
-  ) {
-    throw new Error("Installed Prettier differs from the staged package lock.");
-  }
-  return prettier;
-}
-
-/** @param {string} file @param {string} checkout @param {Buffer} original @param {Buffer} formatted */
-function syncCleanFile(file, checkout, original, formatted) {
-  // Leave partially staged, removed and replaced working files byte-for-byte intact.
-  const path = join(checkout, file);
-  if (
-    lstatSync(path, { throwIfNoEntry: false })?.isFile() &&
-    realpathSync(path) === path &&
-    readFileSync(path).equals(original)
-  ) {
-    writeFileSync(path, formatted);
-  }
+  const gitDirectory = git(["rev-parse", "--absolute-git-dir"]).toString().trimEnd();
+  return dirname(index).replaceAll("\\", "/") === gitDirectory;
 }
 
 async function formatStaged() {
   const files = stagedFiles();
   if (!files.length) return;
 
-  const prettier = await formatter();
+  for (const file of formatPolicyFiles) {
+    const normalizeLf = (/** @type {Buffer} */ bytes) => bytes.toString().replace(/\r\n/gu, "\n");
+    if (normalizeLf(readFileSync(file)) !== normalizeLf(indexFile(file))) {
+      throw new Error(
+        `The working copy of ${file} differs from this commit's version. Include its full change in the commit or restore the working copy to the staged version.`,
+      );
+    }
+  }
+
+  const prettier = await formatter(indexFile);
   await withScratch(async (directory) => {
     mkdirSync(join(directory, "web"));
-    const configPath = join(directory, "web/.prettierrc.json");
-    const ignorePath = join(directory, "web/.prettierignore");
-    writeFileSync(configPath, indexFile("web/.prettierrc.json"));
-    writeFileSync(ignorePath, indexFile("web/.prettierignore"));
+    const configPath = join(directory, configFile);
+    const ignorePath = join(directory, ignoreFile);
+    writeFileSync(configPath, indexFile(configFile));
+    writeFileSync(ignorePath, indexFile(ignoreFile));
 
     const updates = [];
     for (const { file, mode, object } of files) {
@@ -90,23 +79,25 @@ async function formatStaged() {
         continue;
       }
       const original = git(["cat-file", "blob", object]);
-      const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(original);
       const config = await prettier.resolveConfig(filepath, { config: configPath });
-      const formatted = Buffer.from(await prettier.format(text, { ...config, filepath }));
-      if (!formatted.equals(original)) updates.push({ file, mode, original, formatted });
+      const formatted = Buffer.from(
+        await prettier.format(sourceText(original), { ...config, filepath }),
+      );
+      if (!formatted.equals(original)) updates.push({ file, mode, formatted });
     }
 
-    // Parse every candidate before writing the index. Git applies the replacements together.
     if (!updates.length) return;
+    if (usesPathLimitedIndex()) {
+      // A configured clean filter already normalized both indexes for a path-limited commit.
+      // A difference here means rewriting Git's temporary index alone would leave stale staging.
+      throw new Error(`Git did not normalize the selected paths. Run ${setup} and retry.`);
+    }
+    // Parse every candidate before writing the index. Git applies the replacements together.
     const records = updates.map(({ file, mode, formatted }) => {
       const object = git(["hash-object", "-w", "--stdin"], { input: formatted }).toString().trim();
       return `${mode} ${object}\t${file}\0`;
     });
     git(["update-index", "-z", "--index-info"], { input: records.join("") });
-    const checkout = realpathSync(".");
-    for (const { file, original, formatted } of updates) {
-      syncCleanFile(file, checkout, original, formatted);
-    }
   });
 }
 

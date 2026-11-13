@@ -253,6 +253,7 @@ export function mount(root: HTMLElement): () => void {
         onConfirmed(saved) {
           if (confirmedText === null || saved.revision >= confirmedText.revision) {
             confirmedText = saved;
+            drawer?.showConfirmedText(saved);
           }
           boardState?.retry();
           drawer?.refresh();

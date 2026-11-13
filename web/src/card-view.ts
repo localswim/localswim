@@ -306,6 +306,17 @@ export function mountCardView(
     }
   }
 
+  function showConfirmedText(text: { title: string; description: string }) {
+    if (title.textContent !== text.title) title.textContent = text.title;
+    if (displayedProse === text.description) return;
+    displayedProse = text.description;
+    const prose = doc.createElement("p");
+    if (text.description === "") prose.textContent = "No description.";
+    else appendCardProse(prose, text.description, ticketLink);
+    description.classList.toggle("card-drawer-empty", text.description === "");
+    updateLinkedContent(description, [...prose.childNodes]);
+  }
+
   function renderCard(card: SavedCard, laneLabel: string, data: BoardViewData | undefined) {
     const owner = data?.users.find(({ id }) => id === card.owner_id);
     const presentation = owner ? data?.board.actor_presentation?.[owner.kind] : undefined;
@@ -325,7 +336,6 @@ export function mountCardView(
     if (card.archived) fields.set("State", "Archived");
 
     ticketLabel.textContent = `#${card.ticket}`;
-    if (title.textContent !== card.title) title.textContent = card.title;
     const rows = [...fields].map(([label, value]) => {
       const row = element("div", "card-drawer-field");
       row.append(element("dt", "", label), element("dd", "", value));
@@ -333,14 +343,7 @@ export function mountCardView(
     });
     metadata.replaceChildren(...rows);
 
-    if (displayedProse !== card.description) {
-      displayedProse = card.description;
-      const prose = doc.createElement("p");
-      if (card.description === "") prose.textContent = "No description.";
-      else appendCardProse(prose, card.description, ticketLink);
-      description.classList.toggle("card-drawer-empty", card.description === "");
-      updateLinkedContent(description, [...prose.childNodes]);
-    }
+    showConfirmedText(card);
     details.hidden = false;
   }
 
@@ -527,6 +530,7 @@ export function mountCardView(
     editor,
     title,
     description,
+    showConfirmedText,
     get selected() {
       return selection?.reference ?? null;
     },

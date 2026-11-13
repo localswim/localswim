@@ -429,6 +429,8 @@ export function mount(root: HTMLElement): () => void {
   function resumeOnReturn(event: PageTransitionEvent) {
     if (!event.persisted) return;
     pageActive = true;
+    focusedTextConfirmed = false;
+    editor?.update();
     void sidebar.resume();
     drafts.refresh();
     if (selectedBoardId) {

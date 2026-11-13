@@ -250,7 +250,9 @@ Each action makes one write attempt. After an uncertain response, use
 **Refresh service status** to check the service and the original activation
 receipt. If the original running service is unchanged and the receipt is
 absent, **Retry original activation** uses the same receipt ID, staged build
-and service validator.
+and service validator. If inspection confirms the receipt is absent and the
+original validator has expired on the same running service, **Dismiss original
+activation** clears the saved attempt before a fresh activation.
 
 ### Browser API client
 

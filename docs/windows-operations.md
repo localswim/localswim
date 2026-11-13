@@ -134,8 +134,11 @@ If the service starts but the board is unavailable, use the
    For CLI inspection, use `service activation ACTIVATION_ID` and `service
    status` on the same origin. Allow up to 30 seconds for these read-only checks.
    Confirm `activated`, the staged build ID, a new service instance ID, and the
-   original port. If the receipt remains uncertain or records failure, inspect
-   the service and any publisher error before attempting another action.
+   original port. The browser offers **Retry original activation** when the
+   original running service and its validator are unchanged and the receipt
+   is absent. If the original validator has expired on that service and
+   inspection confirms the receipt is absent, **Dismiss original activation**
+   clears the saved attempt. Inspect any publisher error before a fresh action.
 4. Keep the existing Human and Bot CLI credentials. Activation preserves them
    and invalidates the old browser session. Return to the original board URL
    and confirm the last saved edit and a subsequent authorized write. Use

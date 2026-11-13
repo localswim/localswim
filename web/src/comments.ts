@@ -26,6 +26,7 @@ import {
 type CommentContext = Readonly<{
   actorId: string;
   boardEtag: string;
+  boardRevision: number;
   cardEtag: string;
   revision: number;
   commentCount: number;
@@ -35,7 +36,11 @@ type CommentContext = Readonly<{
 type CommentOptions = Readonly<{
   api: Pick<
     AppContext["api"],
-    "listComments" | "getComment" | "createComment" | "listFocusedCardActivity"
+    | "listComments"
+    | "getComment"
+    | "createComment"
+    | "listFocusedCardActivity"
+    | "getBoardAvailability"
   >;
   scope: CardScope;
   signal: AbortSignal;
@@ -50,7 +55,13 @@ type CommentOptions = Readonly<{
   storage?: OperationStorage;
 }>;
 
-type Draft = Readonly<{ text: string; id: string | null }>;
+type SubmissionBase = Readonly<{
+  boardEtag: string;
+  boardRevision: number;
+  cardEtag: string;
+  cardRevision: number;
+}>;
+type Draft = Readonly<{ text: string; id: string | null; base?: SubmissionBase }>;
 type Journal = {
   key: string;
   raw: string | null | undefined;
@@ -69,7 +80,32 @@ function journalKey(actor: string, { boardId, cardId }: CardScope) {
   return `localswim:v2:comment:${actor}:${boardId}:${cardId}`;
 }
 
-function journalDraft(raw: string): Draft {
+function versionMatches(etag: unknown, id: string, revision: unknown): boolean {
+  return (
+    typeof revision === "number" &&
+    Number.isSafeInteger(revision) &&
+    revision > 0 &&
+    etag === `"${id}-${revision}"`
+  );
+}
+
+function validBase(value: unknown, { boardId, cardId }: CardScope): value is SubmissionBase {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "boardEtag" in value &&
+    "boardRevision" in value &&
+    "cardEtag" in value &&
+    "cardRevision" in value &&
+    versionMatches(value.boardEtag, boardId, value.boardRevision) &&
+    versionMatches(value.cardEtag, cardId, value.cardRevision) &&
+    typeof value.boardRevision === "number" &&
+    typeof value.cardRevision === "number" &&
+    value.boardRevision >= value.cardRevision
+  );
+}
+
+function journalDraft(raw: string, scope: CardScope): Draft {
   const value: unknown = JSON.parse(raw);
   if (
     typeof value !== "object" ||
@@ -84,7 +120,8 @@ function journalDraft(raw: string): Draft {
   ) {
     throw new TypeError("Invalid comment draft.");
   }
-  return { text: value.text, id: value.id };
+  const base = "base" in value && validBase(value.base, scope) ? value.base : undefined;
+  return { text: value.text, id: value.id, base };
 }
 
 export function mountCardComments(
@@ -217,7 +254,7 @@ export function mountCardComments(
     try {
       const raw = tabStorage().getItem(entry.key);
       if (raw !== entry.raw) {
-        entry.draft = raw === null ? emptyDraft : journalDraft(raw);
+        entry.draft = raw === null ? emptyDraft : journalDraft(raw, scope);
         entry.raw = raw;
       }
       entry.error = false;
@@ -261,8 +298,9 @@ export function mountCardComments(
   function canPost(current: CommentContext | null, entry: Journal | undefined) {
     return Boolean(
       current?.writable &&
-      strongTag.test(current.cardEtag) &&
-      strongTag.test(current.boardEtag) &&
+      versionMatches(current.cardEtag, cardId, current.revision) &&
+      versionMatches(current.boardEtag, boardId, current.boardRevision) &&
+      current.boardRevision >= current.revision &&
       entry &&
       entry.key === journalKey(current.actorId, scope) &&
       !entry.error &&
@@ -389,7 +427,13 @@ export function mountCardComments(
     const current = context();
     const entry = journal;
     if (signal.aborted || !current || !entry || !canPost(current, entry)) return;
-    const draft = { text: entry.draft.text, id: crypto.randomUUID() };
+    const base: SubmissionBase = {
+      boardEtag: current.boardEtag,
+      boardRevision: current.boardRevision,
+      cardEtag: current.cardEtag,
+      cardRevision: current.revision,
+    };
+    const draft = { text: entry.draft.text, id: crypto.randomUUID(), base };
     const release = beginWrite(cardId);
     if (!release) return;
     try {
@@ -405,10 +449,10 @@ export function mountCardComments(
               publish(entry);
               const reply = await api.createComment(
                 cardId,
-                current.cardEtag,
+                base.cardEtag,
                 draft.text,
                 draft.id,
-                current.boardEtag,
+                base.boardEtag,
               );
               prove(reply, current.actorId, draft);
               const tag = "boardEtag" in reply ? reply.boardEtag : null;
@@ -444,6 +488,26 @@ export function mountCardComments(
     }
   }
 
+  async function findOriginal(id: string) {
+    try {
+      return await readWithSession(() => api.getComment(id, signal), signal);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  async function readBoardVersion() {
+    const { data, etag } = await readWithSession(
+      () => api.getBoardAvailability(boardId, signal),
+      signal,
+    );
+    if (data.id !== boardId || !versionMatches(etag, boardId, data.revision)) {
+      throw new TypeError("Invalid board version for comment inspection.");
+    }
+    return { etag, revision: data.revision };
+  }
+
   async function inspectOriginal() {
     update();
     const entry = journal;
@@ -465,21 +529,39 @@ export function mountCardComments(
       async () => {
         missing = undefined;
         publish(entry);
+        const currentActor = () => !signal.aborted && context()?.actorId === actor;
         try {
-          const reply = await readWithSession(() => api.getComment(id, signal), signal);
-          if (signal.aborted || context()?.actorId !== actor) return;
-          prove(reply, actor, draft);
-          confirmed(entry, null);
-        } catch (error) {
-          if (signal.aborted || context()?.actorId !== actor) return;
-          if (error instanceof ApiError && error.status === 404) {
-            missing = id;
-            notice =
-              "The original comment was not found. Inspect again or dismiss the unresolved post to recover your draft.";
-          } else {
-            notice =
-              "The original comment could not be verified. Inspect it again to check the outcome.";
+          let reply = await findOriginal(id);
+          if (!currentActor()) return;
+          if (!reply && draft.base) {
+            const board = await readBoardVersion();
+            if (!currentActor()) return;
+            if (board.revision > draft.base.boardRevision) {
+              // The writer checks this board validator atomically with comment creation.
+              // Read the original ID again after its original validator is fenced.
+              reply = await findOriginal(id);
+              if (!currentActor()) return;
+              if (!reply) {
+                // A membership change can also hide the original ID. Verify the
+                // board remained readable at the same version around the 404.
+                const after = await readBoardVersion();
+                if (!currentActor()) return;
+                if (after.etag === board.etag) missing = id;
+              }
+            }
           }
+          if (reply) {
+            prove(reply, actor, draft);
+            confirmed(entry, null);
+          } else {
+            notice = missing
+              ? "The board changed and the original comment was not found. Dismiss the unresolved post to recover your draft."
+              : "The original comment has not been found. Its outcome is still unknown. Inspect again to check.";
+          }
+        } catch {
+          if (!currentActor()) return;
+          notice =
+            "The original comment could not be verified. Inspect it again to check the outcome.";
         }
       },
       () => publish(entry),

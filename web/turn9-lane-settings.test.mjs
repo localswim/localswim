@@ -54,6 +54,18 @@ const reply = (value, status = 200, etag = version(value.id, value.revision)) =>
   });
 const boardReply = (revision, availability = "open") =>
   reply({ id: boardId, revision, name: "Fixture", policy_id: policyId, availability });
+const validationProblem = {
+  type: "about:blank",
+  title: "Bad Request",
+  status: 400,
+  code: "invalid_request",
+  detail: "is required when the label does not yield a key",
+  request_id: actorId,
+  outcome: "not_applied",
+  errors: [{ field: "lane.key", code: "invalid_value" }],
+};
+const validationReply = (problem = validationProblem) =>
+  Response.json(problem, { status: 400, headers: { "Content-Type": "application/problem+json" } });
 
 globalThis.InputEvent = class extends Event {
   constructor(type, options) {
@@ -447,7 +459,8 @@ test("a verified conflict and a refused correction keep editing on the original 
         );
       }
       if (attempts.length === 3) throw new Error("lost revised refusal");
-      if (attempts.length === 4) return new Response(null, { status: 400 });
+      if (attempts.length === 4)
+        return validationReply({ ...validationProblem, detail: "has an invalid length" });
       return reply(lane(draft.id, draft.label, 3, "ordinary", { revision: 5 }), 201);
     }
     if (path === `${prefix}/boards/${boardId}`) return boardReply(4);
@@ -508,4 +521,79 @@ test("a verified conflict and a refused correction keep editing on the original 
   assert.deepEqual(attempts[4], { ...attempts[0], label: "  Corrected label  " });
   assert.equal(storage.size, 0);
   assert.match(status(host), /Lane added/);
+});
+
+test("a lost missing-key refusal permits correction after canonical retry and remounted inspection", async () => {
+  const attempts = [];
+  const { mount, storage } = fixture((path, request) => {
+    if (request.method === "POST") {
+      const draft = body(request);
+      attempts.push(draft);
+      if (attempts.length === 1) throw new Error("lost native 400");
+      if (attempts.length === 2) return validationReply();
+      return reply(lane(draft.id, draft.label, 2, "ordinary", { revision: 5 }), 201);
+    }
+    if (path === `${prefix}/boards/${boardId}`) return boardReply(4);
+    assert.equal(path, `${prefix}/lanes/${attempts[0].id}`);
+    return new Response(null, { status: 404 });
+  });
+  const first = mount();
+  first.host.control("New lane label").input("!!!");
+  first.host.button("Add lane").click();
+  await flush();
+  first.host.button("Inspect lane change").click();
+  await flush();
+  first.host.button("Retry lane change").click();
+  await flush();
+  assert.deepEqual(attempts[1], attempts[0]);
+  assert.equal(first.host.button("Edit lane draft").hidden, true);
+  first.life.abort();
+
+  const { host } = mount();
+  host.button("Inspect lane change").click();
+  await flush();
+  assert.match(status(host), /Edit the lane label so it can yield a key/);
+  assert.equal(host.button("Retry lane change").hidden, true);
+  host.button("Edit lane draft").click();
+  assert.equal(host.control("New lane label").value, "!!!");
+  host.control("New lane label").input("Valid lane");
+  host.button("Add lane").click();
+  await flush();
+  assert.deepEqual(attempts[2], { ...attempts[0], label: "Valid lane" });
+  assert.equal(storage.size, 0);
+  assert.match(status(host), /Lane added/);
+});
+
+test("a malformed missing-key retry cannot unlock or clear the uncertain draft", async () => {
+  let posts = 0;
+  const { mount, storage } = fixture((path, request) => {
+    if (request.method === "POST") {
+      if (++posts === 1) throw new Error("lost native 400");
+      const malformed = JSON.stringify(validationProblem).replace(
+        '"field":"lane.key"',
+        '"field":"unexpected","field":"lane.key"',
+      );
+      return new Response(malformed, {
+        status: 400,
+        headers: { "Content-Type": "application/problem+json" },
+      });
+    }
+    if (path === `${prefix}/boards/${boardId}`) return boardReply(4);
+    return new Response(null, { status: 404 });
+  });
+  const { host } = mount();
+  host.control("New lane label").input("!!!");
+  host.button("Add lane").click();
+  await flush();
+  host.button("Inspect lane change").click();
+  await flush();
+  host.button("Retry lane change").click();
+  await flush();
+  host.button("Inspect lane change").click();
+  await flush();
+  assert.equal(posts, 2);
+  assert.equal(storage.size, 1);
+  assert.equal(host.button("Edit lane draft").hidden, true);
+  assert.equal(host.button("Dismiss pending change").hidden, true);
+  assert.equal(host.button("Retry lane change").hidden, false);
 });

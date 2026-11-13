@@ -643,8 +643,9 @@ async function responseObject(response, write) {
   throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
 }
 
-/** @param {Response} response @param {number} status @param {string} code */
-async function readWriteRefusal(response, status, code) {
+/** @param {Response} response @param {number} status @param {string} code
+ * @param {boolean} [withIssue] */
+async function readWriteRefusal(response, status, code, withIssue = false) {
   if (
     response.status !== status ||
     response.body === null ||
@@ -683,15 +684,29 @@ async function readWriteRefusal(response, status, code) {
       typeof problem.detail === "string" &&
       problem.detail.length <= 512 &&
       canonicalId(problem.request_id) &&
-      Array.isArray(problem.errors) &&
-      problem.errors.length === 0
+      isArray(problem.errors) &&
+      problem.errors.length === (withIssue ? 1 : 0)
     ))
       return null;
-    // A validated flat problem has exactly eight member separators outside strings.
-    // JSON.parse would otherwise silently accept duplicate members.
-    if (text.match(/"(?:[^"\\]|\\.)*"|:/gs)?.filter((token) => token === ":").length !== 8)
+    const issue = problem.errors[0];
+    if (
+      withIssue &&
+      (!isObject(issue) ||
+        Object.keys(issue).length !== 2 ||
+        typeof issue.field !== "string" ||
+        !issue.field.length ||
+        issue.field.length > 120 ||
+        issue.code !== "invalid_value")
+    )
       return null;
-    return { title: problem.title, detail: problem.detail };
+    // Count both top-level and issue members to reject duplicate keys.
+    // JSON.parse would otherwise silently accept duplicate members.
+    if (
+      text.match(/"(?:[^"\\]|\\.)*"|:/gs)?.filter((token) => token === ":").length !==
+      (withIssue ? 10 : 8)
+    )
+      return null;
+    return { title: problem.title, detail: problem.detail, issue };
   } catch {
     return null;
   } finally {
@@ -904,6 +919,21 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     }
 
     if (!response.ok && !(response.status === 304 && ifNoneMatch !== undefined)) {
+      if (path === "/lanes" && method === "POST" && response.status === 400) {
+        const refusal = await readWriteRefusal(response, 400, "invalid_request", true);
+        if (
+          refusal?.title === "Bad Request" &&
+          refusal.detail === "is required when the label does not yield a key" &&
+          isObject(refusal.issue) &&
+          refusal.issue.field === "lane.key"
+        ) {
+          throw new ApiError("lane_key_required", { status: 400 });
+        }
+        throw new ApiError("http_error", {
+          status: 400,
+          outcomeUnknown: refusal?.title !== "Bad Request",
+        });
+      }
       if (path === "/lanes" && method === "POST" && response.status === 409) {
         const refusal = await readWriteRefusal(response, 409, "conflict");
         if (

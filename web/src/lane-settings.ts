@@ -28,7 +28,7 @@ type Change =
   | { kind: "patch"; laneId: string; revision: number; value: LanePatch };
 type Intent = Change & {
   boardEtag: string;
-  correction?: "identity-conflict" | "revised" | "refused";
+  correction?: "identity-conflict" | "key-required" | "revised" | "refused";
 };
 type Context = {
   data: BoardViewData | null;
@@ -110,6 +110,7 @@ function parseIntent(raw: string, boardId: string): Intent {
             boardEtag,
             value: { id, label, after_id, create_for, connect_for },
             ...(entry.correction === "identity-conflict" ||
+            entry.correction === "key-required" ||
             entry.correction === "revised" ||
             entry.correction === "refused"
               ? { correction: entry.correction }
@@ -754,12 +755,9 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
                       intent.value,
                     );
             } catch (error) {
-              if (
-                intent.kind === "add" &&
-                error instanceof ApiError &&
-                error.code === "lane_identity_conflict"
-              ) {
-                return "identity-conflict" as const;
+              if (intent.kind === "add" && error instanceof ApiError) {
+                if (error.code === "lane_identity_conflict") return "identity-conflict" as const;
+                if (error.code === "lane_key_required") return "key-required" as const;
               }
               throw error;
             }
@@ -780,14 +778,19 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
           case "journal-failed":
             break;
           case "confirmed":
-            if (result.result === "identity-conflict") {
+            if (result.result !== "saved") {
+              const conflict = result.result === "identity-conflict";
               if (mode !== "new") {
-                if (remember({ ...intent, correction: "identity-conflict" })) {
-                  notice =
-                    "The server found a lane identity conflict. Inspect the original lane before editing the draft.";
+                if (remember({ ...intent, correction: result.result })) {
+                  notice = conflict
+                    ? "The server found a lane identity conflict. Inspect the original lane before editing the draft."
+                    : "The lane label did not yield a key. Inspect the original lane before editing the draft.";
                 }
-              } else if (remember(undefined))
-                notice = "The lane label or identity conflicts with existing state.";
+              } else if (remember(undefined)) {
+                notice = conflict
+                  ? "The lane label or identity conflicts with existing state."
+                  : "Use a lane label with at least one letter or number.";
+              }
               if (!signal.aborted) onChange();
               break;
             }
@@ -949,7 +952,9 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
             ? correction
               ? correction === "identity-conflict"
                 ? "The original lane is absent. Edit the draft to resolve the lane identity conflict."
-                : "The original lane is absent. Edit the rejected draft before adding it."
+                : correction === "key-required"
+                  ? "The original lane is absent. Edit the lane label so it can yield a key."
+                  : "The original lane is absent. Edit the rejected draft before adding it."
               : "The original lane change is absent. You can retry against the same board version."
             : "The saved board differs from the pending change. Dismiss it and review the current settings.";
         } else notice = "The board and lane versions could not be reconciled. Inspect again.";

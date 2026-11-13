@@ -703,6 +703,7 @@ After an uncertain result, inspect the original attachment UUID.
 ## References
 
 - [API contract](docs/openapi.yaml)
+- [Relationship direction and card labels](docs/api-relationships.md)
 - [API decisions](docs/adr/0001-api-contract.md)
 - [Milestones](milestone-plan.md)
 - [Execution plan](execution-plan.md)

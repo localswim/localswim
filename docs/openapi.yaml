@@ -31,6 +31,7 @@ tags:
 - name: Cards
 - name: Comments
 - name: Relationships
+  description: Canonical directed links and their card-relative labels. See [relationship direction and examples](api-relationships.md).
 - name: Workflow
 - name: Attachments
 - name: Activity
@@ -3673,7 +3674,7 @@ paths:
       x-milestones:
       - 9
       - 10
-      description: Source and target must belong to the same board. Blocking changes apply transitive
+      description: Canonical kind describes source to target. To make A blocked by B, set source_card_id to B, target_card_id to A and kind to blocks. The inverse labels blocked_by, duplicated_by and referenced_by are not accepted kinds. Source and target must belong to the same board. Blocking changes apply transitive
         urgency floors and their audit atomically. Archived unfinished paths count; Completed nodes stop
         propagation.
       requestBody:
@@ -6928,11 +6929,14 @@ paths:
     get:
       operationId: listActivity
       summary: Read bounded activity metadata or explicit full audit values
-      description: >
-        Read committed activity in inclusive UTC seconds and audit revision order. Each page describes
-        writer coverage independently of the presence of matching activity. Continue with the same
-        filters and writer until pagination is complete. A changed board revision or writer invalidates
-        a continuation cursor.
+      description: >-
+        Read committed activity in inclusive UTC seconds and audit revision order. Each page
+        describes writer coverage independently of the presence of matching activity. Continue
+        with the same filters and writer until pagination is complete. A changed board revision
+        or writer invalidates a continuation cursor. Both views require board read permission
+        and use an inclusive UTC interval in the canonical Timestamp format. The default monitor
+        view exposes sanitized event metadata. Select full for attributed audit values. Cursors
+        bind the interval, view, ticket, actor and operation filters.
       tags:
       - Activity
       parameters:
@@ -7097,9 +7101,6 @@ paths:
         capability: read
       x-milestones:
       - 7
-      description: Both views require board read permission and use an inclusive UTC interval in the
-        canonical Timestamp format. The default monitor view exposes sanitized event metadata.
-        Select full for attributed audit values. Cursors bind the interval, view, ticket, actor
         and operation filters.
     head:
       operationId: headListActivity
@@ -12025,7 +12026,14 @@ paths:
     get:
       operationId: streamEvents
       summary: Stream workspace and selected/retained board metadata
-      description: External changes to saved snapshots can change catalog health without emitting an event.
+      description: >-
+        External changes to saved snapshots can change catalog health without emitting an event.
+        Read the board catalog to check current durable health. Use authenticated fetch
+        streaming so Bearer remains a header. Board and workspace messages identify committed
+        revisions. Catalog messages request a catalog refresh. Reconnect returns current
+        snapshots. Every watched board must be authorized. Send GET without a body. Last-Event-
+        ID is ignored. Heartbeat comments do not reread state. Disconnect and shutdown release
+        the subscription.
         Read the board catalog to check current durable health.
       tags:
       - Workspace
@@ -12104,10 +12112,6 @@ paths:
         capability: read
       x-milestones:
       - 31
-      description: Use authenticated fetch streaming so Bearer remains a header. Board and workspace
-        messages identify committed revisions. Catalog messages request a catalog refresh. Reconnect
-        returns current snapshots. Every watched board must be authorized. Send GET without a body.
-        Last-Event-ID is ignored. Heartbeat comments do not reread state. Disconnect and shutdown
         release the subscription.
     options:
       operationId: options_events
@@ -14192,6 +14196,7 @@ components:
         added_by:
           $ref: '#/components/schemas/Uuid'
     Relationship:
+      description: One shared link. The canonical kind describes source_card_id to target_card_id. A blocks B appears as Blocks B on A and Blocked by A on B, with the same relationship ID and revision. relates_to is symmetric. Inverse display labels are not additional API kinds.
       type: object
       additionalProperties: false
       required:
@@ -15393,7 +15398,7 @@ components:
               direction:
                 type: string
                 enum: [incoming, outgoing, symmetric]
-                description: Direction relative to the selected card. Relates-to links are symmetric.
+                description: Direction relative to the selected card. Outgoing means selected card is the source; incoming means it is the target. For blocks, display Blocks on outgoing and Blocked by on incoming. duplicates and references use Duplicated by and Referenced by on incoming. relates_to always displays Relates to and is symmetric.
               card:
                 $ref: '#/components/schemas/TicketCardContext'
         parent:
@@ -16242,8 +16247,12 @@ components:
       type: object
       additionalProperties: true
       properties:
+        source_card_id:
+          $ref: '#/components/schemas/UuidInput'
+          description: Defaults to the new card ID when omitted. An explicit source requires id in the outer CardInput. Supply the existing card ID here for an incoming link and the new card ID as target_card_id.
         target_card_id:
           $ref: '#/components/schemas/UuidInput'
+          description: Ordered target endpoint. Exactly one of source_card_id and target_card_id must identify the newly created card; the other must already exist on this board.
         kind:
           type: string
           pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
@@ -16273,10 +16282,28 @@ components:
       required:
       - target_card_id
       - kind
-      description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
+      description: A link committed atomically with card creation. Canonical kind describes source to target; to show the new card as Blocked by E, send kind blocks with source E and target the new card ID. Supply that new ID in the outer CardInput.id. Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
+      examples:
+      - kind: blocks
+        target_card_id: 22222222-2222-4222-8222-222222222222
+      - kind: blocks
+        source_card_id: 22222222-2222-4222-8222-222222222222
+        target_card_id: 11111111-1111-4111-8111-111111111111
+      - kind: relates_to
+        target_card_id: 22222222-2222-4222-8222-222222222222
     CardInput:
       type: object
+      allOf:
+      - if:
+          required: [relationships]
+          properties:
+            relationships:
+              contains:
+                type: object
+                required: [source_card_id]
+        then:
+          required: [id]
       additionalProperties: true
       properties:
         id:
@@ -16496,7 +16523,7 @@ components:
       - source_card_id
       - target_card_id
       - kind
-      description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
+      description: Source, kind and target form a sentence. For A blocked by B, send source B, kind blocks and target A. Inverse UI labels are derived from endpoint perspective and are not additional kinds. Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     RelationshipPatch:
       type: object

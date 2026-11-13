@@ -55,6 +55,10 @@ Terry's visual confirmation before implementation expands to remaining workflows
   or implementations completely. Follow the latest owner-approved remit.
 - Update the implementation, tests, OpenAPI contract, and affected documentation
   together. Use fresh disposable test and demo data when a format changes.
+- Architect owns project documentation and OpenAPI contract clarity. UI Lead
+  surfaces API/UI mismatches and supplies implementation details and evidence;
+  Architect keeps examples, terminology and schemas aligned with the behavior.
+  Treat documentation as a maintained development resource throughout each PR.
 - Document current behavior directly. Remove obsolete interface notes and dead
   transition code instead of leaving a compatibility trail.
 - CLI commands that read or write payload files require an explicit file path

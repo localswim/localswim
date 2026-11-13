@@ -13,7 +13,7 @@ const compiled = await build({
   write: false,
   format: "esm",
 });
-const { mountUploads, hasPendingUpload, ApiError } = await import(
+const { mountUploads, hasPendingUpload, hasPendingBoardUploads, ApiError } = await import(
   "data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64")
 );
 
@@ -39,6 +39,37 @@ const board = "81b11b54-e045-4ff0-912e-a429e2ef4a66";
 const first = "82b11b54-e045-4ff0-912e-a429e2ef4a66";
 const second = "83b11b54-e045-4ff0-912e-a429e2ef4a66";
 const revisionTag = (id, revision) => `"${id}-${revision}"`;
+
+test("the board fence finds unresolved or malformed upload records only on that board", () => {
+  const otherBoard = "84b11b54-e045-4ff0-912e-a429e2ef4a66";
+  const scoped = `localswim:v2:uploads:${board}:`;
+  const values = new Map([
+    ["unrelated", "unreadable"],
+    [`localswim:v2:uploads:${otherBoard}:invalid`, "unreadable"],
+  ]);
+  const storage = {
+    get length() {
+      return values.size;
+    },
+    key: (index) => [...values.keys()][index] ?? null,
+    getItem: (entry) => values.get(entry) ?? null,
+  };
+  const journal = {
+    remaining: [{ id: second, name: "original.txt", size: 0, digest: "a".repeat(64) }],
+    expected: null,
+  };
+  assert.equal(hasPendingBoardUploads(board, storage), false);
+  values.set(scoped + first, JSON.stringify(journal));
+  assert.equal(hasPendingBoardUploads(board, storage), false);
+  journal.expected = revisionTag(first, 3);
+  values.set(scoped + first, JSON.stringify(journal));
+  assert.equal(hasPendingBoardUploads(board, storage), true);
+  values.set(scoped + first, "unreadable");
+  assert.equal(hasPendingBoardUploads(board, storage), true);
+  values.delete(scoped + first);
+  values.set(scoped + "invalid", "unreadable");
+  assert.equal(hasPendingBoardUploads(board, storage), true);
+});
 
 function harness(api, values = new Map(), awaitUploadAdmission) {
   const life = new AbortController();

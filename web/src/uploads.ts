@@ -93,7 +93,7 @@ function parseJournal(raw: string, cardId: string): Journal {
 export function hasPendingUpload(
   boardId: string,
   cardId: string,
-  storage?: OperationStorage,
+  storage?: Pick<OperationStorage, "getItem">,
 ): boolean {
   let raw: string | null;
   try {
@@ -107,6 +107,28 @@ export function hasPendingUpload(
   } catch {
     return true;
   }
+}
+
+export function hasPendingBoardUploads(
+  boardId: string,
+  storage?: Pick<Storage, "getItem" | "key" | "length">,
+): boolean {
+  const prefix = key(boardId, "");
+  try {
+    const store = storage ?? globalThis.sessionStorage;
+    const count = store.length;
+    for (let index = 0; index < count; index++) {
+      const entry = store.key(index);
+      if (!entry?.startsWith(prefix)) continue;
+      const cardId = entry.slice(prefix.length);
+      if (cardId.length !== 36 || !uuid.test(cardId) || hasPendingUpload(boardId, cardId, store)) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 async function fingerprint(file: File): Promise<Original> {

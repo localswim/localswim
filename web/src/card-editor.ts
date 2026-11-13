@@ -24,6 +24,7 @@ function textareaText(text: string): string {
 }
 
 function rawOffset(text: string, offset: number): number {
+  // Each CRLF before this boundary adds one code unit to the textarea offset.
   for (const { index } of text.matchAll(/\r\n/g)) {
     if (index >= offset) break;
     offset++;
@@ -39,6 +40,9 @@ function applyInput(previous: string, value: string, change?: InputChange): stri
   const after = change ? normalized.slice(change.end) : "";
   if (
     change &&
+    change.start >= 0 &&
+    change.start <= change.end &&
+    change.end <= normalized.length &&
     value.startsWith(normalized.slice(0, change.start)) &&
     value.endsWith(after) &&
     value.length >= change.start + after.length
@@ -240,7 +244,7 @@ export function mountCardEditor(
     const value = applyInput(previous, controls[field].input.value, change);
     if (value !== previous) {
       actionError = false;
-      controller.edit({ ...text, [field]: value });
+      controller.edit({ ...text, [field]: value }, field);
     } else {
       controller.cancelEdit();
     }
@@ -321,11 +325,11 @@ export function mountCardEditor(
             field
           ];
           if (
-            change &&
-            change.start === change.end &&
+            (!change || change.start === change.end) &&
             event instanceof InputEvent &&
             event.inputType.startsWith("delete")
           ) {
+            // Word and grapheme deletions can exceed a collapsed beforeinput selection.
             const start = input.selectionStart;
             const end = start + textareaText(previous).length - input.value.length;
             change = { start, end, inserted: null };

@@ -5,7 +5,6 @@
   inset-inline-end: 0;
   display: flex;
   flex-direction: column;
-  inline-size: min(35rem, calc(100vw - var(--attention-width, 336px) - 1.25rem));
   border-inline-start: 1px solid var(--board-view-lane-border);
   background: var(--board-view-card-fill);
   color: var(--board-view-ink);
@@ -17,8 +16,25 @@
   display: none;
 }
 
-#main:has(#attention[data-attention-collapsed="true"]) .card-drawer {
-  --attention-width: 10rem;
+@media (min-width: 751px) {
+  #main:has(.card-drawer:not([hidden])) {
+    /* Leave room for one lane, the shell gutters, and a classic scrollbar. */
+    --card-drawer-sidebar-width: min(var(--attention-width, 336px), calc(100vw - 500px));
+    --card-drawer-width: min(35rem, calc(100vw - var(--card-drawer-sidebar-width) - 225px));
+  }
+
+  #main:has(.card-drawer:not([hidden])) #workspace-layout {
+    --attention-width: var(--card-drawer-sidebar-width);
+    padding-inline-end: var(--card-drawer-width);
+  }
+
+  #main:has(#attention[data-attention-collapsed="true"]):has(.card-drawer:not([hidden])) {
+    --card-drawer-sidebar-width: 10rem;
+  }
+
+  .card-drawer {
+    inline-size: var(--card-drawer-width);
+  }
 }
 
 .card-drawer-bar {

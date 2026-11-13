@@ -1,0 +1,243 @@
+{
+  "candidate_code_revision": "2703542c25d42f177f4ebaa448cb2120d16d29bb",
+  "final_pr_binding": "A manifest-only or documentation-only successor is equivalent when git diff from candidate_code_revision has no changes under cmd, internal or web. The final pushed SHA is recorded in the Architect handoff.",
+  "v2_current": {
+    "filename": "t3-evidence-2703542c25d4.exe",
+    "sha256": "6d9034113f440595ff91795b87ea7c66aa11ff5bf2362178a9ef4262371fd4fb",
+    "git_base": "2703542c25d42f177f4ebaa448cb2120d16d29bb",
+    "relationship_to_candidate": "Built from a clean detached checkout. go version -m reports vcs.modified=false.",
+    "matching_candidate_assets": [
+      "index.html",
+      "app.mjs",
+      "app.css",
+      "board.css",
+      "inter-variable.woff2",
+      "OFL.txt"
+    ],
+    "port": 8851,
+    "pid": 44944,
+    "service_instance_id": "01a1d634-2507-7ce6-96b5-783701a1fc7f",
+    "service_build_id": "5f8a171e-89a4-4431-9e69-40f0410fb887",
+    "visible_build_label": "5f8a171",
+    "assets": {
+      "index.html": {
+        "route": "/",
+        "sha256": "1b73bc25022816573932705178c9b0f5a5013c00ed82a51b75131b586278c1fb",
+        "git_blob": "58cedd633cd04807a642d121fe7cc135c8989f59"
+      },
+      "app.mjs": {
+        "route": "/assets/app.mjs",
+        "sha256": "bc8ec04f78bcca531dd4f4410787ab0b7e96f8f12a299e25c4658c1fa5fe39c0",
+        "git_blob": "21b17389f4a94dfb6bee3b4ac6685d5af7453bcf"
+      },
+      "app.css": {
+        "route": "/assets/app.css",
+        "sha256": "b45bea0ce2361d3b76f871da0f1cb5e90761224dc79c6c70312ca56f1a744d8f",
+        "git_blob": "fa12e75ce753d8c37861f99e0e4424b1fb9eae5c"
+      },
+      "board.css": {
+        "route": "/assets/board.css",
+        "sha256": "2f7f89ced3fe2ff47befe74d44e8a9d9afceabb19d3caf73d7a74429a975f2d8",
+        "git_blob": "38970710774f89e528747cb6bdbace53a461e9d0"
+      },
+      "inter-variable.woff2": {
+        "route": "/assets/inter-variable.woff2",
+        "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+        "git_blob": "5a8d3e72ad7ffb62af3b146e1b1f54ab5813a212"
+      },
+      "OFL.txt": {
+        "route": "/assets/OFL.txt",
+        "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+        "git_blob": "9b2ca37b3ffc77391d8b2ebef4a974ef32bf46ea"
+      }
+    }
+  },
+  "v1_reference": {
+    "port": 8850,
+    "pid_at_final_capture": 41696,
+    "interpreter_filename": "python.exe",
+    "interpreter_sha256": "f8272f38e992aa66c581e3b6a30837257d7571765f102e64f89b1c8b09b4c1cb",
+    "git_revision": "46d5d58695aa807c246c42e45f0615860fdcbbe5",
+    "visible_build_label": "46d5d58",
+    "verification": "Read-only Git HEAD and tracked cleanliness matched the visible prefix. The executable SHA identifies the interpreter. The Git revision separately identifies the interpreted reference."
+  },
+  "historical_v2": {
+    "d326": {
+      "filename": "t3-localswim-d326.exe",
+      "sha256": "e82c9f953a7af9da20660cff18eead8873b3e8b8a374f4d5e1ee64a801bb63b4",
+      "git_base": "d326d01fb4259237ce652609605c322587de7d90",
+      "relationship_to_candidate": "Earlier interaction capture. The three UI assets match d326d01 Git blobs byte-for-byte.",
+      "matching_candidate_assets": [
+        "index.html",
+        "inter-variable.woff2",
+        "OFL.txt"
+      ]
+    },
+    "replay": {
+      "filename": "t3-localswim-replay.exe",
+      "sha256": "d151ec94c13fa2b8021a3d6f20d3fa7be6ce0f3a52a651f4b94d5b9d073ca726",
+      "git_base": "ad6a984ca36a83e1ded65f7522da7d9e5100faa3",
+      "relationship_to_candidate": "Earlier working build used for delayed pin, approval and live replay behavior. This capture build predates review fixes and is not equivalent to the final candidate.",
+      "matching_candidate_assets": [
+        "index.html",
+        "inter-variable.woff2",
+        "OFL.txt"
+      ]
+    },
+    "receipts": {
+      "filename": "t3-localswim-receipts.exe",
+      "sha256": "a1a7e875d43d74bed4818a3da28468c05745a3bf492788c3b14f7ae08fb6dd8d",
+      "git_base": "bc9f03940868b1474cf701c8cb102bb42da613b4",
+      "relationship_to_candidate": "Earlier working build used for approval receipt and reorder refresh failure. This capture build predates review fixes and is not equivalent to the final candidate.",
+      "matching_candidate_assets": [
+        "index.html",
+        "inter-variable.woff2",
+        "OFL.txt"
+      ]
+    },
+    "receipt_final": {
+      "filename": "t3-localswim-receipt-final.exe",
+      "sha256": "d264c6573d2493be8b343363f762f888b16fc6f8548259579325464b3e0ee8fa",
+      "git_base": "bc9f03940868b1474cf701c8cb102bb42da613b4",
+      "relationship_to_candidate": "Earlier working build used for header, toast, Completed scope and denied drag captures. It predates the toast line-width refinement and latest grants and wrapping corrections.",
+      "matching_candidate_assets": [
+        "index.html",
+        "inter-variable.woff2",
+        "OFL.txt"
+      ]
+    }
+  },
+  "build_label_mapping": "V2 renders the first seven characters of GET /service build_id. It is a runtime UUID generated by newID at startup, not a Git revision. Earlier working executable VCS metadata records the last committed base, with vcs.modified=true.",
+  "screenshots": [
+    {
+      "file": "v1-final-wrap-and-grants.jpg",
+      "sha256": "26850a272bcf1fa430f0083687b62628f7f12d50e77cb6cca51d59e665e02cc7",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v1-scrolled-denied-drag.jpg",
+      "sha256": "ebfbf98a63d2ee2cafe4c522257ae3d19ee5876edaad7ae37e11015303f29068",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v1-completed-order-hidden.jpg",
+      "sha256": "dda9330e0117627985a9f876c62dc70b404a5883214342a133624b82b52fdf9e",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v1-completed-order-visible.jpg",
+      "sha256": "105c61c169d2e4f34d73ec739159715676faf2de5d217441f2d94eb37763a9ed",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v1-confirmed-header-and-needs-terry.jpg",
+      "sha256": "d2e56d12c5a69398a5d6b379855b23c5367396fb1f5f5ab041ad42cc61411881",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v1-final-create-empty.jpg",
+      "sha256": "59e7bf959a521de9f27fab68468f3329cdbf0240948d1cd563c2d8d971cf6d88",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v1-final-create-inverse-draft.jpg",
+      "sha256": "fed200d4ac2988a7286065637949bc88d243ac6d33c9ecc5d9e5de2df93be23d",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v1-final-human-cue.jpg",
+      "sha256": "b3e02908a08deca33ad0acf9873e1e625a4bb5b6c9b9e6c7180af696792e8c78",
+      "build": "v1_reference"
+    },
+    {
+      "file": "v2-final-wrap-and-grants.jpg",
+      "sha256": "30a7117817c21a48060f47b9d94e3c97e555e2e50af87d5fcc730c43f160c7ab",
+      "build": "v2_current"
+    },
+    {
+      "file": "v2-final-create-empty.jpg",
+      "sha256": "dbeee2662e3a76699fa8fe53086bbfb2fc7a3357917034d4d3d0fc3b36337232",
+      "build": "historical_v2.d326"
+    },
+    {
+      "file": "v2-final-create-inverse-draft.jpg",
+      "sha256": "a4fd05801e5f60052719db7d11a6bda15074d744520cb110c3afbaf4276864c2",
+      "build": "historical_v2.d326"
+    },
+    {
+      "file": "v2-final-literal-drawer-prose.jpg",
+      "sha256": "a3d96acd27277f7916acc6eb11914e4adfad1d441ba6771132bcbc3fe92e7e21",
+      "build": "historical_v2.d326"
+    },
+    {
+      "file": "v2-final-reorder-footer.jpg",
+      "sha256": "17296fac87fe136cf3f9d784a9974a7278971ddbb35cdda29fac9e139053c7f5",
+      "build": "historical_v2.d326"
+    },
+    {
+      "file": "v2-final-human-cue.jpg",
+      "sha256": "17ef091fe08a33a934f56c3f7c311a8086f14c51be31b29542a683007b72da64",
+      "build": "historical_v2.d326"
+    },
+    {
+      "file": "v2-pins-wait-for-success.jpg",
+      "sha256": "e325ff567c575ca863c7f306281e6c123b5e91e850143fccd538cd9a9f614cb0",
+      "build": "historical_v2.replay"
+    },
+    {
+      "file": "v2-approval-wait-for-success.jpg",
+      "sha256": "f482ee768a86c1996794e22902834962e883b7bb6c0579e960aa0fb9a04a31ed",
+      "build": "historical_v2.replay"
+    },
+    {
+      "file": "v2-approval-after-success.jpg",
+      "sha256": "beec156d5e2ecbd148e4411b87bcfa31724d67210c3759c5b0c25442d0c8cc9b",
+      "build": "historical_v2.replay"
+    },
+    {
+      "file": "v2-bot-live-refresh-pending.jpg",
+      "sha256": "648010e5ec0f8f7d788ef87c15b78fd1821b13ffc5c0de115c5d57e836b0fba1",
+      "build": "historical_v2.replay"
+    },
+    {
+      "file": "v2-bot-live-refresh-settled.jpg",
+      "sha256": "36766d3fa5f0b04f37d88cafecba672bb28412babe7c472b82bc456ac749e1c4",
+      "build": "historical_v2.replay"
+    },
+    {
+      "file": "v2-approval-receipt-before-board-read.jpg",
+      "sha256": "2cb8ed9187f280bcc84851b871aa20d2e19e48b6ec29e67ca6068eb62229fb5d",
+      "build": "historical_v2.receipts"
+    },
+    {
+      "file": "v2-order-receipt-retained-after-read-failure.jpg",
+      "sha256": "b6b71ed2b14b395e75695ac47adf4c4eb7d3e644bffe815d90dbad17ccca732a",
+      "build": "historical_v2.receipts"
+    },
+    {
+      "file": "v2-scrolled-denied-drag.jpg",
+      "sha256": "5fedcd206656d6c9234b2015b2baec622d10e35db16d063065f5073ce7389138",
+      "build": "historical_v2.receipt_final"
+    },
+    {
+      "file": "v2-completed-order-hidden.jpg",
+      "sha256": "d84c65f3908f62d18d03a5efe06db106bb135d24c4c4e52bb740334180198e93",
+      "build": "historical_v2.receipt_final"
+    },
+    {
+      "file": "v2-completed-order-visible.jpg",
+      "sha256": "759acf145fb2a7fa7f9782022c86133ab49ee48544dfb29f56022fcb92480da8",
+      "build": "historical_v2.receipt_final"
+    },
+    {
+      "file": "v2-confirmed-header-and-needs-terry.jpg",
+      "sha256": "a29821724d2df8308802051d8475903c203949843953f62fe3ae38b4547a4c0e",
+      "build": "historical_v2.receipt_final"
+    },
+    {
+      "file": "v2-confirmed-create-toast.jpg",
+      "sha256": "8b1f453f0621dd9143e63a57a2fa354b23bb0b7124e03eafd289ea4d1fa9700c",
+      "build": "historical_v2.receipt_final"
+    }
+  ]
+}

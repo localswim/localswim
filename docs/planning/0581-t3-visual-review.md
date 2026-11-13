@@ -36,3 +36,8 @@ The follow-up 1280×720 captures show both board boundaries at the same height
 and both Needs Terry headings on two lines. The follow-up V2 create capture
 shows the success toast after the service responds. The captured boards retain
 their separate test histories, including different card counts and ticket IDs.
+
+The final grant and wrapping pair shows `IN: nobody · OUT: nobody` in both
+versions. V2 keeps “demonstration” on one line. The V1 and V2 fixture card
+titles and lane membership differ after their earlier test edits. The evidence
+manifest identifies the executable and served assets behind the V2 capture.

@@ -50,6 +50,13 @@ visible when the board read fails. The follow-up board read still governs write
 admission. All 302 web tests passed after these changes. The prior full suite
 passed with the same Go sources.
 
+The latest paired captures confirm the empty permission caption reads `nobody`
+and ordinary card titles wrap at word boundaries. They use the clean V2 build
+from `2703542c25d4` and the running V1 reference `46d5d58`. The manifest records
+the screenshot hashes, serving executable SHA-256, and the six HTTP assets
+verified byte-for-byte against the V2 commit. It identifies earlier captures
+that used earlier or working builds. [Evidence manifest](0581-t3-evidence-manifest.json)
+
 - Fresh non-author Sol reviewers examined each story. Corrected findings
   include same-origin dispatch context, pending status reachability, stale-read
   protection, filter restoration, and independent service and catalog refresh

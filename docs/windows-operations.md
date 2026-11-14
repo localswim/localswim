@@ -125,13 +125,11 @@ If the service starts but the board is unavailable, use the
    candidate file's lowercase SHA-256 in `sha256`. Use `Get-FileHash -Algorithm
    SHA256` on the staged file, and check that `service builds` reports one valid
    candidate.
-2. In the workspace **Service** panel, select **Activate staged build** once.
-   From the CLI, use `service activate BUILD_ID` with the Human credential and
+2. From the CLI, use `service activate BUILD_ID` with the Human credential and
    keep the activation ID from the receipt or error. An accepted receipt means
    the service started the handoff. It drains admitted work and flushes enabled
    publishers before replacing the listener.
-3. Use **Refresh service status** if the browser reports an unconfirmed result.
-   For CLI inspection, use `service activation ACTIVATION_ID` and `service
+3. For inspection, use `service activation ACTIVATION_ID` and `service
    status` on the same origin. Allow up to 30 seconds for these read-only checks.
    Confirm `activated`, the staged build ID, a new service instance ID, and the
    original port. If the receipt remains uncertain or records failure, inspect
@@ -144,6 +142,9 @@ If the service starts but the board is unavailable, use the
 Activation runs a private copy of the staged executable. A later cold launch
 uses the executable selected in the launch command. Use the approved installation
 path for the build you want to run on the next cold launch.
+
+The V1-equivalent browser UI has no service activation panel. Use the CLI for
+activation and the browser for the reconnect verification described below.
 
 ## Qualify with disposable data
 

@@ -1,5 +1,9 @@
 # T5 attachment ingestion and recovery
 
+The Architect accepted this turn in [PR #5](https://github.com/localswim/localswim/pull/5).
+The integrated squash `43d0807` matches the reviewed tree and #0600 is Ready
+for Review. The remaining statements below describe the qualification at T5.
+
 The Architect released #0600 on `b589700` after accepting T4 in PR #4.
 The live board verified In Progress at revision 6098. T6 remains gated.
 

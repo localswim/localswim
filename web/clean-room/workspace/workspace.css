@@ -88,6 +88,11 @@
   white-space: nowrap;
 }
 
+.lsw-workspace-header-controls,
+.lsw-workspace-header-metadata {
+  display: contents;
+}
+
 .lsw-workspace-card-search {
   position: relative;
   grid-area: search;
@@ -487,7 +492,7 @@
   font: inherit;
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 1440px) {
   .lsw-workspace-header {
     grid-template-columns: 21px 118px minmax(0, 1fr) 190px 120px;
     grid-template-areas:
@@ -508,17 +513,82 @@
   }
 }
 
-@media (max-width: 560px) {
+@media (1280px < width <= 1440px) {
+  .lsw-workspace-header {
+    padding-bottom: 9.333px;
+  }
+}
+
+@media (680px < width <= 1280px) {
+  .lsw-workspace-header {
+    grid-template-columns: 21px 118px minmax(0, 1fr) 120px 112px;
+  }
+}
+
+@media (442px < width <= 680px) {
+  .lsw-workspace-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding-block: 9px 10px;
+  }
+
+  .lsw-workspace-indicator {
+    margin-right: 22px;
+  }
+
+  .lsw-workspace-brand {
+    flex: 0 0 132px;
+  }
+
+  .lsw-workspace-title {
+    flex: 0 0 98px;
+    min-width: 0;
+  }
+
+  .lsw-workspace-connection {
+    margin-block: 1.5px;
+  }
+
+  .lsw-workspace-header-metadata {
+    display: grid;
+    flex: 1 0 100%;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas: "build latest clock";
+    align-items: center;
+    min-width: 0;
+    height: 18px;
+    gap: 10px;
+  }
+
+  .lsw-workspace-clock {
+    margin: 0;
+  }
+}
+
+@media (max-width: 442px) {
   .lsw-workspace-header {
     grid-template-columns: 45px 75px 20px 47px 73px 23px minmax(0, 1fr);
-    grid-template-rows: 26px 26px 18px;
+    grid-template-rows: 26px auto 18px;
     grid-template-areas:
       "dot brand brand brand title title title"
-      "search search . status status . ."
+      "controls controls controls controls controls controls controls"
       "build build latest latest latest latest clock";
     column-gap: 0;
     row-gap: 7px;
     padding-block: 8px 11.5px;
+  }
+
+  .lsw-workspace-header-controls {
+    display: flex;
+    grid-area: controls;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 20px;
+  }
+
+  .lsw-workspace-card-search {
+    flex: 0 0 120px;
   }
 
   .lsw-workspace-latest {

@@ -11,6 +11,8 @@ const mockExports = {
   "board/read": ["readBoard"],
   "create/render": ["mountCreate"],
   "create/write": ["createCard", "inspectCardCreation"],
+  "drawer/read": ["readDrawer", "readDrawerTicket"],
+  "drawer/render": ["mountDrawer"],
   "live/controller": ["startLive"],
   "workspace/read": ["readSession", "readService", "readWorkspace"],
   "workspace/render": ["mountWorkspace"],
@@ -27,7 +29,7 @@ const { outputFiles } = await build({
         plugin.onResolve(
           {
             filter:
-              /^\.\/(board\/read|create\/render|create\/write|live\/controller|workspace\/read|workspace\/render)\.js$/,
+              /^\.\/(board\/read|create\/render|create\/write|drawer\/read|drawer\/render|live\/controller|workspace\/read|workspace\/render)\.js$/,
           },
           ({ path }) => ({ path: path.slice(2, -3), namespace: "create-race-fixture" }),
         );
@@ -56,11 +58,13 @@ class Element extends EventTarget {
   setAttribute() {}
 }
 
-for (const delayed of ["submit", "inspect", "navigate"]) {
+for (const delayed of ["submit", "inspect", "navigate", "ordinary success"]) {
   const scenario =
-    delayed === "navigate"
-      ? "a late create result leaves the newly selected board alone"
-      : `a late create ${delayed} result cannot clear a new principal's draft`;
+    delayed === "ordinary success"
+      ? "a confirmed create closes the draft and leaves the board open"
+      : delayed === "navigate"
+        ? "a late create result leaves the newly selected board alone"
+        : `a late create ${delayed} result cannot clear a new principal's draft`;
   void test(scenario, async (context) => {
     const fixture = createEntryFixture();
     const { board, service, workspace } = fixture;
@@ -95,6 +99,12 @@ for (const delayed of ["submit", "inspect", "navigate"]) {
       readService: async () => service.current.value,
       readWorkspace: async () => workspace.current.value,
       readSession: async () => actor,
+      async readDrawer() {
+        throw new Error("Drawer fixture has no data");
+      },
+      mountDrawer() {
+        return { update() {}, dispose() {} };
+      },
       startLive(/** @type {{onConnection: (value: "connected") => void}} */ live) {
         return {
           update() {
@@ -160,7 +170,7 @@ for (const delayed of ["submit", "inspect", "navigate"]) {
           location.pathname = path;
         },
       },
-      window: { clearTimeout },
+      window: { setTimeout: () => 0, clearTimeout },
       addEventListener() {},
     };
     for (const [key, value] of Object.entries(globals)) {
@@ -181,6 +191,19 @@ for (const delayed of ["submit", "inspect", "navigate"]) {
     await setImmediate();
     assert.equal(renderedCreate.phase, "submitting");
     assert.equal(inspections, delayed === "inspect" ? 1 : 0);
+
+    if (delayed === "ordinary success") {
+      assert.ok(release);
+      release();
+      await setImmediate();
+      assert.equal(renderedCreate, undefined);
+      assert.equal(location.pathname, `/board/${board.current.value.view.board.id}`);
+      assert.equal(
+        renderedWorkspace?.route.kind === "board" ? renderedWorkspace.route.cardId : undefined,
+        null,
+      );
+      return;
+    }
 
     if (delayed === "navigate") {
       renderedWorkspace?.onNavigate({

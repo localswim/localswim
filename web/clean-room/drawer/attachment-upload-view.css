@@ -1,0 +1,104 @@
+.lsw-drawer-upload:enabled {
+  cursor: pointer;
+}
+
+.lsw-drawer-upload:disabled {
+  border-color: #dedfe2;
+  color: #a5a5a5;
+}
+
+.lsw-upload-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lsw-upload-list[hidden],
+.lsw-upload-actions[hidden] {
+  display: none;
+}
+
+.lsw-upload-list:not([hidden]) {
+  margin-bottom: 8px;
+}
+
+.lsw-create-attachments .lsw-upload-list:not([hidden]) {
+  gap: 0;
+  margin-top: -5px;
+  margin-bottom: 0;
+}
+
+.lsw-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.lsw-upload-name,
+.lsw-upload-status,
+.lsw-upload-message {
+  overflow-wrap: anywhere;
+}
+
+.lsw-upload-name {
+  white-space: pre-wrap;
+}
+
+.lsw-create-attachments .lsw-upload-row {
+  display: block;
+  min-height: 35px;
+  font-size: inherit;
+}
+
+.lsw-upload-size,
+.lsw-upload-status {
+  color: #596174;
+  font-size: 11px;
+}
+
+.lsw-create-attachments .lsw-upload-status {
+  color: inherit;
+  font-size: inherit;
+}
+
+.lsw-create-attachments .lsw-upload-message,
+.lsw-upload-status:is([data-upload-state="failed"], [data-upload-state="uncertain"]) {
+  color: #822e22;
+}
+
+.lsw-upload-message {
+  margin: 0;
+  font-size: 14px;
+}
+
+.lsw-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.lsw-create-attachments .lsw-upload-actions:not([hidden]) {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.lsw-create-attachments .lsw-upload-action.lsw-create-action {
+  min-height: 35px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.lsw-upload-action {
+  padding: 2px 6px;
+  border: 1px solid #dedfe2;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

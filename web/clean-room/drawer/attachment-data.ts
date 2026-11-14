@@ -31,7 +31,7 @@ export interface Attachment extends MutableEntityDto {
   readonly added_by: Uuid;
 }
 
-function isAttachment(value: unknown): value is Attachment {
+export function isAttachment(value: unknown): value is Attachment {
   return (
     isRecord(value) &&
     Object.keys(value).length === 13 &&

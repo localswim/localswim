@@ -256,6 +256,7 @@ export const mountCreate: MountComponent<CreateProps> = (host, initial) => {
   dialog.addEventListener(
     "cancel",
     (event) => {
+      if (event.target !== dialog) return;
       event.preventDefault();
       dismiss();
     },

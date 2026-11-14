@@ -8,6 +8,7 @@
 @import "./drawer/post-comment.css";
 @import "./drawer/edit-relationships.css";
 @import "./drawer/attachment-view.css";
+@import "./drawer/attachment-upload-view.css";
 @import "./workspace/cache-settings.css";
 @import "./create/create.css";
 @import "./board/ticket-order.css";

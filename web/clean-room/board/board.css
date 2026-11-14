@@ -479,6 +479,14 @@
     }
   }
 
+  @container (max-width: 130px) {
+    .lsw-board-lane-count {
+      translate: 0 -2px;
+    }
+  }
+}
+
+@media (width > 1433px), (max-width: 442px) {
   .lsw-board-lane-permissions {
     min-height: 38px;
     padding-bottom: 4px;

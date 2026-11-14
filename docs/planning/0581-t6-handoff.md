@@ -41,9 +41,12 @@ The shared lane comparison used
 The scroll and card-position comparison used
 `t6-lanes-publish.exe` (SHA-256
 `6437f7be6220d08ea6b7f7d61e8e1f07b769868b12c2f05cf22ade269aca22b1`).
-The final custom-title comparison and release audit used
+The custom-title comparison used
 `t6-lane-acceptance.exe` (SHA-256
 `e670f9d815fda2539b8d2e67ae8fe9af0d50bda3bfa2edf5bbd32409b7cbaa6d`).
+The final mobile and resize measurements and release audit used
+`t6-offsets.exe` (SHA-256
+`9627981aec7e2beb1a169e170cf745a71334c7f038ea930e994c6406b95d84e3`).
 These builds change only shared board layout CSS.
 The manifest maps captures and readback to their corresponding executables.
 
@@ -70,16 +73,17 @@ position at 1440 and 1706×900. The viewport override measured 1706 CSS pixels
 as the nearest sample to the earlier 1707-pixel Chrome capture. At 1432 and
 1434 there is the same stacked-to-side-by-side switch. At 1708, keyboard End
 narrows Alpha's lanes to 118 pixels and stacks controls in both versions.
-Home restores the 165-pixel side-by-side state. The stacked count differs by
-2 pixels vertically in the resize case. Alpha's unrelated card counts differ,
+Home restores the 165-pixel side-by-side state. The final stacked count
+starts 71.5 pixels below the header top in both versions. Alpha's unrelated card counts differ,
 which affects the horizontal width of a count and controls to its right.
 
 At matched zero scroll, the follow-up matched desktop horizontal scroll
 extent in both fixtures. At 1706, populated Alpha's client and scroll widths
 are both 1394 pixels in V1 and V2. Its first Backlog card begins at y177.6
 and y176.9 respectively. At 1440, both widths are 1128 pixels and cards
-begin at y201.6 and y201.3. On mobile both preserve the horizontal board
-scroll. The partially clipped Backlog reorder action retains its keyboard
+begin at y201.6 and y201.3. At 390 and 440 CSS pixels, first cards begin at
+y302.8 and y302.2 with the same horizontal scroll extent. The partially
+clipped Backlog reorder action retains its keyboard
 tab stop in both versions.
 
 With the same long unbroken title on disposable Beta, both browsers wrapped

@@ -109,7 +109,12 @@ within the corresponding operation checks.
 - MAT-07 live-update portion passed. Bot renamed card `0004` to
   `Bot live update while Terry drafts` at revision 21. Terry's screenshot
   shows the updated background card and unchanged new-card title and description;
-  Terry confirmed it looks good. Stale-save and disconnect checks remain pending.
+  Terry confirmed it looks good.
+- MAT-07 stale-save portion passed. Terry left `My unsaved description must
+  survive.` in card `0004`'s editor. Bot saved a conflicting description at
+  revision 22. Terry's Save displayed `This field changed. Copy your draft or
+  cancel and reopen the editor.` and retained his draft. CLI readback confirmed
+  Bot's saved description and revision 22 remained intact. Disconnect is pending.
 - MAT-04 addition passed in Web UI per Terry. Native readback found
   `0003 blocks 0002`. Bot created `0004 blocks 0002` through the CLI and
   verified relationship `c0e452aa-889c-4126-adf6-869a9492f771` from both cards.

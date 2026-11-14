@@ -60,6 +60,11 @@
 
 .lsw-drawer-relation-link .lsw-drawer-card-link {
   color: #202a3c;
+  text-decoration: none;
+}
+
+.lsw-drawer-relation-link .lsw-drawer-card-link:hover {
+  text-decoration: underline;
 }
 
 .lsw-drawer-relation-row {

@@ -90,12 +90,10 @@ function createRow(attachment: Attachment, getProps: () => AttachmentViewProps) 
   detach.setAttribute("aria-label", `Remove ${attachment.original_name}`);
   if (attachment.previewable) actions.append(cover);
   actions.append(detach);
-  const previewError = element("p", "error", "Preview unavailable.");
   const downloadError = element("p", "error", "Download unavailable. Try again.");
-  previewError.setAttribute("role", "status");
   downloadError.setAttribute("role", "status");
-  previewError.hidden = downloadError.hidden = true;
-  node.append(preview, previewError, download, size, downloadError, actions);
+  downloadError.hidden = true;
+  node.append(preview, download, size, downloadError, actions);
 
   let url: string | undefined;
   let thumbnailUrl: string | undefined;
@@ -122,7 +120,7 @@ function createRow(attachment: Attachment, getProps: () => AttachmentViewProps) 
       image.height = thumbnail.height;
       image.src = thumbnailUrl;
     } catch {
-      if (!signal.aborted) previewError.hidden = false;
+      if (!signal.aborted) releasePreview();
     }
   }
 
@@ -144,14 +142,7 @@ function createRow(attachment: Attachment, getProps: () => AttachmentViewProps) 
   }
 
   image.addEventListener("load", () => (preview.hidden = false), { signal });
-  image.addEventListener(
-    "error",
-    () => {
-      releasePreview();
-      previewError.hidden = false;
-    },
-    { signal },
-  );
+  image.addEventListener("error", releasePreview, { signal });
   download.addEventListener("click", () => void downloadFile(), { signal });
   cover.addEventListener(
     "click",

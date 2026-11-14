@@ -291,6 +291,7 @@ export const mountDrawer: (
   description.append(descriptionText, descriptionEditor);
 
   const attachments = section("Attachments");
+  attachments.classList.add("lsw-drawer-attachments");
   const attachmentHost = slot("div", "attachment-view");
   attachments.append(
     slot(

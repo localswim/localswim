@@ -72,3 +72,19 @@ acceptance and integration before T5 opens.
   corrected V2 field uses a 1 MiB minimum and no HTML maximum, matching V1.
   A failed board transport preserved the last confirmed card list and
   disabled Add card. The earlier HTTP 403 scenario cleared the retained data.
+
+## Exact-candidate visual review
+
+The paired visual manifest and screenshots are under the UI Lead's private
+`output/t4-exact` directory. The matched drawer uses three identical PNG
+files at 1280×720 CSS pixels and DPR 1.5. Both browsers render them at
+400×200, 100×200, and 200×200, with square corners and a 483-pixel preview
+link. The board cover is 84×120 above priority at this viewport. The
+corrected relationship target has no underline at rest.
+
+The same damaged PNG was verified by attachment SHA-256 in both fixtures.
+The drawer retains the filename and actions with no visible failed preview
+row. Download failure still has its own feedback. The bounded V1 survey
+covered the ordinary and linked archived drawers, board and lane controls,
+the sidebar toggle, and secondary click on a card. None exposed an archive
+or restore action. Both commands are present in the installed V1 CLI.

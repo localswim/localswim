@@ -14,8 +14,6 @@
 
 .lsw-attachment-preview {
   display: block;
-  width: fit-content;
-  max-width: 100%;
 }
 
 .lsw-attachment-image {
@@ -23,7 +21,6 @@
   max-width: min(100%, 400px);
   height: auto;
   max-height: 200px;
-  border-radius: 4px;
 }
 
 .lsw-attachment-download {
@@ -51,13 +48,13 @@
 .lsw-attachment-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
   margin-top: 8px;
 }
 
 .lsw-attachment-action {
   min-height: 33px;
-  padding: 3px 8px;
+  padding: 3px 10px;
   border: 1px solid #a9a9a9;
   border-radius: 2px;
   background: #efefef;

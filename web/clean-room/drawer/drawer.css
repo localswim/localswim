@@ -177,6 +177,10 @@
   margin-top: 22px;
 }
 
+.lsw-drawer-section + .lsw-drawer-attachments {
+  margin-top: 18px;
+}
+
 .lsw-drawer-section-heading {
   display: flex;
   align-items: center;

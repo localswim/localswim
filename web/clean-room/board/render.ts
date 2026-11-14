@@ -290,7 +290,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     const commentCount = element("span", "lsw-board-card-comment-count");
     comments.append(icon, commentCount);
     meta.append(priority, ticket);
-    open.append(meta, cover, title, comments);
+    open.append(cover, meta, title, comments);
     trackFocus(open, "open-card", cardId);
     return { button: open, priority, ticket, title, comments, commentCount, cover };
   }
@@ -314,7 +314,14 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       const image = displayedCover(attachments, card.cover_attachment_id);
       if (!image || signal.aborted) return;
       const bytes = await readAttachmentContent(image, "inline", signal);
-      const thumbnail = await attachmentThumbnail(bytes, nodes.button.clientWidth, 100);
+      const style = getComputedStyle(nodes.button);
+      const width = Math.floor(
+        nodes.button.clientWidth -
+          Number.parseFloat(style.paddingLeft) -
+          Number.parseFloat(style.paddingRight),
+      );
+      if (width < 1) return;
+      const thumbnail = await attachmentThumbnail(bytes, width, 120);
       if (signal.aborted || !nodes.button.isConnected) return;
       nodes.coverUrl = URL.createObjectURL(thumbnail.bytes);
       nodes.cover.width = thumbnail.width;

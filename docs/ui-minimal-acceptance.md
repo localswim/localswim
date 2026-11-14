@@ -97,3 +97,8 @@ within the corresponding operation checks.
 - MAT-01 passed by Terry. He also verified that each board's URL GUID stays
   consistent every time he returns to it.
 - MAT-02 through MAT-07 await the walkthrough.
+- MAT-02 CLI creation passed on 2026-11-14. Using the Bot credential, created
+  Alpha ticket `0002`, `Bot CLI creation test`, in Backlog at revision 3.
+  `card get` returned the same UUID, title and exact multiline description,
+  including `café — 泳ぐ`. Card UUID `87352a88-e37c-4c76-8eec-2879b884782e`.
+  Remaining MAT-02 edits, comment, refresh and cancellation are pending.

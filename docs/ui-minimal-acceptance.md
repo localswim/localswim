@@ -106,7 +106,10 @@ within the corresponding operation checks.
   operations have not been run in this walkthrough.
 - MAT-06 search passed by Terry. Older Completed visibility belongs in extended
   checks because this fresh fixture has no cards older than 24 hours.
-- MAT-07 awaits the walkthrough.
+- MAT-07 live-update portion passed. Bot renamed card `0004` to
+  `Bot live update while Terry drafts` at revision 21. Terry's screenshot
+  shows the updated background card and unchanged new-card title and description;
+  Terry confirmed it looks good. Stale-save and disconnect checks remain pending.
 - MAT-04 addition passed in Web UI per Terry. Native readback found
   `0003 blocks 0002`. Bot created `0004 blocks 0002` through the CLI and
   verified relationship `c0e452aa-889c-4126-adf6-869a9492f771` from both cards.

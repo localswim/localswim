@@ -79,12 +79,16 @@ The paired visual manifest and screenshots are under the UI Lead's private
 `output/t4-exact` directory. The matched drawer uses three identical PNG
 files at 1280×720 CSS pixels and DPR 1.5. Both browsers render them at
 400×200, 100×200, and 200×200, with square corners and a 483-pixel preview
-link. The board cover is 84×120 above priority at this viewport. The
+link. The board cover is 84×120 above priority with a 13-pixel gap at this
+viewport. A matching four-comment, four-attachment fixture retained both
+counters, with the paperclip count below the comment count. The
 corrected relationship target has no underline at rest.
 
 The same damaged PNG was verified by attachment SHA-256 in both fixtures.
 The drawer retains the filename and actions with no visible failed preview
-row. Download failure still has its own feedback. The bounded V1 survey
+row. The same Tab sequence focuses a full-width, one-pixel link to the
+original in both versions. Download failure still has its own feedback.
+The bounded V1 survey
 covered the ordinary and linked archived drawers, board and lane controls,
 the sidebar toggle, and secondary click on a card. None exposed an archive
 or restore action. Both commands are present in the installed V1 CLI.

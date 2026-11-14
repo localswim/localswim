@@ -20,6 +20,8 @@ interface CardElements {
   readonly title: HTMLSpanElement;
   readonly comments: HTMLSpanElement;
   readonly commentCount: HTMLSpanElement;
+  readonly attachments: HTMLSpanElement;
+  readonly attachmentCount: HTMLSpanElement;
   readonly cover: HTMLImageElement;
   coverKey?: string;
   coverRead?: AbortController;
@@ -102,6 +104,9 @@ function updateCard(nodes: CardElements, card: CardDto, priority: PriorityDto | 
   nodes.comments.hidden = card.comment_count === 0;
   nodes.comments.title = `${card.comment_count} ${card.comment_count === 1 ? "comment" : "comments"}`;
   setText(nodes.commentCount, String(card.comment_count));
+  nodes.attachments.hidden = card.attachment_count === 0;
+  nodes.attachments.title = `${card.attachment_count} ${card.attachment_count === 1 ? "attachment" : "attachments"}`;
+  setText(nodes.attachmentCount, String(card.attachment_count));
 }
 
 function position(node: HTMLElement): ScrollPosition {
@@ -289,10 +294,25 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     icon.setAttribute("aria-hidden", "true");
     const commentCount = element("span", "lsw-board-card-comment-count");
     comments.append(icon, commentCount);
+    const attachments = element("span", "lsw-board-card-attachments");
+    const paperclip = element("span", "lsw-board-icon-paperclip");
+    paperclip.setAttribute("aria-hidden", "true");
+    const attachmentCount = element("span", "lsw-board-card-attachment-count");
+    attachments.append(paperclip, attachmentCount);
     meta.append(priority, ticket);
-    open.append(cover, meta, title, comments);
+    open.append(cover, meta, title, comments, attachments);
     trackFocus(open, "open-card", cardId);
-    return { button: open, priority, ticket, title, comments, commentCount, cover };
+    return {
+      button: open,
+      priority,
+      ticket,
+      title,
+      comments,
+      commentCount,
+      attachments,
+      attachmentCount,
+      cover,
+    };
   }
 
   function releaseCover(nodes: CardElements): void {

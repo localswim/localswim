@@ -111,17 +111,26 @@ function createRow(attachment: Attachment, getProps: () => AttachmentViewProps) 
     try {
       const blob = await readAttachmentContent(attachment, "inline", signal);
       if (signal.aborted) return;
+      url = URL.createObjectURL(blob);
+      preview.href = url;
       const thumbnail = await attachmentThumbnail(blob, 400, 200);
       if (signal.aborted) return;
-      url = URL.createObjectURL(blob);
       thumbnailUrl = URL.createObjectURL(thumbnail.bytes);
-      preview.href = url;
       image.width = thumbnail.width;
       image.height = thumbnail.height;
       image.src = thumbnailUrl;
     } catch {
-      if (!signal.aborted) releasePreview();
+      if (!signal.aborted && url !== undefined) showEmptyPreview();
     }
+  }
+
+  function showEmptyPreview(): void {
+    if (thumbnailUrl !== undefined) URL.revokeObjectURL(thumbnailUrl);
+    thumbnailUrl = undefined;
+    image.remove();
+    preview.setAttribute("aria-label", `Preview ${attachment.original_name}`);
+    preview.classList.add("lsw-attachment-preview-empty");
+    preview.hidden = false;
   }
 
   let downloading = false;
@@ -142,7 +151,7 @@ function createRow(attachment: Attachment, getProps: () => AttachmentViewProps) 
   }
 
   image.addEventListener("load", () => (preview.hidden = false), { signal });
-  image.addEventListener("error", releasePreview, { signal });
+  image.addEventListener("error", showEmptyPreview, { signal });
   download.addEventListener("click", () => void downloadFile(), { signal });
   cover.addEventListener(
     "click",

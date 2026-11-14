@@ -16,6 +16,10 @@
   display: block;
 }
 
+.lsw-attachment-preview-empty {
+  height: 1px;
+}
+
 .lsw-attachment-image {
   display: block;
   max-width: min(100%, 400px);
@@ -48,7 +52,7 @@
 .lsw-attachment-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
   margin-top: 8px;
 }
 
@@ -69,6 +73,10 @@
 .lsw-attachment-download[aria-disabled="true"] {
   opacity: 0.6;
   cursor: default;
+}
+
+.lsw-attachment-action:first-child:not(:last-child) {
+  min-width: 82.5px;
 }
 
 .lsw-attachment-error {

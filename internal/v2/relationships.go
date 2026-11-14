@@ -475,11 +475,11 @@ func (x *request) changeRelationship(boardID, id string) {
 		return
 	}
 	var fields map[string]json.RawMessage
-	var kind string
+	var desired relationshipLink
 	if x.r.Method == http.MethodPatch {
 		fields, err = x.body()
 		if err == nil {
-			err = rejectFields(fields, []string{"expected_board_etag", "kind"}, false)
+			err = rejectFields(fields, []string{"expected_board_etag", "kind", "source_card_id", "target_card_id"}, false)
 		}
 		if err != nil {
 			x.fail(err)
@@ -492,14 +492,14 @@ func (x *request) changeRelationship(boardID, id string) {
 		return
 	}
 	if x.r.Method == http.MethodPatch {
-		kind, err = readRelationshipKind(fields["kind"])
+		desired, err = readRelationshipPatch(fields)
 		if err != nil {
 			x.fail(err)
 			return
 		}
 	}
 	next, err := x.updateBoard(boardID, boardTag, func(s *snapshot) error {
-		return editRelationship(s, id, expected, kind, x.actor)
+		return editRelationship(s, id, expected, desired, x.actor)
 	})
 	if err != nil {
 		x.fail(err)
@@ -514,8 +514,25 @@ func (x *request) changeRelationship(boardID, id string) {
 	x.respond(http.StatusOK, value, value.entityTag())
 }
 
+func readRelationshipPatch(fields map[string]json.RawMessage) (relationshipLink, error) {
+	kind, err := readRelationshipKind(fields["kind"])
+	if err != nil {
+		return relationshipLink{}, err
+	}
+	link := relationshipLink{Kind: kind}
+	if fields["source_card_id"] == nil && fields["target_card_id"] == nil {
+		return link, nil
+	}
+	link.SourceCardID, err = inputID(fields["source_card_id"], "source_card_id")
+	if err != nil {
+		return relationshipLink{}, err
+	}
+	link.TargetCardID, err = inputID(fields["target_card_id"], "target_card_id")
+	return link, err
+}
+
 // An empty kind is removal. The caller supplies the isolated candidate.
-func editRelationship(state *snapshot, id, expected, kind, actor string) error {
+func editRelationship(state *snapshot, id, expected string, link relationshipLink, actor string) error {
 	if !slices.Contains(state.Board.UserIDs, actor) {
 		return errMissing
 	}
@@ -532,13 +549,17 @@ func editRelationship(state *snapshot, id, expected, kind, actor string) error {
 	}
 	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
 	before := relationshipAuditValue(item.relationshipLink)
-	if kind == "" {
+	if link.Kind == "" {
 		recordRelationshipEdit(state, relationshipCards(state), id, "remove", &before, nil, item.relationshipLink, actor, now)
 		state.Relationships = slices.Delete(state.Relationships, i, i+1)
 		return nil
 	}
-	link := relationshipFromInput(item.SourceCardID, item.TargetCardID, kind)
-	if item.relationshipLink == link {
+	if link.SourceCardID == "" {
+		link.SourceCardID, link.TargetCardID = item.SourceCardID, item.TargetCardID
+	} else if !sameRelationshipEndpoints(item.relationshipLink, link) {
+		return invalid("source_card_id", "Expected the existing relationship's endpoint pair in either order.")
+	}
+	if item.key() == link.key() {
 		return nil
 	}
 	if relationshipKeyExists(state, link, id) {

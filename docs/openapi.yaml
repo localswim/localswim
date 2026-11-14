@@ -3986,7 +3986,7 @@ paths:
       x-milestones: []
     patch:
       operationId: replaceRelationshipKind
-      summary: Replace a relationship type atomically
+      summary: Change relationship kind or direction atomically
       tags:
       - Relationships
       parameters:
@@ -16529,7 +16529,16 @@ components:
     RelationshipPatch:
       type: object
       additionalProperties: true
+      dependentRequired:
+        source_card_id: [target_card_id]
+        target_card_id: [source_card_id]
       properties:
+        source_card_id:
+          $ref: '#/components/schemas/UuidInput'
+          description: Optional ordered source. Supply both endpoints or neither; the pair must be the relationship's existing endpoints.
+        target_card_id:
+          $ref: '#/components/schemas/UuidInput'
+          description: Optional ordered target. Reversing the existing pair changes directional perspective while retaining the relationship ID.
         expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
         kind:
@@ -16560,7 +16569,7 @@ components:
       required:
       - expected_board_etag
       - kind
-      description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
+      description: Kind is required. Omit both endpoints to retain their order, or supply the same existing pair in the desired order. One endpoint alone, a different pair, or a resulting duplicate relationship is refused. Direction, audit and applicable dependency effects change atomically. Reversing an unchanged relates_to link is a semantic no-op. Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     PriorityBatchInput:
       type: object

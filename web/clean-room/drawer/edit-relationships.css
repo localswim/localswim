@@ -1,0 +1,72 @@
+.lsw-drawer-relation-form,
+.lsw-drawer-relation-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lsw-drawer-relation-form {
+  flex-wrap: wrap;
+}
+
+.lsw-drawer-relation-kind,
+.lsw-drawer-relation-target,
+.lsw-drawer-relation-action {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  background: #fff;
+  color: #202a3c;
+  font: inherit;
+}
+
+.lsw-drawer-relation-kind,
+.lsw-drawer-relation-target {
+  padding: 3px 8px;
+}
+
+.lsw-drawer-relation-kind {
+  width: 125px;
+}
+
+.lsw-drawer-relation-target {
+  flex: 1 1 160px;
+}
+
+.lsw-drawer-relation-action {
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lsw-drawer-relation-action:hover:not(:disabled) {
+  background: #f4f6f8;
+}
+
+.lsw-drawer-relation-action:disabled {
+  cursor: default;
+}
+
+.lsw-drawer-relation-link {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lsw-drawer-relation-link .lsw-drawer-card-link {
+  color: #202a3c;
+  text-decoration: none;
+}
+
+.lsw-drawer-relation-link .lsw-drawer-card-link:hover {
+  text-decoration: underline;
+}
+
+.lsw-drawer-relation-row {
+  padding-right: 6px;
+}

@@ -214,13 +214,29 @@ async function requestJson(
   signal: AbortSignal,
   token?: string,
 ): Promise<JsonRead> {
-  const headers = new Headers({ Accept: "application/json, application/problem+json" });
+  const response = await requestRead(path, method, "application/json", signal, token);
+  const mediaType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (response.status !== 200) return rejectRead(response, method, signal);
+  if (mediaType !== "application/json") {
+    void response.body?.cancel().catch(() => {});
+    return invalidResponse();
+  }
+  return { data: await readJsonBody(response, signal), headers: response.headers };
+}
+
+async function requestRead(
+  path: string,
+  method: "GET" | "POST",
+  accept: string,
+  signal: AbortSignal,
+  token?: string,
+): Promise<Response> {
+  const headers = new Headers({ Accept: `${accept}, application/problem+json` });
   if (token !== undefined) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  let response: Response;
   try {
-    response = await fetch(apiPrefix + path, {
+    return await fetch(apiPrefix + path, {
       method,
       headers,
       signal,
@@ -232,16 +248,19 @@ async function requestJson(
   } catch {
     throw new ReadError({ kind: "transport" });
   }
+}
+
+async function rejectRead(
+  response: Response,
+  method: "GET" | "POST",
+  signal: AbortSignal,
+): Promise<never> {
   const mediaType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
-  const success = response.status === 200;
-  if (mediaType !== (success ? "application/json" : "application/problem+json")) {
+  if (mediaType !== "application/problem+json") {
     void response.body?.cancel().catch(() => {});
     return invalidResponse();
   }
   const data = await readJsonBody(response, signal);
-  if (success) {
-    return { data, headers: response.headers };
-  }
   if (
     !isProblem(data, response.status, method) ||
     data.request_id !== response.headers.get("X-Request-ID")
@@ -325,6 +344,21 @@ async function authenticatedRead(
   signal: AbortSignal,
   renew = true,
 ): Promise<JsonRead & { readonly session: SessionDto }> {
+  return withReadCapability(
+    signal,
+    async ({ token, session }) => ({
+      ...(await requestJson(path, "GET", signal, token)),
+      session,
+    }),
+    renew,
+  );
+}
+
+async function withReadCapability<T>(
+  signal: AbortSignal,
+  read: (capability: BrowserCapability) => Promise<T>,
+  renew = true,
+): Promise<T> {
   if (signal.aborted) {
     return abortRead();
   }
@@ -332,13 +366,12 @@ async function authenticatedRead(
     browserCapability = undefined;
     throw error;
   }));
-  const { token, session } = await awaitCapability(pending, signal);
+  const capability = await awaitCapability(pending, signal);
   if (signal.aborted) {
     return abortRead();
   }
   try {
-    const result = await requestJson(path, "GET", signal, token);
-    return { ...result, session };
+    return await read(capability);
   } catch (error) {
     const failure = readFailure(error);
     if (failure.kind === "http" && failure.problem.code === "unauthorized") {
@@ -346,7 +379,7 @@ async function authenticatedRead(
         browserCapability = undefined;
       }
       if (renew) {
-        return authenticatedRead(path, signal, false);
+        return withReadCapability(signal, read, false);
       }
     }
     throw error;
@@ -361,13 +394,32 @@ export async function readJson(path: string, signal?: AbortSignal): Promise<Json
   return { data, headers };
 }
 
+export async function readBinary<T>(
+  path: string,
+  accept: string,
+  validate: (response: Response, signal: AbortSignal) => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (!resourcePath(path)) return invalidResponse();
+  const deadline = readDeadline(signal);
+  return withReadCapability(deadline, async ({ token }) => {
+    const response = await requestRead(path, "GET", accept, deadline, token);
+    if (response.status !== 200) return rejectRead(response, "GET", deadline);
+    try {
+      return await validate(response, deadline);
+    } finally {
+      void response.body?.cancel().catch(() => {});
+    }
+  });
+}
+
 export interface MutationOptions<T> {
   readonly method: "POST" | "PATCH" | "PUT" | "DELETE";
   readonly etag?: EntityTag;
   readonly boardEtag?: EntityTag;
-  readonly body: unknown;
+  readonly body?: unknown;
   readonly validate: (data: unknown, headers: Headers) => T;
-  readonly successStatus?: 200 | 201;
+  readonly successStatus?: 200 | 201 | 204;
   readonly requestId?: Uuid;
   readonly signal?: AbortSignal;
   readonly beforeDispatch?: (session: SessionDto) => void;
@@ -397,9 +449,9 @@ export async function mutateJson<T>(
     const headers = new Headers({
       Accept: "application/json, application/problem+json",
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
       "X-Request-ID": requestId,
     });
+    if (options.body !== undefined) headers.set("Content-Type", "application/json");
     if (options.etag !== undefined) headers.set("If-Match", options.etag);
     if (options.boardEtag !== undefined) headers.set("X-Expected-Board-ETag", options.boardEtag);
     options.beforeDispatch?.(session);
@@ -414,6 +466,13 @@ export async function mutateJson<T>(
       cache: "no-store",
     });
     const success = response.status === (options.successStatus ?? 200);
+    if (
+      success &&
+      response.status === 204 &&
+      response.headers.get("X-Request-ID") === requestId &&
+      response.body === null
+    )
+      return { outcome: "committed", value: options.validate(undefined, response.headers) };
     const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
     if (
       response.headers.get("X-Request-ID") !== requestId ||

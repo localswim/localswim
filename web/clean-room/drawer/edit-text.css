@@ -1,0 +1,66 @@
+.lsw-drawer-edit-title {
+  margin: 10px 0 7px;
+}
+
+.lsw-drawer-edit-field {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #e4e4e4;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.lsw-drawer-edit-field:focus {
+  outline: 2px solid #1e1e1e;
+  outline-offset: -1px;
+}
+
+.lsw-drawer-edit-title .lsw-drawer-edit-field {
+  height: 29px;
+  padding: 1px 3px;
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 24px;
+}
+
+.lsw-drawer-edit-description .lsw-drawer-edit-field {
+  height: 160px;
+  min-height: 68px;
+  padding: 7px 9px;
+  resize: vertical;
+}
+
+.lsw-drawer-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.lsw-drawer-edit-save {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: #405f99;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lsw-drawer-edit-actions button:enabled {
+  cursor: pointer;
+}
+
+.lsw-drawer-edit-actions button:disabled {
+  opacity: 0.65;
+}
+
+.lsw-drawer-edit-error {
+  margin: 6px 0 0;
+  color: #942d2d;
+}

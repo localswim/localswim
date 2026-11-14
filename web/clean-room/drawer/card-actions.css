@@ -1,0 +1,37 @@
+.lsw-drawer-priority-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.lsw-drawer-priority-control .lsw-drawer-priority {
+  appearance: none;
+  min-height: 20px;
+  padding-inline-end: 22px;
+}
+
+.lsw-drawer-priority-control:has(.lsw-drawer-priority:not(:disabled))::after {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  color: #19243a;
+  font-size: 8px;
+  line-height: 1;
+  pointer-events: none;
+  content: "▾";
+  transform: translateY(-50%);
+}
+
+.lsw-drawer-priority-control:has(.lsw-drawer-priority[data-priority="P1"])::after,
+.lsw-drawer-priority-control:has(.lsw-drawer-priority[data-priority="P3"])::after {
+  color: #fff;
+}
+
+.lsw-drawer-priority-control .lsw-drawer-priority:disabled,
+.lsw-drawer-owner-badge:disabled {
+  opacity: 1;
+}
+
+.lsw-drawer-priority-control .lsw-drawer-priority:not(:disabled),
+.lsw-drawer-owner-badge:not(:disabled) {
+  cursor: pointer;
+}

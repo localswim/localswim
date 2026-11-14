@@ -1,0 +1,33 @@
+.lsw-workspace-cache {
+  cursor: pointer;
+}
+
+.lsw-workspace-cache[aria-expanded="true"]::before {
+  transform: rotate(90deg);
+}
+
+.lsw-workspace-cache-settings:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.lsw-workspace-cache-settings input {
+  appearance: textfield;
+  box-sizing: border-box;
+  width: 80px;
+  height: 23px;
+  padding: 2px 3px;
+  border: 1px solid #a7aab1;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.lsw-workspace-cache-settings input::-webkit-inner-spin-button {
+  appearance: none;
+}

@@ -14,8 +14,8 @@ retrying it.
 ## Available and in-progress workflows
 
 T2 was accepted into `ui/v1-clean-room` and passed Terry's visual checkpoint.
-T3 is in development. Its rows describe the current implementation contract,
-not a production deployment or completed acceptance.
+T3 was accepted and merged into `ui/v1-clean-room` in PR #3. T4 drawer and
+history work is in progress.
 
 | User workflow | Status | API sequence |
 | --- | --- | --- |
@@ -37,19 +37,24 @@ The browser movement workflow follows V1 drag/drop. Batch priority is provided
 through the CLI/API workflow rather than a new browser control. See the
 [CLI/Bot guide](cli-workflows.md).
 
-## Approved later UI work
+## T4 drawer and history work
 
-These workflows have existing V2 endpoints and approved UI stories. Their fresh
-browser implementations remain pending the applicable turn gates.
+These workflows are in development on the T4 feature branch.
 
 | Workflow | Story | Request sequence |
 | --- | --- | --- |
-| Edit card text, owner or priority; archive/restore a card | #0594 | Read `GET /cards/{card_id}` and board context, then conditional `PATCH /cards/{card_id}` for the selected fields. Preserve drafts and inspect the original outcome when uncertain. |
+| Edit card text, owner or priority | #0594 | Read `GET /cards/{card_id}` and board context, then conditional `PATCH /cards/{card_id}` for the selected field. Preserve drafts and inspect the original outcome when uncertain. |
 | Post comments | #0595 | Read the card/board validators; `POST /comments`; refresh `GET /comments` and inspect the original comment ID after uncertainty. |
 | Maintain relationships | #0596 | Read endpoints and `GET /relationships`; `POST /relationships`, conditional `PATCH /relationships/{id}`, or `DELETE /relationships/{id}`. Endpoint order determines the card-relative label. |
-| Approve one card | #0597 | Read card/board state; `POST /approvals`; inspect `GET /approvals/{approval_id}`. |
+| Approve one card | #0597 | Start closing the tray on click. Send `POST /approvals` with the captured card and board validators. Display the move after confirmation. Inspect `GET /approvals/{approval_id}` after uncertainty. |
 | View/download/cover/detach attachments | #0598 | `GET /attachments` and `GET /attachments/{id}`; download `/attachments/{id}/content`; conditional card PATCH changes the cover; conditional attachment DELETE detaches. |
-| Upload files and recover a partial batch | #0600 | Read card/board validators; `POST /attachments` for each original file; inspect the original attachment ID after uncertainty before deciding whether any remaining file can be sent. |
+| Restore board navigation and retain board reads | #0599 | History and a per-tab cache retain view state. An authorized board read confirms the current revision before writes resume. |
+
+## T5 attachment ingestion
+
+Read the card and board validators, then `POST /attachments` for each original
+file. Inspect the original attachment ID after uncertainty before deciding
+whether any remaining file can be sent. This workflow is scheduled under #0600.
 
 Use the [relationship guide](api-relationships.md) for incoming/outgoing creation
 examples and the [OpenAPI contract](openapi.yaml) for exact payloads, headers,

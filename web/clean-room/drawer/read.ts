@@ -11,6 +11,7 @@ import {
   readFailure,
   readJson,
 } from "../http.js";
+import { readAttachments } from "./attachment-data.js";
 import type {
   DrawerActivity,
   DrawerCardLink,
@@ -472,7 +473,7 @@ async function readDrawerAttempt(
 ): Promise<{ readonly drawer: DrawerData } | { readonly nextAnchor: BoardAnchor }> {
   const { card, cardEtag } = await readFocusedCard(anchor.id, cardId, signal);
   const query = { board_id: anchor.id, card_id: card.id };
-  const [comments, rows, activity] = await Promise.all([
+  const [comments, rows, activity, attachments] = await Promise.all([
     readPages(
       "comments",
       new URLSearchParams({ ...query, archived: "include" }),
@@ -481,6 +482,9 @@ async function readDrawerAttempt(
     ),
     readPages("relationships", new URLSearchParams(query), isRelationship, signal),
     readActivity(anchor, cardId, signal),
+    card.attachment_count === 0
+      ? Promise.resolve([])
+      : readAttachments(card, anchor.revision, signal),
   ]);
   const linked = await readLinkedCards(card, rows, signal);
   const latest = await readBoardAnchor(anchor.id, signal);
@@ -488,6 +492,8 @@ async function readDrawerAttempt(
   validateCards(anchor, card, linked);
   validateComments(anchor, card, comments);
   validateActivity(anchor, card, comments, activity);
+  if (attachments.some((attachment) => !anchor.userIds.has(attachment.added_by)))
+    return invalidResponse();
   return {
     drawer: {
       card,
@@ -499,6 +505,7 @@ async function readDrawerAttempt(
       relationships: relationshipLinks(anchor, card, linked, rows),
       comments,
       activity,
+      attachments,
     },
   };
 }

@@ -1,0 +1,15 @@
+.lsw-drawer-comment-status {
+  margin: 6px 0;
+  color: #646e7e;
+}
+
+.lsw-drawer-comment-inspect {
+  margin-inline-start: 8px;
+  padding: 6px 10px;
+  border: 1px solid #d7dde6;
+  border-radius: 5px;
+  background: #fff;
+  color: #355c98;
+  font: inherit;
+  cursor: pointer;
+}

@@ -16,6 +16,7 @@ import type {
 import type { BoardCardProjection } from "./board/filter.js";
 import type { MoveIntent } from "./board/move.js";
 import type { LiveConnection } from "./live/controller.js";
+import type { RetainedBoardCache } from "./workspace/retained-cache.js";
 
 // Confirmed data survives a failed refresh without implying it is still writable.
 export interface Confirmed<T> {
@@ -161,6 +162,7 @@ export interface WorkspaceSlots {
 }
 
 export interface WorkspaceProps {
+  readonly cache?: RetainedBoardCache;
   readonly refreshing?: boolean;
   readonly boardPath?: (id: Uuid) => string;
   readonly unavailableBoardKey?: string;

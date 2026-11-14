@@ -268,3 +268,72 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 		}
 	}
 }
+
+func TestRelationshipPatchOrderedEndpoints(t *testing.T) {
+	app, c, _ := approvalTestClients(t)
+	raw, _ := c.call("POST", "/boards", `{"name":"Reverse relationship"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	tag := b.entityTag()
+	makeCard := func(title, priority string) card {
+		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"priority_id":%q,"title":%q}`, b.ID, tag, b.LaneIDs[0], priority, title)
+		raw, h := c.call("POST", "/cards", body, "", 201)
+		tag = h.Get("X-Board-ETag")
+		return turnOneDecode[card](t, raw)
+	}
+	strong, weak := b.PriorityIDs[0], b.PriorityIDs[len(b.PriorityIDs)-1]
+	a, z := makeCard("A", strong), makeCard("Z", weak)
+	link := func(from, to, kind string) relationship {
+		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":%q}`, b.ID, tag, from, to, kind)
+		raw, h := c.call("POST", "/relationships", body, "", 201)
+		tag = h.Get("X-Board-ETag")
+		return turnOneDecode[relationship](t, raw)
+	}
+	ref := link(a.ID, z.ID, "references")
+	dup := link(z.ID, a.ID, "duplicates")
+	symmetric := link(a.ID, z.ID, "relates_to")
+	patch := func(boardTag, from, to, kind string) string {
+		return fmt.Sprintf(`{"expected_board_etag":%q,"kind":%q,"source_card_id":%q,"target_card_id":%q}`, boardTag, kind, from, to)
+	}
+	path := "/relationships/" + ref.ID
+	before, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.call("PATCH", path, fmt.Sprintf(`{"expected_board_etag":%q,"kind":"references","source_card_id":%q}`, tag, z.ID), ref.entityTag(), 400)
+	c.call("PATCH", path, patch(tag, newID(), a.ID, "references"), ref.entityTag(), 400)
+	c.call("PATCH", path, patch(tag, z.ID, a.ID, "duplicates"), ref.entityTag(), 409)
+	c.call("PATCH", path, patch(tag, z.ID, a.ID, "references"), dup.entityTag(), 412)
+	c.call("PATCH", path, patch(b.entityTag(), z.ID, a.ID, "references"), ref.entityTag(), 412)
+	raw, h := c.call("PATCH", "/relationships/"+symmetric.ID, patch(tag, z.ID, a.ID, "relates_to"), symmetric.entityTag(), 200)
+	if turnOneDecode[relationship](t, raw) != symmetric || h.Get("X-Board-ETag") != tag {
+		t.Fatal("symmetric reversal changed identity, stored order, or revision")
+	}
+	after, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Board.entityTag() != tag || len(after.Activity) != len(before.Activity) {
+		t.Fatal("refused or no-op reversal changed durable state")
+	}
+	raw, h = c.call("PATCH", path, patch(tag, strings.ToUpper(z.ID), a.ID, "REFERENCES"), ref.entityTag(), 200)
+	reversed := turnOneDecode[relationship](t, raw)
+	if reversed.ID != ref.ID || reversed.SourceCardID != z.ID || reversed.TargetCardID != a.ID || reversed.Kind != ref.Kind ||
+		!reversed.CreatedAt.Equal(ref.CreatedAt) || reversed.Revision != before.Board.Revision+1 {
+		t.Fatalf("unexpected reversal receipt: %+v", reversed)
+	}
+	raw, _ = c.call("PATCH", path, patch(h.Get("X-Board-ETag"), z.ID, a.ID, "blocks"), reversed.entityTag(), 200)
+	blocked := turnOneDecode[relationship](t, raw)
+	after, err = app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.ID != ref.ID || blocked.Revision != reversed.Revision+1 || after.Cards[1].PriorityID != strong ||
+		after.Cards[0].Revision != blocked.Revision || after.Cards[1].Revision != blocked.Revision {
+		t.Fatal("blocking direction and priority floor did not commit together")
+	}
+	event := after.Activity[len(before.Activity)]
+	if event.ResourceID != ref.ID || event.Operation != "patch" || snapshotString(event.Before) != relationshipAuditValue(ref.relationshipLink) ||
+		snapshotString(event.After) != relationshipAuditValue(reversed.relationshipLink) {
+		t.Fatal("reversal audit did not preserve both ordered endpoint versions")
+	}
+}

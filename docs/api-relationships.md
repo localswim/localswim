@@ -34,9 +34,20 @@ The focused card-inspection representation also supplies `direction` relative
 to the selected card: `outgoing`, `incoming`, or `symmetric`. Use that direction
 with the table above when choosing the label.
 
-Changing the kind through `PATCH /relationships/{relationship_id}` preserves
-the endpoint order. Removing a relationship uses that relationship ID and
-removes the one shared link from both cards' views.
+`PATCH /relationships/{relationship_id}` changes the canonical kind and can
+reverse direction while retaining the relationship ID. Omit both endpoint
+fields to keep their current order. To set the order explicitly, supply both
+`source_card_id` and `target_card_id`; they must identify the same existing pair
+of cards, in either order. Supplying only one endpoint is invalid.
+
+For example, if A currently references B and A's UI selects **Referenced by B**,
+PATCH that relationship with `kind: "references"`, source B and target A.
+Include the current `expected_board_etag` and relationship HTTP precondition.
+The direction change, revisions, audit and applicable dependency effects commit
+atomically. A conflict with another resulting relationship refuses the change.
+Reversing an unchanged `relates_to` link is a semantic no-op and retains its
+stored order. Removing a relationship uses its ID and removes the one shared
+link from both cards' views.
 
 ## Seeding links while creating a card
 

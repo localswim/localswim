@@ -38,13 +38,20 @@ open a later turn.
 
 ## Scheduled progress check
 
-The Architect check runs at minute 00, 10, 20, 30, 40 and 50 of each hour.
-Start with one compact UI Lead status snapshot. If active, end immediately.
-Do not interrupt or queue a nudge to an active chat.
+The Architect uses a sliding ten-minute inactivity deadline. Each received
+UI Lead message, status update or verified proof of life resets the existing
+timer to ten minutes after receipt. Recheck that deadline when a timer fires
+so an obsolete trigger cannot send an early nudge.
 
+At the deadline, take one compact UI Lead status snapshot. If active, reset
+the deadline and end quietly. Never interrupt or queue a nudge to an active chat.
 If idle with authorized work remaining, resolve any pending Architect review
-and send a concise next-step nudge. Compare progress with the prior nudge.
-After two consecutive unsuccessful idle checks, pause the schedule and report
-the precise obstacle to Terry. Active checks never count as failed nudges.
+and send one concise progress/blocker nudge. Allow ten minutes for a new update.
+
+Count a blocked reply only when Lead explicitly reports it cannot progress in
+response to a nudge. After two consecutive such replies to separate ten-minute
+checks, pause the timer and report the concrete blocker and last verified
+checkpoint to Swimcoach. A blocked reply resets the deadline but preserves the
+streak; resumed work or progress clears it. Silence never counts as blocked.
 Finish the watch when implementation and Architect integration are complete
 and only Terry's final demo, approval and main merge remain.

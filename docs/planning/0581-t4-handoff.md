@@ -3,7 +3,7 @@
 T4 started from the accepted T3 integration commit `e17790b`. The Architect
 released #0594–#0599 and the live board recorded their move to In Progress at
 revisions 6077–6082. The nine packets in staffing revision 4 delivered their
-modules. Revision 9 records the current T4–T6 roster.
+modules. Revision 10 records the current T4–T6 roster.
 
 | Story | Evidence collected | Remaining qualification |
 | --- | --- | --- |
@@ -32,14 +32,43 @@ acceptance and integration before T5 opens.
   The Architect verified the five original corrections at `0a4f1a5`. The next
   commit carries measured portrait and square preview sizes, matched detach
   feedback, and the latest stale-write and recovery evidence.
-- On resume, fix the Architect's remaining create-state finding in
-  `web/clean-room/main.ts`. `inspectCreate` and `submitCreate` can continue
-  after an actor or intent change. Before settling an awaited write or
-  inspection, verify that it still owns the captured actor and intent. Regress
-  a late actor-A receipt arriving while actor B has a new draft.
-- Continue the outstanding checks in the table, rerun the quality gate on the
-  resulting candidate, and send that exact head to the Architect. The T4
-  cards remain In Progress and T5 requires the Architect's release.
+- The resumed change guards `inspectCreate` and `submitCreate` by captured actor
+  and intent. Navigation invalidates deferred drawer presentation independently.
+  Three regression tests cover late submit and inspection results after an
+  actor change and a late result after switching boards.
+- T4 stays In Progress during the Architect's review. T5 requires the
+  Architect's release.
 - Browser evidence is saved under the UI Lead's private `output/t3-v1` folder.
   The disposable fixtures can be restarted from their existing data. Keep the
   live board and shared queue under their existing owners.
+
+## Resumed browser qualification
+
+- #0594. Both versions cycled the owner and selected P1 Urgent. Both displayed
+  the changed owner and saved priority. The V2 CLI verified the resulting
+  values. A truncated title response recovered the committed title and
+  dismissed the editor using its existing audit recovery. When the proxy
+  closed before response headers, Chromium resent the PATCH and received
+  HTTP 412. The first request committed and the second applied no mutation.
+  The client keeps the draft and reports the 412 conflict. The existing
+  unknown-response path checks the card, actor, field, old and new values,
+  and exact revision in the audit. The audit has no HTTP request ID, so
+  clients sharing the Human identity can produce indistinguishable events.
+  The resumed editor comparison aligned the focused card title, description,
+  priority, owner and lane at 1280×720. Both selected the whole title on edit
+  and exposed Save and Cancel in the description editor. Surrounding board
+  data remains different. Archive and restore are available through the CLI.
+  A V1 browser entry has yet to be observed.
+- #0595. An unsent draft survived Alpha → Beta → Alpha. Following a link to
+  an archived card allowed one comment, verified by CLI.
+- #0596. Both browsers followed the linked card and removed the relationship
+  in one action. The V2 CLI returned zero remaining relationships after
+  removal. A matched source and target also verified the direction change
+  and the confirmed toast wording in both versions.
+- #0597. The current browser build recovered a truncated HTTP 201 by the
+  original approval receipt and moved the fixture into Completed. The CLI
+  confirmed exactly one fixed approval comment by the Human actor.
+- #0599. Both versions accepted 64 MiB and reset to 256 MiB on reload. The
+  corrected V2 field uses a 1 MiB minimum and no HTML maximum, matching V1.
+  A failed board transport preserved the last confirmed card list and
+  disabled Add card. The earlier HTTP 403 scenario cleared the retained data.

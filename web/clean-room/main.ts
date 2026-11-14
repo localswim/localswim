@@ -175,7 +175,9 @@ function start(host: HTMLElement): void {
   let createBoard: Uuid | undefined;
   let createPhase: CreateProps["phase"] = "editing";
   let createError: string | null = null;
-  let createIntent: CreateInput | undefined;
+  let createIntent:
+    { readonly input: CreateInput; readonly actorId: Uuid; readonly view: number } | undefined;
+  let createView = 0;
   let createOpen = false;
   let confirmedCreation: CreateReceipt | undefined;
   let ordering: ReturnType<typeof openTicketOrder> | undefined;
@@ -334,9 +336,14 @@ function start(host: HTMLElement): void {
     creating?.dispose();
     creating = undefined;
     draft = undefined;
+    createLane = undefined;
+    createBoard = undefined;
     createIntent = undefined;
     createPhase = "editing";
     createError = null;
+    notice.textContent = "";
+    clearTimeout(successNoticeTimer);
+    successNotice.textContent = "";
     ordering?.dispose();
     ordering = undefined;
     drawerPresentation = null;
@@ -396,6 +403,8 @@ function start(host: HTMLElement): void {
     boardReadEpoch += 1;
     boardRead?.abort();
     confirmedPresentation = null;
+    clearTimeout(successNoticeTimer);
+    successNotice.textContent = "";
     drawerPresentation = null;
     drawerRead?.abort();
     ticketRead?.abort();
@@ -657,6 +666,10 @@ function start(host: HTMLElement): void {
     drawerRead?.abort();
     ticketRead?.abort();
     const opener = drawerKey;
+    if (opener !== null) {
+      createView += 1;
+      confirmedCreation = undefined;
+    }
     drawerKey = null;
     drawerPresentation = null;
     if (animate) drawer?.closeAnimated();
@@ -674,7 +687,11 @@ function start(host: HTMLElement): void {
 
   function openDrawer(id: Uuid): void {
     if (route.kind !== "board") return;
-    if (drawerKey !== id) drawerPresentation = null;
+    if (drawerKey !== id) {
+      createView += 1;
+      confirmedCreation = undefined;
+      drawerPresentation = null;
+    }
     const boardId = route.boardId;
     route = { ...route, cardId: id };
     persistHistory();
@@ -1105,7 +1122,30 @@ function start(host: HTMLElement): void {
       (receipt) => {
         relationshipOperations.delete(linkId);
         committedRelationships.set(card.id, intent);
-        if (!isSelected(card.board_id) || drawerKey !== card.id) return;
+        if (
+          !isSelected(card.board_id) ||
+          last(board)?.value.view.board.id !== card.board_id ||
+          !last(workspace)?.value.boards.some(({ id }) => id === card.board_id)
+        )
+          return;
+        if (intent.action === "patch") {
+          const key = (kind: typeof intent.kind, direction: typeof intent.direction): string =>
+            direction === "outgoing" || kind === "relates_to"
+              ? kind
+              : { blocks: "blocked_by", duplicates: "duplicated_by", references: "referenced_by" }[
+                  kind
+                ];
+          const before = key(intent.original.kind, intent.original.direction);
+          const after = key(intent.kind, intent.direction);
+          const actor =
+            context.board.view.board.actor_presentation?.human?.label ??
+            context.board.users.find(({ id }) => id === context.session.principal_id)?.label ??
+            "Terry";
+          showSuccess(
+            `#${String(card.ticket).padStart(4, "0")} relationship to #${String(intent.original.card.ticket).padStart(4, "0")}: ${before} -> ${after} (by ${actor.toLowerCase()})`,
+          );
+        }
+        if (drawerKey !== card.id) return;
         const current = (drawerPresentation ?? last(drawerData))?.value;
         if (current === undefined) return;
         if ("card" in receipt) {
@@ -1229,23 +1269,21 @@ function start(host: HTMLElement): void {
     else creating = mountCreate(overlay, props);
   }
 
-  function settleCreation(receipt: CreateReceipt, recovered = false): void {
+  function settleCreation(receipt: CreateReceipt, originView: number, recovered = false): void {
     createPhase = "editing";
     closeCreate();
-    notice.textContent = "";
-    confirmedCreation = recovered ? receipt : undefined;
     const { card } = receipt;
+    if (!isSelected(card.board_id)) return;
+    notice.textContent = "";
+    const reveal = createView === originView;
+    confirmedCreation = recovered && reveal ? receipt : undefined;
     const lane = last(board)?.value.view.lanes.find(({ id }) => id === card.lane_id);
-    if (isSelected(card.board_id)) {
-      const actor = last(board)?.value.view.board.actor_presentation?.human?.label ?? "Terry";
-      showSuccess(
-        `created #${String(card.ticket).padStart(4, "0")} card-${card.id}${lane ? ` in ${lane.key}` : ""} (by ${actor.toLowerCase()})`,
-      );
-    }
+    const actor = last(board)?.value.view.board.actor_presentation?.human?.label ?? "Terry";
+    showSuccess(
+      `created #${String(card.ticket).padStart(4, "0")} card-${card.id}${lane ? ` in ${lane.key}` : ""} (by ${actor.toLowerCase()})`,
+    );
     refreshSelected();
-    if (!recovered && isSelected(card.board_id)) {
-      openDrawer(receipt.card.id);
-    }
+    if (!recovered && reveal) openDrawer(receipt.card.id);
   }
 
   function showSuccess(message: string): void {
@@ -1256,24 +1294,30 @@ function start(host: HTMLElement): void {
     }, 5000);
   }
 
-  async function inspectCreate(): Promise<void> {
+  function ownsCreateIntent(intent: NonNullable<typeof createIntent>): boolean {
+    return createIntent === intent && cacheActor === intent.actorId;
+  }
+
+  async function inspectCreate(originView = createView): Promise<void> {
     const intent = createIntent;
-    if (!intent || createPhase !== "unknown") return;
+    if (!intent || !ownsCreateIntent(intent) || createPhase !== "unknown") return;
     createPhase = "submitting";
     renderCreate();
     try {
-      const result = await inspectCardCreation(intent);
+      const result = await inspectCardCreation(intent.input);
+      if (!ownsCreateIntent(intent)) return;
       if (result.outcome === "committed") {
-        settleCreation(result.value, true);
+        settleCreation(result.value, originView, true);
         return;
       }
     } catch {
       // Keep the submitted intent available for the next authoritative inspection.
     }
+    if (!ownsCreateIntent(intent)) return;
     createPhase = "unknown";
     createError = "Creation is not yet confirmed. Check the original card before retrying.";
     renderCreate();
-    if (!createOpen) notice.textContent = createError;
+    if (!createOpen && isSelected(intent.input.boardId)) notice.textContent = createError;
     render();
   }
 
@@ -1299,7 +1343,7 @@ function start(host: HTMLElement): void {
       !/[^\p{White_Space}]/u.test(draft.title)
     )
       return;
-    const intent: CreateInput = {
+    const input: CreateInput = {
       ...draft,
       cardId: crypto.randomUUID(),
       requestId: crypto.randomUUID(),
@@ -1310,39 +1354,43 @@ function start(host: HTMLElement): void {
       completed: lane.role === "completed",
       priorities: data.priorities,
     };
+    const intent = { input, actorId, view: createView };
     createIntent = intent;
     createPhase = "submitting";
     createError = null;
     renderCreate();
     let dispatched = false;
     try {
-      const result = await createCard(intent, undefined, (actual) => {
+      const result = await createCard(input, undefined, (actual) => {
         const current = currentBoard();
         if (
           !createOpen ||
+          !ownsCreateIntent(intent) ||
           actual.principal_id !== actorId ||
-          current?.boardEtag !== intent.boardEtag ||
-          current.view.board.id !== intent.boardId
+          current?.boardEtag !== input.boardEtag ||
+          current.view.board.id !== input.boardId
         ) {
           throw new Error("Creation context changed");
         }
         dispatched = true;
       });
+      if (!ownsCreateIntent(intent)) return;
       if (result.outcome === "committed") {
-        settleCreation(result.value);
+        settleCreation(result.value, intent.view);
         return;
       }
       if (result.outcome === "not_applied") {
         createPhase = "editing";
         createIntent = undefined;
         createError = result.problem.detail;
-        refreshSelected();
+        if (isSelected(input.boardId)) refreshSelected();
         renderCreate();
         return;
       }
     } catch {
       // A lost result leaves the original UUID available for inspection.
     }
+    if (!ownsCreateIntent(intent)) return;
     if (!dispatched) {
       createPhase = "editing";
       createIntent = undefined;
@@ -1351,7 +1399,7 @@ function start(host: HTMLElement): void {
       return;
     }
     createPhase = "unknown";
-    await inspectCreate();
+    await inspectCreate(intent.view);
   }
 
   function laneAction(action: "create" | "order" | "approve", id: Uuid): void {
@@ -1581,8 +1629,10 @@ function start(host: HTMLElement): void {
     const was = route.kind === "board" ? route.boardId : null;
     const nextId = next.kind === "board" ? next.boardId : null;
     if (was !== nextId) {
+      createView += 1;
       if (was !== null) stateFor(was).confirmed = null;
       confirmedPresentation = null;
+      confirmedCreation = undefined;
       liveMoveRevision = undefined;
       notice.textContent = "";
       clearTimeout(successNoticeTimer);

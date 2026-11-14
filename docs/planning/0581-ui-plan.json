@@ -1,7 +1,7 @@
 {
   "title": "Epic #0581 clean-room V1-identical TypeScript UI",
   "status": "T1 and T2 are in Ready for Review. T2 PR #1 was squash-merged as 9f9ced3. Terry accepted the T2 comparison and the Architect opened T3. Cards #0585–#0593 are In Progress during candidate qualification.",
-  "assignment_revision": 9,
+  "assignment_revision": 10,
   "story_references_are_ticket_numbers": false,
   "source_policy": {
     "target": "Exact visible V1 appearance and behavior through fresh TypeScript presentation and V2 API",
@@ -3652,6 +3652,326 @@
           "wave_rule": "Qualification and two evidence packets under one compiler and browser owner. Fresh reviewer after integration."
         }
       ]
+    },
+    {
+      "revision": 9,
+      "status": "Revision 9 carries all six In Progress T4 stories. At the reboot checkpoint the UI Lead owns the outstanding create receipt actor and intent guard correction and integrated qualification. T5 and T6 retain their entry gates.",
+      "assignments": [
+        {
+          "remaining_turn": 1,
+          "original_turn": 4,
+          "cards": [
+            {
+              "ticket": 594,
+              "story": "R07",
+              "scope": "Epic0581/R07",
+              "author": {
+                "name": "Sol Medium 0594 Text",
+                "scope": "title/description editor and adapter",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [
+                {
+                  "name": "Sol Medium 0594 Actions",
+                  "scope": "owner/priority/archive adapters",
+                  "reasoning": "medium",
+                  "model": "gpt-6.1-sol"
+                }
+              ],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0594 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R06"
+              ],
+              "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
+              "missing_input": "Matched editor states and lost write qualification"
+            },
+            {
+              "ticket": 595,
+              "story": "R08",
+              "scope": "Epic0581/R08",
+              "author": {
+                "name": "Sol Medium 0595 Author",
+                "scope": "Comment composition",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0595 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R06"
+              ],
+              "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
+              "missing_input": "Unsent drafts across board navigation and archived-card posting"
+            },
+            {
+              "ticket": 596,
+              "story": "R10",
+              "scope": "Epic0581/R10",
+              "author": {
+                "name": "Sol Medium 0596 Author",
+                "scope": "Relationship editing",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0596 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R06"
+              ],
+              "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
+              "missing_input": "Matched relationship interaction evidence"
+            },
+            {
+              "ticket": 597,
+              "story": "R12",
+              "scope": "Epic0581/R12",
+              "author": {
+                "name": "Sol Medium 0597 Author",
+                "scope": "Single-card approval",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0597 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R06"
+              ],
+              "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
+              "missing_input": "Architect review"
+            },
+            {
+              "ticket": 598,
+              "story": "R16",
+              "scope": "Epic0581/R16",
+              "author": {
+                "name": "Sol Medium 0598 Render",
+                "scope": "attachment preview/download/cover presentation",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [
+                {
+                  "name": "Sol Medium 0598 Data",
+                  "scope": "attachment read/mutation/inspection adapters",
+                  "reasoning": "medium",
+                  "model": "gpt-6.1-sol"
+                }
+              ],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0598 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R06"
+              ],
+              "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
+              "missing_input": "Architect review"
+            },
+            {
+              "ticket": 599,
+              "story": "R19",
+              "scope": "Epic0581/R19",
+              "author": {
+                "name": "Sol Medium 0599 History",
+                "scope": "route/history restoration intents",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [
+                {
+                  "name": "Sol High 0599 Cache",
+                  "scope": "retained-view/cache authority",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                }
+              ],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0599 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R02",
+                "R03",
+                "R06"
+              ],
+              "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
+              "missing_input": "Retained read-only content on transport failure and cache preference behavior"
+            }
+          ],
+          "visual_reviewer": {
+            "name": "Terra Medium T4 Visual Review",
+            "reasoning": "medium",
+            "model": "gpt-6.1-terra"
+          },
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator"
+        },
+        {
+          "remaining_turn": 2,
+          "original_turn": 5,
+          "cards": [
+            {
+              "ticket": 600,
+              "story": "R17",
+              "scope": "Epic0581/R17",
+              "author": {
+                "name": "Sol Medium 0600 Staging",
+                "scope": "picker/paste/staging presentation",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [
+                {
+                  "name": "Sol High 0600 Recovery",
+                  "scope": "upload/recovery transition coordinator",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                }
+              ],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0600 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R09",
+                "R16"
+              ],
+              "readiness": "Ready for Work. R09 accepted in T3. R16 is In Progress.",
+              "missing_input": "T4 merge and Architect T5 release"
+            }
+          ],
+          "visual_reviewer": {
+            "name": "Terra Medium T5 Visual Review",
+            "reasoning": "medium",
+            "model": "gpt-6.1-terra"
+          },
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator"
+        },
+        {
+          "remaining_turn": 3,
+          "original_turn": 6,
+          "cards": [
+            {
+              "ticket": 601,
+              "story": "R20",
+              "scope": "Epic0581/R20",
+              "author": {
+                "name": "Sol High 0601 Qualification",
+                "scope": "Bounded integrated qualification",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [],
+              "evidence_workers": [
+                {
+                  "name": "Sol High 0601 Coverage",
+                  "scope": "independent behavior coverage evidence",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                },
+                {
+                  "name": "Sol High 0601 Release",
+                  "scope": "release assets and provenance evidence",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                }
+              ],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0601 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R04",
+                "R05",
+                "R07",
+                "R08",
+                "R09",
+                "R10",
+                "R11",
+                "R12",
+                "R13",
+                "R14",
+                "R15",
+                "R17",
+                "R18",
+                "R19"
+              ],
+              "readiness": "Ready for Work. T3 dependencies accepted. T4 and T5 remain pending.",
+              "missing_input": "T4 and T5 acceptance and Architect T6 release"
+            }
+          ],
+          "visual_reviewer": {
+            "name": "Terra Medium T6 Visual Review",
+            "reasoning": "medium",
+            "model": "gpt-6.1-terra"
+          },
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "wave_rule": "Qualification and two evidence packets under one compiler and browser owner. Fresh reviewer after integration."
+        }
+      ]
     }
   ],
   "current_rolling_assignments": [
@@ -3679,7 +3999,7 @@
           ],
           "reviewer": {
             "independent_of_all_authors": true,
-            "name": "Sol High 0594 Review",
+            "name": "Sol High 0594 Create Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
@@ -3687,7 +4007,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Matched editor states and lost write qualification"
+          "missing_input": "Architect review of V1 archive and restore entry evidence"
         },
         {
           "ticket": 595,
@@ -3710,7 +4030,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Unsent drafts across board navigation and archived-card posting"
+          "missing_input": "Architect review"
         },
         {
           "ticket": 596,
@@ -3733,7 +4053,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Matched relationship interaction evidence"
+          "missing_input": "Architect review"
         },
         {
           "ticket": 597,
@@ -3818,7 +4138,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Retained read-only content on transport failure and cache preference behavior"
+          "missing_input": "Architect review"
         }
       ],
       "visual_reviewer": {
@@ -3970,7 +4290,7 @@
       "wave_rule": "Qualification and two evidence packets under one compiler and browser owner. Fresh reviewer after integration."
     }
   ],
-  "assignment_revision_notes": "Revision 9 carries all six In Progress T4 stories. At the reboot checkpoint the UI Lead owns the outstanding create receipt actor and intent guard correction and integrated qualification. T5 and T6 retain their entry gates.",
+  "assignment_revision_notes": "Revision 10 carries the six In Progress T4 stories after the create guard correction and resumed browser checks. Architect review and the remaining parity questions stay in T4. T5 and T6 retain their entry gates.",
   "coauthor_assignments": [
     {
       "turn": 1,

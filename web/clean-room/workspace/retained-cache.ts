@@ -8,7 +8,6 @@ interface CacheEntry {
 
 const bytesPerMiB = 1024 * 1024;
 const defaultBudgetMiB = 256;
-const maximumBudgetMiB = 1024;
 
 export type RetainedBoardCache = ReturnType<typeof createRetainedBoardCache>;
 
@@ -73,7 +72,7 @@ export function createRetainedBoardCache() {
     },
 
     setBudget(next: number): void {
-      if (!Number.isInteger(next) || next < 0 || next > maximumBudgetMiB || next === budgetMiB) {
+      if (!Number.isSafeInteger(next) || next < 0 || next === budgetMiB) {
         return;
       }
       budgetMiB = next;
@@ -91,8 +90,7 @@ export function mountCacheSettings(toggle: HTMLButtonElement, cache: RetainedBoa
   panel.hidden = true;
   const budget = toggle.ownerDocument.createElement("input");
   budget.type = "number";
-  budget.min = "0";
-  budget.max = String(maximumBudgetMiB);
+  budget.min = "1";
   budget.step = "1";
   budget.setAttribute("aria-label", "Board cache budget in MiB");
   budget.value = String(cache.settings().budgetMiB);
@@ -113,8 +111,7 @@ export function mountCacheSettings(toggle: HTMLButtonElement, cache: RetainedBoa
   budget.addEventListener(
     "change",
     () => {
-      cache.setBudget(budget.valueAsNumber);
-      budget.value = String(cache.settings().budgetMiB);
+      if (budget.validity.valid) cache.setBudget(budget.valueAsNumber);
     },
     { signal },
   );

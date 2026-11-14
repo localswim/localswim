@@ -81,7 +81,7 @@ within the corresponding operation checks.
 | ID | Action | Expected result | Result |
 | --- | --- | --- | --- |
 | MAT-01 | Open the demo. Switch between Alpha and Beta, return to Alpha, and refresh. | Correct board and lanes appear, both pins remain, and the connection returns to `CONNECTED` without errors. Each board retains the same GUID in its URL across repeated selections. | Passed by Terry, 2026-11-14. |
-| MAT-02 | Create a card. Edit its title and multiline description, change owner and priority, and post a comment. Refresh. Start another edit and cancel it. | Saved values and comment persist exactly. Cancel preserves the previous saved value. | Pending. |
+| MAT-02 | Create a card. Edit its title and multiline description, change owner and priority, and post a comment. Refresh. Start another edit and cancel it. | Saved values and comment persist exactly. Cancel preserves the previous saved value. | Passed by Terry, 2026-11-14; reported changes persisted, including a lane change. |
 | MAT-03 | Move the card through its allowed workflow into RFR, then approve it as Terry. | The card reaches Completed with the configured approval comment. Bot cannot perform Terry's reserved approval. | Pending. |
 | MAT-04 | Add a blocking relationship between two cards, inspect both ends, follow the link, then remove it. | Both cards show the correct directional labels, navigation opens the right card, and removal clears the link. | Pending. |
 | MAT-05 | Upload an image, preview it, select it as cover, download it, then detach it. Also paste an image. | Original downloaded bytes match, cover and preview display correctly, and removal updates the card. Paste creates one attachment. | Pending. |
@@ -96,9 +96,10 @@ within the corresponding operation checks.
 - Initial load observed: Alpha, both pinned boards, empty lanes, `CONNECTED`.
 - MAT-01 passed by Terry. He also verified that each board's URL GUID stays
   consistent every time he returns to it.
-- MAT-02 through MAT-07 await the walkthrough.
+- MAT-02 passed by Terry in the Web UI. He reported that all changes appeared
+  to persist, including a lane change.
+- MAT-03 through MAT-07 await the walkthrough.
 - MAT-02 CLI creation passed on 2026-11-14. Using the Bot credential, created
   Alpha ticket `0002`, `Bot CLI creation test`, in Backlog at revision 3.
   `card get` returned the same UUID, title and exact multiline description,
   including `café — 泳ぐ`. Card UUID `87352a88-e37c-4c76-8eec-2879b884782e`.
-  Remaining MAT-02 edits, comment, refresh and cancellation are pending.

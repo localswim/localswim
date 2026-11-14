@@ -1,0 +1,91 @@
+# UI minimal acceptance test
+
+Drafted with Terry during the final UI walkthrough. Add a check only when its
+workflow and expected result are agreed; this is not the full regression suite.
+
+## Setup
+
+- Run the reviewed candidate on a separate loopback port with fresh disposable
+  data. Create and pin `UI Demo Alpha` and `UI Demo Beta` using the Terry preset.
+- Open the demo URL in Chrome. Record the commit, URL and viewport for each run.
+- Bot uses supported Chrome controls, observes each result, and records failures
+  instead of marking them passed. Use the shared diagnostics queue and native
+  CLI readback where a later check requires evidence beyond the visible UI.
+- Keep production data untouched. Terry retains final release approval.
+
+## Operation matrix
+
+Availability describes the final candidate and does not mark a test passed.
+`Yes` means the interface can perform the named operation. Parenthetical text
+limits the scope or describes the interface-specific action.
+
+| Operation group | Operation | In CLI? | In Web UI? |
+| --- | --- | --- | --- |
+| Board lifecycle | Create a board | Yes | No |
+| Board lifecycle | List/find boards and inspect a board | Yes | Yes |
+| Board lifecycle | Open a board by URL | No | Yes |
+| Board lifecycle | Rename a board | Yes | No |
+| Board lifecycle | Change board configuration | Yes | No |
+| Board lifecycle | Export a board | Yes | No |
+| Board lifecycle | Restore a board export | Yes | No |
+| Board lifecycle | Close/reopen a board | Yes | No |
+| Board lifecycle | Verify/recover saved board data | Yes | No |
+| Workspace | Pin/unpin/reorder boards | Yes | Yes |
+| Workspace | Resize/collapse the sidebar | No | Yes |
+| Workspace | Adjust the retained-board cache | No | Yes |
+| Lanes | Inspect lanes and allowed transitions | Yes | Yes (displayed lanes and permission captions) |
+| Lanes | Add/rename/retire a lane | Yes | No |
+| Lanes | Change lane key or approval-button configuration | Yes | No |
+| Lanes | Grant additional creation/movement permissions | Yes | No |
+| Cards | Create a card with title, description, owner and priority | Yes | Yes |
+| Cards | Cancel an unsaved card | No | Yes |
+| Cards | List/find/inspect cards | Yes | Yes |
+| Cards | Open/close a card drawer or direct card URL | No | Yes |
+| Cards | Edit title/description | Yes | Yes |
+| Cards | Change owner | Yes | Yes |
+| Cards | Set individual priority | Yes | Yes |
+| Cards | Set priority for multiple cards, a lane or a board | Yes | No |
+| Cards | Move a card through allowed lanes | Yes | Yes (drag/drop) |
+| Cards | Archive/unarchive a card | Yes | No |
+| Cards | Inspect archived cards | Yes | Yes (direct or linked card) |
+| Cards | Find/read Completed cards | Yes | Yes |
+| Cards | Show/hide older Completed cards in the board view | No | Yes |
+| Relationships | Create links, including during card creation | Yes | Yes |
+| Relationships | Inspect/follow links and inverse relationships | Yes (inspect) | Yes (inspect/follow) |
+| Relationships | Change link kind/direction or remove a link | Yes | Yes |
+| Hierarchy | Set/clear a parent | Yes | No |
+| Hierarchy | Inspect parent/children and follow their cards | Yes (inspect) | Yes (inspect/follow) |
+| Comments | Read/post multiline comments | Yes | Yes |
+| Attachments | Upload files to an existing card | Yes | Yes |
+| Attachments | Stage files while creating a card | No (upload after creation) | Yes |
+| Attachments | Paste an image | No (file or stdin upload) | Yes |
+| Attachments | List/inspect attachment metadata | Yes | Yes |
+| Attachments | Preview images | No | Yes |
+| Attachments | Download original bytes | Yes | Yes |
+| Attachments | Select/clear cover and display first-image fallback | Yes (select/clear) | Yes |
+| Attachments | Detach an attachment | Yes | Yes |
+| Review | Approve one card or a reviewed lane | No | Yes |
+| Ordering | Preview/apply dependency ticket order | Yes | Yes |
+| Activity | Inspect card history | Yes | Yes |
+| Activity | Filter board-wide audit history | Yes | No |
+| Live state | Observe another writer's changes | Yes (query current state) | Yes (live updates) |
+| Recovery | Handle stale writes and uncertain results | Yes (revision guards and explicit inspection) | Yes (draft retention and recovery controls) |
+| Persistence | Verify saved state after reload/restart | Yes (read back) | Yes (reload/reconnect) |
+
+The test run exercises each available interface. Rejected transitions, immutable
+Completed fields, exact text/bytes and duplicate prevention are expected outcomes
+within the corresponding operation checks.
+
+## Walkthrough checks
+
+| ID | Action | Expected result |
+| --- | --- | --- |
+| MAT-01 | Open the demo. Select `UI Demo Beta`, then `UI Demo Alpha`. | Both pinned boards are visible. The selected board's title and URL change together. Its empty lanes appear, the connection returns to `CONNECTED`, and no error is shown. |
+
+## Current walkthrough
+
+- Candidate: `8e64fa9`, integrated as `123fdf0`.
+- Demo: `http://127.0.0.1:8813`; runtime details are in the Architect's private
+  `output/final-ui-demo-20261114/demo.json`.
+- Initial load observed: Alpha, both pinned boards, empty lanes, `CONNECTED`.
+- MAT-01: awaiting Terry's walkthrough; not yet passed.

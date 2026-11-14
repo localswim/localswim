@@ -1,6 +1,7 @@
 import type { CardDto, EntityTag, SessionDto, Timestamp, Uuid, UuidV7 } from "../api-types.js";
 import type { BoardData, ReadState } from "../contracts.js";
 import type { Attachment, AttachmentWrite } from "./attachment-data.js";
+import type { AttachmentUploadViewProps } from "./attachment-upload-view.js";
 import type { CardPatch } from "./card-actions.js";
 import type { RelationshipIntent } from "./edit-relationships.js";
 import type { CommentComposerState } from "./post-comment.js";
@@ -59,6 +60,8 @@ export interface DrawerProps {
   readonly committedRelationship?: RelationshipIntent | null;
   readonly committedText?: { readonly field: "title" | "description"; readonly value: string };
   readonly onAttachment?: (action: AttachmentWrite["action"]) => void;
+  readonly upload?: Omit<AttachmentUploadViewProps, "mode" | "pasteTarget">;
+  readonly uploadKey?: Uuid;
   readonly onApprove?: () => void;
   readonly comment?: CommentComposerState;
   readonly onCommentDraft?: (text: string) => void;

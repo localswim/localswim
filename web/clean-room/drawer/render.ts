@@ -5,6 +5,7 @@ import { mountCardActions } from "./card-actions.js";
 import { mountTextEditor } from "./edit-text.js";
 import { mountRelationshipEditor } from "./edit-relationships.js";
 import { mountAttachmentView } from "./attachment-view.js";
+import { mountAttachmentUploadView } from "./attachment-upload-view.js";
 import { updateCommentComposer, wireCommentComposer } from "./post-comment.js";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, name: string, text?: string) {
@@ -293,19 +294,8 @@ export const mountDrawer: (
   const attachments = section("Attachments");
   attachments.classList.add("lsw-drawer-attachments");
   const attachmentHost = slot("div", "attachment-view");
-  attachments.append(
-    slot(
-      "div",
-      "attachments",
-      control("upload", "Upload attachment", true),
-      element(
-        "p",
-        "hint",
-        "Upload a file or paste a screen clip (Ctrl+V) anywhere in this card. Maximum 10 MiB per file.",
-      ),
-      attachmentHost,
-    ),
-  );
+  const attachmentUploadHost = slot("div", "attachment-upload-view");
+  attachments.append(attachmentUploadHost, attachmentHost);
 
   const addRelationship = control("text-action lsw-drawer-add-relationship", "+", true);
   addRelationship.setAttribute("aria-label", "Add relationship");
@@ -392,6 +382,8 @@ export const mountDrawer: (
     onCover() {},
     onDetach() {},
   });
+  let attachmentUpload: ReturnType<typeof mountAttachmentUploadView> | undefined;
+  let attachmentUploadKey: Uuid | undefined;
   let editor: ReturnType<typeof mountTextEditor> | null = null;
   let editorField: "title" | "description" | null = null;
   let editorBaseValue = "";
@@ -504,7 +496,7 @@ export const mountDrawer: (
       const first = controls[0];
       const last = controls.at(-1);
       const active = activeControl();
-      if (event.shiftKey ? active === first : active === last) {
+      if (!drawer.contains(active) || (event.shiftKey ? active === first : active === last)) {
         event.preventDefault();
         (event.shiftKey ? last : first)?.focus();
       }
@@ -539,6 +531,19 @@ export const mountDrawer: (
       onPatch: (patch) => props.onPatch?.(patch),
     });
     titleButton.disabled = editDescription.disabled = !editable || !can("edit_card");
+    if (attachmentUploadKey !== next.uploadKey) {
+      attachmentUpload?.dispose();
+      attachmentUpload = undefined;
+      attachmentUploadKey = next.uploadKey;
+    }
+    if (next.upload) {
+      const upload = { ...next.upload, mode: "drawer" as const, pasteTarget: drawer };
+      if (attachmentUpload) attachmentUpload.update(upload);
+      else attachmentUpload = mountAttachmentUploadView(attachmentUploadHost, upload);
+    } else {
+      attachmentUpload?.dispose();
+      attachmentUpload = undefined;
+    }
     attachmentView.update({
       attachments: data?.attachments ?? null,
       coverId: data?.card.cover_attachment_id ?? null,
@@ -661,6 +666,7 @@ export const mountDrawer: (
     cardActions.dispose();
     relations.dispose();
     attachmentView.dispose();
+    attachmentUpload?.dispose();
     editor?.dispose();
     const active = activeControl();
     const restore = active === document.body || drawer.contains(active);

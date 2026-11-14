@@ -30,8 +30,14 @@ import type {
   WorkspaceData,
   WorkspaceProps,
 } from "./contracts.js";
-import { readFailure } from "./http.js";
-import type { CreateDraft, CreateInput, CreateProps, CreateReceipt } from "./create/contracts.js";
+import { isUuid, readFailure } from "./http.js";
+import type {
+  CreateAttachmentProps,
+  CreateDraft,
+  CreateInput,
+  CreateProps,
+  CreateReceipt,
+} from "./create/contracts.js";
 import { mountCreate } from "./create/render.js";
 import { createCard, inspectCardCreation } from "./create/write.js";
 import type { DrawerData } from "./drawer/contracts.js";
@@ -68,6 +74,16 @@ import {
   inspectAttachmentWrite,
   type AttachmentWrite,
 } from "./drawer/attachment-data.js";
+import {
+  createAttachmentUploads,
+  type AttachmentUploadStatus,
+  type AttachmentUploadTarget,
+} from "./drawer/attachment-upload.js";
+import {
+  mountAttachmentUploadView,
+  type AttachmentUploadRow,
+  type AttachmentUploadViewProps,
+} from "./drawer/attachment-upload-view.js";
 import type { InspectionResult, MutationResult, ReadFailure } from "./contracts.js";
 import {
   startLive,
@@ -178,6 +194,10 @@ function start(host: HTMLElement): void {
   let createIntent:
     { readonly input: CreateInput; readonly actorId: Uuid; readonly view: number } | undefined;
   let createView = 0;
+  let createUploadTarget: AttachmentUploadTarget | undefined;
+  let uncommittedUploadCard: Uuid | undefined;
+  const uploadRefreshPending = new Set<Uuid>();
+  const activeCreateUploads = new Set<Uuid>();
   let createOpen = false;
   let confirmedCreation: CreateReceipt | undefined;
   let ordering: ReturnType<typeof openTicketOrder> | undefined;
@@ -211,10 +231,14 @@ function start(host: HTMLElement): void {
   checkApproval.type = "button";
   checkApproval.textContent = "Check approval status";
   checkApproval.hidden = true;
+  const checkUploads = document.createElement("button");
+  checkUploads.type = "button";
+  checkUploads.textContent = "Check attachment uploads";
+  checkUploads.hidden = true;
   const orderChecks = new Map<Uuid, HTMLButtonElement>();
   const recovery = document.createElement("div");
   recovery.className = "lsw-operation-recovery";
-  recovery.append(checkMove, checkCreate, checkApproval);
+  recovery.append(checkMove, checkCreate, checkApproval, checkUploads);
   overlay.append(notice, successNotice, recovery);
   host.append(overlay);
   const live = startLive({
@@ -274,6 +298,179 @@ function start(host: HTMLElement): void {
     if (id) singleApproval.checkStatus(route.boardId, id);
   });
 
+  const uploads = createAttachmentUploads({
+    canDispatch(target) {
+      if (
+        session?.principal_id !== target.actorId ||
+        uncommittedUploadCard === target.cardId ||
+        drawerOperations.has(target.cardId) ||
+        singleApproval.awaitsConfirmation(target.boardId) ||
+        approval.awaitsConfirmation(target.boardId) ||
+        ticketOrderInFlight(target.boardId)
+      )
+        return false;
+      const selected = isSelected(target.boardId);
+      const carried = activeCreateUploads.has(target.cardId);
+      if (!carried && (!selected || drawerKey !== target.cardId)) return false;
+      const data = selected ? last(board)?.value : null;
+      return (
+        (connection === "connected" || carried) &&
+        last(workspace)?.value.boards.some(
+          ({ id, availability }) => id === target.boardId && availability === "open",
+        ) === true &&
+        (carried ||
+          (data?.view.board.id === target.boardId && uploadsAllowed(data, target.actorId)))
+      );
+    },
+    onChange(target) {
+      if (cacheActor !== target.actorId) return;
+      if (uploads.inFlightBoard(target.boardId, target.actorId)) {
+        uploadRefreshPending.add(target.boardId);
+      }
+      if (
+        uploadRefreshPending.has(target.boardId) &&
+        !uploads.inFlightBoard(target.boardId, target.actorId)
+      ) {
+        uploadRefreshPending.delete(target.boardId);
+        if (isSelected(target.boardId)) refreshSelected();
+      }
+      render();
+    },
+    onCommitted(target, attachment, recovered) {
+      if (cacheActor !== target.actorId || !isSelected(target.boardId)) return;
+      const current = (drawerPresentation ?? last(drawerData))?.value;
+      if (
+        !recovered &&
+        attachment.active &&
+        drawerKey === target.cardId &&
+        current?.card.id === target.cardId &&
+        !current.attachments?.some(({ id }) => id === attachment.id) &&
+        current.boardRevision + 1 === attachment.revision
+      ) {
+        drawerPresentation = confirmed({
+          ...current,
+          boardRevision: attachment.revision,
+          card: { ...current.card, attachment_count: current.card.attachment_count + 1 },
+          attachments: [...(current.attachments ?? []), attachment],
+        });
+      }
+      uploadRefreshPending.add(target.boardId);
+    },
+  });
+  checkUploads.addEventListener("click", () => {
+    const target = recoverableUpload();
+    if (target) openDrawer(target.cardId);
+  });
+
+  function recoverableUpload(): AttachmentUploadTarget | undefined {
+    if (cacheActor === null || route.kind !== "board") return undefined;
+    const { boardId } = route;
+    return uploads
+      .targets(cacheActor)
+      .find(
+        (target) =>
+          target.boardId === boardId &&
+          target.cardId !== uncommittedUploadCard &&
+          target.cardId !== drawerKey &&
+          last(board)?.value.view.board.id === boardId &&
+          (last(board)?.value.view.cards.some(({ id }) => id === target.cardId) ||
+            uploads.rows(target).some(({ status }) => status === "unknown")),
+      );
+  }
+
+  function uploadsAllowed(data: BoardData, actorId: Uuid): boolean {
+    return data.policy.resource_grants.some(
+      ({ user_id, capabilities }) =>
+        user_id === actorId && capabilities.includes("manage_attachments"),
+    );
+  }
+
+  const uploadStates: Record<AttachmentUploadStatus["status"], AttachmentUploadRow["state"]> = {
+    ready: "staged",
+    "needs-file": "reselect",
+    uploading: "uploading",
+    committed: "uploaded",
+    refused: "failed",
+    invalid: "failed",
+    unknown: "uncertain",
+  };
+
+  function attachmentUploadProps(
+    target: AttachmentUploadTarget | undefined,
+    enabled: boolean,
+    stageOnly = false,
+  ): Omit<AttachmentUploadViewProps, "mode" | "pasteTarget"> {
+    const active = () => target !== undefined && target.actorId === cacheActor;
+    return {
+      enabled: enabled && target !== undefined && !uploads.busy(target),
+      message: target && !stageOnly ? uploads.progress(target) : undefined,
+      rows: target
+        ? uploads.rows(target).map(({ status, ...row }) => ({
+            ...row,
+            state: uploadStates[status],
+            canRemove: row.canRemove && (!stageOnly || createPhase === "editing"),
+            canRetry: row.canRetry && enabled && !stageOnly,
+          }))
+        : [],
+      onSelect(files) {
+        if (!target || !active() || !enabled) return;
+        const prior = new Set(uploads.rows(target).map(({ id }) => id));
+        void uploads.stage(target, files, stageOnly).then(() => {
+          if (!active()) return;
+          const added = uploads
+            .rows(target)
+            .filter(({ id, status }) => status === "ready" && !prior.has(id));
+          if (!stageOnly) void uploads.send(target, new Set(added.map(({ id }) => id)));
+          else if (createOpen && createUploadTarget === target) {
+            const count = added.length;
+            if (count > 0)
+              showSuccess(`${count} attachment${count === 1 ? "" : "s"} added to draft.`);
+          }
+        });
+      },
+      onRemove(id) {
+        if (target && active() && (!stageOnly || createPhase === "editing") && isUuid(id))
+          uploads.remove(target, id);
+      },
+      onReselect(id, file) {
+        if (target && active() && (!stageOnly || createPhase === "editing") && isUuid(id))
+          void uploads.reselect(target, id, file);
+      },
+      onInspect(id) {
+        if (target && active() && !stageOnly && isUuid(id)) void uploads.inspect(target, id);
+      },
+      onRetry(id) {
+        if (target && active() && !stageOnly && isUuid(id)) void uploads.send(target, id);
+      },
+    };
+  }
+
+  function mountCreateUpload(host: HTMLElement, initial: CreateAttachmentProps) {
+    const makeProps = ({ form, disabled }: CreateAttachmentProps): AttachmentUploadViewProps => {
+      const data = currentBoard();
+      const target = createUploadTarget;
+      return {
+        ...attachmentUploadProps(
+          target,
+          !disabled &&
+            data !== null &&
+            target !== undefined &&
+            uploadsAllowed(data, target.actorId),
+          true,
+        ),
+        mode: "create",
+        pasteTarget: form,
+      };
+    };
+    const mounted = mountAttachmentUploadView(host, makeProps(initial));
+    return {
+      update(next: CreateAttachmentProps) {
+        mounted.update(makeProps(next));
+      },
+      dispose: mounted.dispose,
+    };
+  }
+
   function currentBoard(forApproval = false): BoardData | null {
     const id = route.kind === "board" ? route.boardId : null;
     const present = last(workspace)?.value.boards.some(
@@ -282,6 +479,7 @@ function start(host: HTMLElement): void {
     return board.status === "ready" &&
       confirmedPresentation === null &&
       (forApproval || id === null || !singleApproval.awaitsConfirmation(id)) &&
+      (id === null || cacheActor === null || !uploads.inFlightBoard(id, cacheActor)) &&
       (id === null || !ticketOrderInFlight(id)) &&
       workspace.status === "ready" &&
       session !== null &&
@@ -322,6 +520,7 @@ function start(host: HTMLElement): void {
   }
 
   function clearPrincipalState(): void {
+    const abandonedUpload = createPhase === "editing" ? createUploadTarget : undefined;
     boardReadEpoch += 1;
     boardRead?.abort();
     searchRead?.abort();
@@ -336,6 +535,10 @@ function start(host: HTMLElement): void {
     creating?.dispose();
     creating = undefined;
     draft = undefined;
+    createUploadTarget = undefined;
+    uncommittedUploadCard = undefined;
+    uploadRefreshPending.clear();
+    activeCreateUploads.clear();
     createLane = undefined;
     createBoard = undefined;
     createIntent = undefined;
@@ -364,6 +567,7 @@ function start(host: HTMLElement): void {
     liveMoveRevision = undefined;
     lastActor = null;
     lastActorAt = null;
+    if (abandonedUpload) uploads.discard(abandonedUpload);
   }
 
   function setSession(next: SessionDto | null): void {
@@ -438,6 +642,7 @@ function start(host: HTMLElement): void {
   }
 
   function waitsForDrawerReceipt(boardId: Uuid, revision = Infinity): boolean {
+    if (cacheActor !== null && uploads.inFlightBoard(boardId, cacheActor)) return true;
     for (const work of drawerOperations.values()) {
       if (
         work.boardId === boardId &&
@@ -586,6 +791,7 @@ function start(host: HTMLElement): void {
     checkMove.hidden = route.kind !== "board" || !pendingMoves.has(route.boardId);
     checkCreate.hidden = createPhase !== "unknown" || createOpen;
     checkApproval.hidden = route.kind !== "board" || !recoverableApprovals.has(route.boardId);
+    checkUploads.hidden = recoverableUpload() === undefined;
     renderOrderChecks();
   }
 
@@ -769,11 +975,16 @@ function start(host: HTMLElement): void {
     if (id === null) return;
     const context = drawerContext();
     const work = drawerOperations.get(id);
+    const actor = session?.principal_id ?? cacheActor;
+    const uploadTarget =
+      route.kind === "board" && actor !== null
+        ? { boardId: route.boardId, cardId: id, actorId: actor }
+        : undefined;
     const writable =
       context !== null &&
       work === undefined &&
+      (uploadTarget === undefined || !uploads.inFlight(uploadTarget)) &&
       !singleApproval.awaitsConfirmation(context.board.view.board.id);
-    const actor = session?.principal_id ?? cacheActor;
     if (actor !== null && !commentDrafts.has(id)) {
       const saved = readCommentDraft(actor, id);
       if (saved) commentDrafts.set(id, saved);
@@ -810,6 +1021,15 @@ function start(host: HTMLElement): void {
       committedRelationship: committedRelationships.get(id),
       committedText: committedText.get(id),
       onAttachment: (action: AttachmentWrite["action"]) => void changeDrawerAttachment(action),
+      uploadKey: uploadTarget?.cardId,
+      upload: attachmentUploadProps(
+        uploadTarget,
+        uploadTarget !== undefined &&
+          writable &&
+          !context.drawer.card.archived &&
+          context.drawer.card.completed_at === null &&
+          uploadsAllowed(context.board, uploadTarget.actorId),
+      ),
       onApprove: () => singleApproval.approve(),
       comment: {
         draft: comment,
@@ -1223,6 +1443,12 @@ function start(host: HTMLElement): void {
       render();
       return;
     }
+    const target = createUploadTarget;
+    createUploadTarget = undefined;
+    if (target && uncommittedUploadCard === target.cardId) {
+      uncommittedUploadCard = undefined;
+      uploads.discard(target);
+    }
     draft = undefined;
     createLane = undefined;
     createBoard = undefined;
@@ -1245,8 +1471,11 @@ function start(host: HTMLElement): void {
       actorName: actor,
       draft,
       phase: createPhase,
-      writable: currentBoard()?.view.board.id === createBoard,
+      writable:
+        currentBoard()?.view.board.id === createBoard &&
+        (createUploadTarget === undefined || !uploads.busy(createUploadTarget)),
       error: createError,
+      attachment: mountCreateUpload,
       priorities: data.priorities,
       owners: data.users,
       targets: data.view.cards
@@ -1270,17 +1499,31 @@ function start(host: HTMLElement): void {
   }
 
   function settleCreation(receipt: CreateReceipt, originView: number, recovered = false): void {
+    const upload = createUploadTarget;
+    const fileCount = upload
+      ? uploads.rows(upload).filter(({ status }) => status === "ready").length
+      : 0;
+    if (uncommittedUploadCard === receipt.card.id) uncommittedUploadCard = undefined;
     createPhase = "editing";
     closeCreate();
     const { card } = receipt;
-    if (!isSelected(card.board_id)) return;
+    if (upload?.cardId === card.id && fileCount > 0) {
+      activeCreateUploads.add(upload.cardId);
+      void uploads.send(upload).finally(() => activeCreateUploads.delete(upload.cardId));
+    }
+    if (!isSelected(card.board_id)) {
+      return;
+    }
     notice.textContent = "";
     const reveal = createView === originView;
     confirmedCreation = recovered && reveal ? receipt : undefined;
     const lane = last(board)?.value.view.lanes.find(({ id }) => id === card.lane_id);
     const actor = last(board)?.value.view.board.actor_presentation?.human?.label ?? "Terry";
+    const created = `created #${String(card.ticket).padStart(4, "0")} card-${card.id}${lane ? ` in ${lane.key}` : ""} (by ${actor.toLowerCase()})`;
     showSuccess(
-      `created #${String(card.ticket).padStart(4, "0")} card-${card.id}${lane ? ` in ${lane.key}` : ""} (by ${actor.toLowerCase()})`,
+      fileCount > 0
+        ? `${created}. Uploading ${fileCount} attachment${fileCount === 1 ? "" : "s"}…`
+        : created,
     );
     refreshSelected();
     if (!recovered && reveal) openDrawer(receipt.card.id);
@@ -1330,9 +1573,13 @@ function start(host: HTMLElement): void {
       createPhase !== "editing" ||
       !data ||
       !actorId ||
+      (createUploadTarget !== undefined && uploads.busy(createUploadTarget)) ||
       createBoard !== data.view.board.id
     ) {
-      createError = "The board must be current before creating a card.";
+      createError =
+        createUploadTarget !== undefined && uploads.busy(createUploadTarget)
+          ? "Wait until the attachments are ready."
+          : "The board must be current before creating a card.";
       renderCreate();
       return;
     }
@@ -1345,7 +1592,7 @@ function start(host: HTMLElement): void {
       return;
     const input: CreateInput = {
       ...draft,
-      cardId: crypto.randomUUID(),
+      cardId: createUploadTarget?.cardId ?? crypto.randomUUID(),
       requestId: crypto.randomUUID(),
       boardId: data.view.board.id,
       boardEtag: data.boardEtag,
@@ -1372,6 +1619,9 @@ function start(host: HTMLElement): void {
         ) {
           throw new Error("Creation context changed");
         }
+        if (createUploadTarget && !uploads.retain(createUploadTarget)) {
+          throw new Error("Attachment recovery could not be saved");
+        }
         dispatched = true;
       });
       if (!ownsCreateIntent(intent)) return;
@@ -1380,6 +1630,7 @@ function start(host: HTMLElement): void {
         return;
       }
       if (result.outcome === "not_applied") {
+        if (createUploadTarget) uploads.releaseToDraft(createUploadTarget);
         createPhase = "editing";
         createIntent = undefined;
         createError = result.problem.detail;
@@ -1419,6 +1670,14 @@ function start(host: HTMLElement): void {
     } else {
       createLane = id;
       createBoard = data.view.board.id;
+      if (session !== null) {
+        createUploadTarget = {
+          boardId: data.view.board.id,
+          cardId: crypto.randomUUID(),
+          actorId: session.principal_id,
+        };
+        uncommittedUploadCard = createUploadTarget.cardId;
+      }
       draft = {
         title: "",
         description: "",

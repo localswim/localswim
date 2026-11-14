@@ -178,7 +178,15 @@
 }
 
 .lsw-drawer-section + .lsw-drawer-attachments {
-  margin-top: 18px;
+  margin-top: 21px;
+}
+
+.lsw-drawer-attachments .lsw-drawer-section-heading {
+  margin-bottom: 8.5px;
+}
+
+.lsw-drawer-attachments .lsw-drawer-hint {
+  margin-bottom: 8.5px;
 }
 
 .lsw-drawer-section-heading {

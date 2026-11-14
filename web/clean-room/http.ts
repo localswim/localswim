@@ -386,11 +386,16 @@ async function withReadCapability<T>(
   }
 }
 
-export async function readJson(path: string, signal?: AbortSignal): Promise<JsonRead> {
+export async function readJson(
+  path: string,
+  signal?: AbortSignal,
+  actorId?: Uuid,
+): Promise<JsonRead> {
   if (!resourcePath(path)) {
     return invalidResponse();
   }
-  const { data, headers } = await authenticatedRead(path, readDeadline(signal));
+  const { data, headers, session } = await authenticatedRead(path, readDeadline(signal));
+  if (actorId !== undefined && session.principal_id !== actorId) return invalidResponse();
   return { data, headers };
 }
 
@@ -425,9 +430,25 @@ export interface MutationOptions<T> {
   readonly beforeDispatch?: (session: SessionDto) => void;
 }
 
-export async function mutateJson<T>(
+export function mutateJson<T>(
   path: string,
   options: MutationOptions<T>,
+): Promise<MutationResult<T>> {
+  return mutate(path, options);
+}
+
+export function mutateForm<T>(
+  path: string,
+  form: Blob,
+  options: Omit<MutationOptions<T>, "body" | "method">,
+): Promise<MutationResult<T>> {
+  return mutate(path, { ...options, method: "POST" }, form);
+}
+
+async function mutate<T>(
+  path: string,
+  options: MutationOptions<T>,
+  form?: Blob,
 ): Promise<MutationResult<T>> {
   const requestId = options.requestId ?? crypto.randomUUID();
   if (!resourcePath(path) || path === "/browser-session" || !isUuid(requestId)) {
@@ -451,14 +472,15 @@ export async function mutateJson<T>(
       Authorization: `Bearer ${token}`,
       "X-Request-ID": requestId,
     });
-    if (options.body !== undefined) headers.set("Content-Type", "application/json");
+    if (form !== undefined) headers.set("Content-Type", form.type);
+    else if (options.body !== undefined) headers.set("Content-Type", "application/json");
     if (options.etag !== undefined) headers.set("If-Match", options.etag);
     if (options.boardEtag !== undefined) headers.set("X-Expected-Board-ETag", options.boardEtag);
     options.beforeDispatch?.(session);
     const response = await fetch(apiPrefix + path, {
       method: options.method,
       headers,
-      body: JSON.stringify(options.body),
+      body: form ?? JSON.stringify(options.body),
       signal,
       mode: "same-origin",
       credentials: "omit",

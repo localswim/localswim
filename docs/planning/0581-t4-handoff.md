@@ -1,5 +1,10 @@
 # T4 drawer workflows
 
+The Architect accepted this turn in [PR #4](https://github.com/localswim/localswim/pull/4).
+The squash commit `b589700` matches reviewed head `d11f280` and all six cards
+are Ready for Review. The remaining entries below record the qualification
+questions as they stood during the turn.
+
 T4 started from the accepted T3 integration commit `e17790b`. The Architect
 released #0594–#0599 and the live board recorded their move to In Progress at
 revisions 6077–6082. The nine packets in staffing revision 4 delivered their

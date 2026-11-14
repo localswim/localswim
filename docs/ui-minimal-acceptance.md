@@ -1,7 +1,7 @@
 # UI minimal acceptance test
 
-Drafted with Terry during the final UI walkthrough. Add a check only when its
-workflow and expected result are agreed; this is not the full regression suite.
+Agreed with Terry during the final UI walkthrough. All seven minimal checks
+passed on 2026-11-14. Record each future run against its candidate and demo data.
 
 ## Setup
 
@@ -72,7 +72,7 @@ limits the scope or describes the interface-specific action.
 | Recovery | Handle stale writes and uncertain results | Yes (revision guards and explicit inspection) | Yes (draft retention and recovery controls) |
 | Persistence | Verify saved state after reload/restart | Yes (read back) | Yes (reload/reconnect) |
 
-The test run exercises each available interface. Rejected transitions, immutable
+The matrix inventories available interfaces. Rejected transitions, immutable
 Completed fields, exact text/bytes and duplicate prevention are expected outcomes
 within the corresponding operation checks.
 
@@ -86,7 +86,7 @@ within the corresponding operation checks.
 | MAT-04 | Add a blocking relationship between two cards, inspect both ends, follow the link, then remove it. | Both cards show the correct directional labels, navigation opens the right card, and removal clears the link. | Passed by Terry and Bot, 2026-11-14. |
 | MAT-05 | Upload an image, preview it, select it as cover, download it, then detach it. Also paste an image. | Original downloaded bytes match, cover and preview display correctly, and removal updates the card. Paste creates one attachment. | Web UI passed by Terry, 2026-11-14. |
 | MAT-06 | Find a card by title and comment text, open the result, and clear search. | Results and opened cards are correct. Clearing search restores the board. | Search passed by Terry, 2026-11-14. |
-| MAT-07 | Make a Bot CLI edit while Terry has an unsaved draft. Exercise a stale save and a brief disconnect. | Live changes appear, the draft survives, stale-save feedback is clear, and reconnect recovers without duplicate writes. | Pending. |
+| MAT-07 | Make a Bot CLI edit while Terry has an unsaved draft. Exercise a stale save and a brief disconnect. | Live changes appear, the draft survives, stale-save feedback is clear, and reconnect recovers without duplicate writes. | Passed by Terry and Bot, 2026-11-14. |
 
 ## Current walkthrough
 
@@ -114,7 +114,12 @@ within the corresponding operation checks.
   survive.` in card `0004`'s editor. Bot saved a conflicting description at
   revision 22. Terry's Save displayed `This field changed. Copy your draft or
   cancel and reopen the editor.` and retained his draft. CLI readback confirmed
-  Bot's saved description and revision 22 remained intact. Disconnect is pending.
+  Bot's saved description and revision 22 remained intact.
+- MAT-07 reconnect portion passed. Bot gracefully stopped the isolated demo,
+  verified port 8813 was offline, and restarted the same executable/data with
+  the same credentials. Terry confirmed the editor text was unchanged and
+  supplied a screenshot showing `CONNECTED` after closing the drawer. CLI
+  readback confirmed the saved description and revision 22 survived the restart.
 - MAT-04 addition passed in Web UI per Terry. Native readback found
   `0003 blocks 0002`. Bot created `0004 blocks 0002` through the CLI and
   verified relationship `c0e452aa-889c-4126-adf6-869a9492f771` from both cards.

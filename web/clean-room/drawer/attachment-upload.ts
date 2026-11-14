@@ -92,8 +92,39 @@ export interface AttachmentUploadStatus {
 }
 
 function validName(name: unknown): name is string {
-  // Native multipart encoding escapes these characters before Go sees the filename.
-  return isBoundedText(name, 1, 1024) && !/["\\\r\n\u0000]/u.test(name);
+  return isBoundedText(name, 1, 1024);
+}
+
+function uploadForm(
+  target: AttachmentUploadTarget,
+  original: FileIdentity,
+  cardEtag: EntityTag,
+  bytes: ArrayBuffer,
+): Blob {
+  const boundary = `localswim-${crypto.randomUUID()}`;
+  const parts = [
+    ["id", original.id],
+    ["card_id", target.cardId],
+    ["expected_card_etag", cardEtag],
+  ].map(
+    ([name, value]) =>
+      `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+  );
+  // The native parser accepts RFC 2231 parameters. Keep raw filename bytes out
+  // of the header and retain them exactly after UTF-8 percent decoding.
+  const filename = encodeURIComponent(original.name).replace(
+    /[!'()*]/gu,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return new Blob(
+    [
+      ...parts,
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename*=UTF-8''${filename}\r\nContent-Type: application/octet-stream\r\n\r\n`,
+      bytes,
+      `\r\n--${boundary}--\r\n`,
+    ],
+    { type: `multipart/form-data; boundary=${boundary}` },
+  );
 }
 
 async function fileDigest(bytes: ArrayBuffer): Promise<string> {
@@ -379,11 +410,7 @@ export function createAttachmentUploads(options: UploadOptions) {
       return false;
     }
     const { boardEtag, cardEtag, revision } = preconditions;
-    const form = new FormData();
-    form.set("id", original.id);
-    form.set("card_id", target.cardId);
-    form.set("expected_card_etag", cardEtag);
-    form.set("file", new Blob([bytes], { type: file.type }), original.name);
+    const form = uploadForm(target, original, cardEtag, bytes);
     let failedToSave = false;
     const result = await mutateForm("/attachments", form, {
       boardEtag,

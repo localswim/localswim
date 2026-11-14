@@ -439,7 +439,7 @@ export function mutateJson<T>(
 
 export function mutateForm<T>(
   path: string,
-  form: FormData,
+  form: Blob,
   options: Omit<MutationOptions<T>, "body" | "method">,
 ): Promise<MutationResult<T>> {
   return mutate(path, { ...options, method: "POST" }, form);
@@ -448,7 +448,7 @@ export function mutateForm<T>(
 async function mutate<T>(
   path: string,
   options: MutationOptions<T>,
-  form?: FormData,
+  form?: Blob,
 ): Promise<MutationResult<T>> {
   const requestId = options.requestId ?? crypto.randomUUID();
   if (!resourcePath(path) || path === "/browser-session" || !isUuid(requestId)) {
@@ -472,7 +472,8 @@ async function mutate<T>(
       Authorization: `Bearer ${token}`,
       "X-Request-ID": requestId,
     });
-    if (options.body !== undefined) headers.set("Content-Type", "application/json");
+    if (form !== undefined) headers.set("Content-Type", form.type);
+    else if (options.body !== undefined) headers.set("Content-Type", "application/json");
     if (options.etag !== undefined) headers.set("If-Match", options.etag);
     if (options.boardEtag !== undefined) headers.set("X-Expected-Board-ETag", options.boardEtag);
     options.beforeDispatch?.(session);

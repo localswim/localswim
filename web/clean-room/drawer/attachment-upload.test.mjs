@@ -110,15 +110,17 @@ function fixture(/** @type {import("node:test").TestContext} */ context) {
       }
       if (request.method === "POST") {
         assert.ok(url.endsWith("/attachments"));
-        assert.equal(headers.get("Content-Type"), null);
-        assert.ok(request.body instanceof FormData);
-        const id = request.body.get("id");
-        const file = request.body.get("file");
+        assert.ok(request.body instanceof Blob);
+        const contentType = headers.get("Content-Type");
+        assert.ok(contentType?.startsWith("multipart/form-data; boundary=localswim-"));
+        const form = await new Response(request.body, { headers }).formData();
+        const id = form.get("id");
+        const file = form.get("file");
         assert.ok(typeof id === "string");
         assert.ok(file instanceof File);
-        assert.equal(request.body.get("card_id"), card.id);
+        assert.equal(form.get("card_id"), card.id);
         const boardEtag = headers.get("X-Expected-Board-ETag");
-        const cardEtag = request.body.get("expected_card_etag");
+        const cardEtag = form.get("expected_card_etag");
         assert.equal(boardEtag, boardTag(revision));
         assert.equal(cardEtag, cardTag(cardRevision));
         assert.ok(journal.get(`localswimAttachmentUploads:${target.actorId}`)?.includes(requestId));
@@ -214,7 +216,7 @@ void test("recover a partial batch by original UUID, verify persisted bytes, and
   const uploads = newController();
   const source = [
     new File(["first"], "first.txt"),
-    new File(["second"], "seco\u0301nd.txt"),
+    new File(["second"], 'seco\u0301nd"\\\r\n\u0000.txt'),
     new File([new Uint8Array([0, 119, 255, 64])], "third.bin"),
   ];
   await uploads.stage(target, source);

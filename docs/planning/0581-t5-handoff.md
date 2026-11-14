@@ -29,9 +29,10 @@ wait for explicit retry, and reload requires the original file contents.
 - Four focused tests exercise the upload and reload journal, mismatched or
   missing original lookup, file reselection, storage failures, cancellation,
   and explicit resume. The existing late-create tests remain enabled.
-- The new upload transport uses browser multipart encoding. It refuses
-  filenames containing characters that the transport cannot pass through
-  unchanged. The client preserves accepted UTF-8 filenames and file bytes.
+- The upload transport uses the existing multipart parser's extended UTF-8
+  filename parameter. It percent-encodes the header value and preserves
+  the original filename and file bytes. Browser adapter and native HTTP
+  tests cover decomposed Unicode, quote, backslash, CR/LF and NUL.
 
 - On the rebuilt candidate, native image paste staged a PNG in create and
   preserved ordinary pasted description text. Cancel created no card. Pasting
@@ -44,6 +45,10 @@ wait for explicit retry, and reload requires the original file contents.
   material difference in attachment controls, previews or staging layout.
   See the `v1/v2-final-dialog-crop.jpg` and `v1/v2-final-drawer-crop.jpg`
   pairs and the manifest in `output/t5`.
+- A spacing retest measured the drawer heading, picker and helper within
+  0.2 CSS pixels of V1 with the first preview position unchanged in V2.
+  The create fields measured within 0.5 CSS pixels. Corrected crops are
+  `v2-spacing-drawer-crop.jpg` and `v2-spacing-dialog-crop.jpg`.
 
 The two create-upload runs predate final corrections for storage failure,
 recovered receipt presentation and busy reselection. Those cases have

@@ -103,6 +103,10 @@ within the corresponding operation checks.
   Bot's attempted move to Completed returned HTTP 403 and exit 1. Readback
   retained RFR, revision 14 and zero comments, matching the pre-attempt state.
 - MAT-04 through MAT-07 await the walkthrough.
+- MAT-04 addition passed in Web UI per Terry. Native readback found
+  `0003 blocks 0002`. Bot created `0004 blocks 0002` through the CLI and
+  verified relationship `c0e452aa-889c-4126-adf6-869a9492f771` from both cards.
+  Relationship navigation and removal remain pending.
 - MAT-02 CLI creation passed on 2026-11-14. Using the Bot credential, created
   Alpha ticket `0002`, `Bot CLI creation test`, in Backlog at revision 3.
   `card get` returned the same UUID, title and exact multiline description,

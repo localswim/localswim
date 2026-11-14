@@ -63,14 +63,20 @@ function makeHeader() {
   clear.setAttribute("aria-label", "Clear search");
   const found = element("span", "lsw-workspace-card-found");
   found.setAttribute("role", "status");
-  search.append(searchField, shortcut, clear, found);
+  const entry = element("div", "lsw-workspace-search-entry");
+  entry.append(searchField, shortcut, clear);
+  search.append(entry, found);
 
   const build = element("span", "lsw-workspace-build");
   const latest = element("span", "lsw-workspace-latest");
   const clock = element("time", "lsw-workspace-clock");
   const status = element("span", "lsw-workspace-connection");
   status.setAttribute("role", "status");
-  header.append(indicator, brand, title, search, build, latest, clock, status);
+  const controls = element("div", "lsw-workspace-header-controls");
+  controls.append(search, status);
+  const metadata = element("div", "lsw-workspace-header-metadata");
+  metadata.append(build, latest, clock);
+  header.append(indicator, brand, title, controls, metadata);
   return { header, title, searchField, shortcut, clear, found, build, latest, clock, status };
 }
 

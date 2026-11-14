@@ -1526,7 +1526,6 @@ function start(host: HTMLElement): void {
         : created,
     );
     refreshSelected();
-    if (!recovered && reveal) openDrawer(receipt.card.id);
   }
 
   function showSuccess(message: string): void {

@@ -1,7 +1,7 @@
 {
   "title": "Epic #0581 clean-room V1-identical TypeScript UI",
-  "status": "T1 and T2 are in Ready for Review. T2 PR #1 was squash-merged as 9f9ced3. Terry accepted the T2 comparison and the Architect opened T3. Cards #0585–#0593 are In Progress during candidate qualification.",
-  "assignment_revision": 11,
+  "status": "T1 through T5 are in Ready for Review. The Architect accepted T5 in PR #5 squash 43d0807 and opened T6. #0601 and scoped corrections #0602 through #0604 are In Progress.",
+  "assignment_revision": 12,
   "story_references_are_ticket_numbers": false,
   "source_policy": {
     "target": "Exact visible V1 appearance and behavior through fresh TypeScript presentation and V2 API",
@@ -4292,74 +4292,154 @@
           "wave_rule": "Qualification and two evidence packets under one compiler and browser owner. Fresh reviewer after integration."
         }
       ]
+    },
+    {
+      "revision": 11,
+      "status": "Revision 11 follows Architect acceptance of T4 via PR #4 and opens T5 at b589700. #0600 is In Progress from live revision 6098. T6 awaits T5 acceptance and separate release.",
+      "assignments": [
+        {
+          "remaining_turn": 1,
+          "original_turn": 5,
+          "cards": [
+            {
+              "ticket": 600,
+              "story": "R17",
+              "scope": "Epic0581/R17",
+              "author": {
+                "name": "Sol Medium 0600 Staging",
+                "scope": "picker/paste/staging presentation",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [
+                {
+                  "name": "Sol High 0600 Recovery",
+                  "scope": "upload/recovery transition coordinator",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                }
+              ],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0600 Recovery Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R09",
+                "R16"
+              ],
+              "readiness": "In Progress at revision 6098. R09 and R16 accepted; Architect released T5.",
+              "missing_input": "Architect review and integration",
+              "support_reviewers": [
+                {
+                  "name": "Sol High 0600 Staging Review",
+                  "model": "gpt-6.1-sol",
+                  "reasoning": "high",
+                  "scope": "picker, paste and cancellation review"
+                }
+              ]
+            }
+          ],
+          "visual_reviewer": {
+            "name": "Terra Medium T5 Visual Review",
+            "reasoning": "medium",
+            "model": "gpt-6.1-terra"
+          },
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator"
+        },
+        {
+          "remaining_turn": 2,
+          "original_turn": 6,
+          "cards": [
+            {
+              "ticket": 601,
+              "story": "R20",
+              "scope": "Epic0581/R20",
+              "author": {
+                "name": "Sol High 0601 Qualification",
+                "scope": "Bounded integrated qualification",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "coauthors": [],
+              "evidence_workers": [
+                {
+                  "name": "Sol High 0601 Coverage",
+                  "scope": "independent behavior coverage evidence",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                },
+                {
+                  "name": "Sol High 0601 Release",
+                  "scope": "release assets and provenance evidence",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                }
+              ],
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0601 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "prerequisites": [
+                "R04",
+                "R05",
+                "R07",
+                "R08",
+                "R09",
+                "R10",
+                "R11",
+                "R12",
+                "R13",
+                "R14",
+                "R15",
+                "R17",
+                "R18",
+                "R19"
+              ],
+              "readiness": "Ready for Work. T3 dependencies accepted. T4 and T5 remain pending.",
+              "missing_input": "T5 acceptance and Architect T6 release"
+            }
+          ],
+          "visual_reviewer": {
+            "name": "Terra Medium T6 Visual Review",
+            "reasoning": "medium",
+            "model": "gpt-6.1-terra"
+          },
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "wave_rule": "Qualification and two evidence packets under one compiler and browser owner. Fresh reviewer after integration."
+        }
+      ]
     }
   ],
   "current_rolling_assignments": [
     {
       "remaining_turn": 1,
-      "original_turn": 5,
-      "cards": [
-        {
-          "ticket": 600,
-          "story": "R17",
-          "scope": "Epic0581/R17",
-          "author": {
-            "name": "Sol Medium 0600 Staging",
-            "scope": "picker/paste/staging presentation",
-            "reasoning": "medium",
-            "model": "gpt-6.1-sol"
-          },
-          "coauthors": [
-            {
-              "name": "Sol High 0600 Recovery",
-              "scope": "upload/recovery transition coordinator",
-              "reasoning": "high",
-              "model": "gpt-6.1-sol"
-            }
-          ],
-          "reviewer": {
-            "independent_of_all_authors": true,
-            "name": "Sol High 0600 Recovery Review",
-            "reasoning": "high",
-            "model": "gpt-6.1-sol"
-          },
-          "prerequisites": [
-            "R09",
-            "R16"
-          ],
-          "readiness": "In Progress at revision 6098. R09 and R16 accepted; Architect released T5.",
-          "missing_input": "Architect review and integration",
-          "support_reviewers": [
-            {
-              "name": "Sol High 0600 Staging Review",
-              "model": "gpt-6.1-sol",
-              "reasoning": "high",
-              "scope": "picker, paste and cancellation review"
-            }
-          ]
-        }
-      ],
-      "visual_reviewer": {
-        "name": "Terra Medium T5 Visual Review",
-        "reasoning": "medium",
-        "model": "gpt-6.1-terra"
-      },
-      "primary": {
-        "reasoning": "high",
-        "name": "Clean Room UI Lead",
-        "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
-        "model": "gpt-6.1-sol"
-      },
-      "acceptance": {
-        "reasoning": "high",
-        "name": "Architect",
-        "scope": "Independent turn review, RFR authority and next-turn release",
-        "model": "gpt-6.1-sol"
-      },
-      "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator"
-    },
-    {
-      "remaining_turn": 2,
       "original_turn": 6,
       "cards": [
         {
@@ -4409,8 +4489,62 @@
             "R18",
             "R19"
           ],
-          "readiness": "Ready for Work. T3 dependencies accepted. T4 and T5 remain pending.",
-          "missing_input": "T5 acceptance and Architect T6 release"
+          "readiness": "In Progress from revision 6102. T5 accepted, T6 released, and prerequisites #0602 through #0604 tracked.",
+          "missing_input": "Architect PR review, integration verification and acceptance after #0602 through #0604"
+        },
+        {
+          "ticket": 602,
+          "story": "R20 defect",
+          "scope": "Desktop Needs Terry title wrap correction",
+          "author": {
+            "name": "UI Lead",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high"
+          },
+          "reviewer": {
+            "name": "Sol High 0602 Review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "independent_of_all_authors": true
+          },
+          "readiness": "In Progress from revision 6105. Integrated comparison confirmed defect.",
+          "missing_input": "Architect acceptance of the independently reviewed 13-width heading comparison"
+        },
+        {
+          "ticket": 603,
+          "story": "R20 defect",
+          "scope": "Workspace header and active search geometry at desktop breakpoints",
+          "author": {
+            "name": "UI Lead",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high"
+          },
+          "reviewer": {
+            "name": "Sol High 0603 Review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "independent_of_all_authors": true
+          },
+          "readiness": "In Progress from revision 6108. Integrated comparison confirmed defect.",
+          "missing_input": "Architect acceptance of the independently reviewed responsive comparisons"
+        },
+        {
+          "ticket": 604,
+          "story": "R20 defect",
+          "scope": "Return to the board after a confirmed ordinary create while preserving attachment continuation and recovery",
+          "author": {
+            "name": "UI Lead",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high"
+          },
+          "reviewer": {
+            "name": "Sol High 0604 Review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "independent_of_all_authors": true
+          },
+          "readiness": "In Progress from revision 6112. Paired Alpha create confirmed defect.",
+          "missing_input": "Architect acceptance of the independently reviewed paired create and recovery evidence"
         }
       ],
       "visual_reviewer": {
@@ -4433,7 +4567,7 @@
       "wave_rule": "Qualification and two evidence packets under one compiler and browser owner. Fresh reviewer after integration."
     }
   ],
-  "assignment_revision_notes": "Revision 11 follows Architect acceptance of T4 via PR #4 and opens T5 at b589700. #0600 is In Progress from live revision 6098. T6 awaits T5 acceptance and separate release.",
+  "assignment_revision_notes": "Revision 12 follows T5 acceptance and opens T6 at 43d0807. #0601 entered In Progress at revision 6102. Scoped defects #0602 through #0604 block qualification acceptance and entered In Progress at revisions 6105, 6108 and 6112.",
   "coauthor_assignments": [
     {
       "turn": 1,

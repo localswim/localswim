@@ -78,9 +78,15 @@ within the corresponding operation checks.
 
 ## Walkthrough checks
 
-| ID | Action | Expected result |
-| --- | --- | --- |
-| MAT-01 | Open the demo. Select `UI Demo Beta`, then `UI Demo Alpha`. | Both pinned boards are visible. The selected board's title and URL change together. Its empty lanes appear, the connection returns to `CONNECTED`, and no error is shown. |
+| ID | Action | Expected result | Result |
+| --- | --- | --- | --- |
+| MAT-01 | Open the demo. Switch between Alpha and Beta, return to Alpha, and refresh. | Correct board and lanes appear, both pins remain, and the connection returns to `CONNECTED` without errors. Each board retains the same GUID in its URL across repeated selections. | Passed by Terry, 2026-11-14. |
+| MAT-02 | Create a card. Edit its title and multiline description, change owner and priority, and post a comment. Refresh. Start another edit and cancel it. | Saved values and comment persist exactly. Cancel preserves the previous saved value. | Pending. |
+| MAT-03 | Move the card through its allowed workflow into RFR, then approve it as Terry. | The card reaches Completed with the configured approval comment. Bot cannot perform Terry's reserved approval. | Pending. |
+| MAT-04 | Add a blocking relationship between two cards, inspect both ends, follow the link, then remove it. | Both cards show the correct directional labels, navigation opens the right card, and removal clears the link. | Pending. |
+| MAT-05 | Upload an image, preview it, select it as cover, download it, then detach it. Also paste an image. | Original downloaded bytes match, cover and preview display correctly, and removal updates the card. Paste creates one attachment. | Pending. |
+| MAT-06 | Find a card by title and comment text, open the result, clear search, and toggle older Completed cards. | Results and opened cards are correct. Clearing search restores the board. The toggle changes older Completed visibility. | Pending. |
+| MAT-07 | Make a Bot CLI edit while Terry has an unsaved draft. Exercise a stale save and a brief disconnect. | Live changes appear, the draft survives, stale-save feedback is clear, and reconnect recovers without duplicate writes. | Pending. |
 
 ## Current walkthrough
 
@@ -88,4 +94,6 @@ within the corresponding operation checks.
 - Demo: `http://127.0.0.1:8813`; runtime details are in the Architect's private
   `output/final-ui-demo-20261114/demo.json`.
 - Initial load observed: Alpha, both pinned boards, empty lanes, `CONNECTED`.
-- MAT-01: awaiting Terry's walkthrough; not yet passed.
+- MAT-01 passed by Terry. He also verified that each board's URL GUID stays
+  consistent every time he returns to it.
+- MAT-02 through MAT-07 await the walkthrough.

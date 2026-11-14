@@ -4495,7 +4495,7 @@
         {
           "ticket": 602,
           "story": "R20 defect",
-          "scope": "Desktop Needs Terry title wrap correction",
+          "scope": "Shared desktop lane heading, count, action and grant placement, including Needs Terry and sidebar resize",
           "author": {
             "name": "UI Lead",
             "model": "gpt-6.1-sol",
@@ -4508,7 +4508,7 @@
             "independent_of_all_authors": true
           },
           "readiness": "In Progress from revision 6105. Integrated comparison confirmed defect.",
-          "missing_input": "Architect acceptance of the independently reviewed 13-width heading comparison"
+          "missing_input": "Architect acceptance of the independently reviewed shared desktop and sidebar-resize comparison"
         },
         {
           "ticket": 603,

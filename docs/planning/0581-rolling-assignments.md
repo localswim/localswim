@@ -11,7 +11,7 @@ Each assignment uses its named epic #0581 story. Sol Medium is GPT-6.1 Sol at me
 | Card | Authors and evidence workers | Fresh reviewer | Readiness |
 | --- | --- | --- | --- |
 | #0601 / R20 | UI Lead<br>Sol High 0601 Coverage<br>Sol High 0601 Release | Sol High 0601 Review | In Progress. T5 accepted. #0602 through #0604 are prerequisites for acceptance. |
-| #0602 / R20 defect | UI Lead | Sol High 0602 Review | In Progress at revision 6105. The 13-width heading sweep and independent review passed. Architect review and acceptance remain. |
+| #0602 / R20 defect | UI Lead | Sol High 0602 Review | In Progress. Architect expanded scope to shared lane headers. Paired desktop and sidebar-resize checks and independent source review passed. Architect acceptance remains. |
 | #0603 / R20 defect | UI Lead | Sol High 0603 Review | In Progress at revision 6108. Desktop, narrow and transitional header comparisons and independent review passed. Architect review and acceptance remain. |
 | #0604 / R20 defect | UI Lead | Sol High 0604 Review | In Progress at revision 6112. Paired create and recovery verification and independent review passed. Architect review and acceptance remain. |
 

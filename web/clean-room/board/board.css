@@ -86,6 +86,7 @@
   grid-template-rows: subgrid;
   min-width: 0;
   min-height: 0;
+  overflow: clip;
   border-top: 3px solid var(--lsw-board-lane-accent);
   border-radius: 8px;
   background: #eaebef;
@@ -103,14 +104,15 @@
 
 .lsw-board-lane-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 4px;
   min-width: 0;
-  padding: 9px 4px 0 12px;
+  padding: 9px 12px 3.5px;
 }
 
 .lsw-board-lane-title {
-  flex: 1 1 auto;
+  flex: 1 1 100%;
   min-width: 0;
   margin: 0;
   padding-top: 1px;
@@ -149,6 +151,8 @@
 .lsw-board-lane-create {
   width: 26px;
   height: 26px;
+  margin-left: auto;
+  margin-right: 2px;
   color: #566078;
   font-size: 22px;
   font-weight: 700;
@@ -156,7 +160,8 @@
 }
 
 .lsw-board-lane-action {
-  flex: none;
+  flex: 0 0 100%;
+  padding: 3px 0 0 4px;
 }
 
 .lsw-board-lane-action:has(.lsw-board-lane-approve) {
@@ -233,15 +238,6 @@
     80% 91%,
     29% 91%
   );
-}
-
-.lsw-board-lane-heading:has(.lsw-board-lane-action:not([hidden])) .lsw-board-lane-create {
-  width: 24px;
-}
-
-.lsw-board-lane-heading:not(:has(.lsw-board-lane-action:not([hidden]))) {
-  column-gap: 6px;
-  padding-right: 12px;
 }
 
 .lsw-board-lane-permissions {
@@ -439,33 +435,77 @@
   content: "";
 }
 
-@container (max-width: 170px) {
-  .lsw-board-lane-heading {
-    flex-wrap: wrap;
-    gap: 4px;
-    padding-right: 12px;
+@media (width > 1433px) {
+  @container (width > 130px) {
+    .lsw-board-lane-heading {
+      flex-wrap: nowrap;
+      column-gap: 8px;
+      padding-bottom: 3px;
+    }
+
+    .lsw-board-lane-title {
+      flex: 0 1 auto;
+      min-width: auto;
+      padding: 0;
+      overflow-wrap: normal;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      line-height: 1.15;
+    }
+
+    .lsw-board-lane-count {
+      min-width: 25.6px;
+      height: 25.6px;
+      margin-left: auto;
+      font-size: 14.25px;
+      letter-spacing: 0.3px;
+    }
+
+    .lsw-board-lane-create {
+      flex: 0 1 30px;
+      width: auto;
+      min-width: 14px;
+      height: 30px;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+    }
+
+    .lsw-board-lane-action {
+      flex: none;
+      margin-left: 4px;
+      padding: 0;
+    }
   }
 
+  .lsw-board-lane-permissions {
+    min-height: 38px;
+    padding-bottom: 4px;
+  }
+
+  .lsw-board-lanes:has(.lsw-board-completed-toggle:not([hidden])) .lsw-board-lane-context {
+    min-height: 57px;
+  }
+
+  .lsw-board-completed-toggle {
+    margin-top: -4px;
+    padding-bottom: 11px;
+  }
+}
+
+@media (1433px < width <= 1570px) {
   .lsw-board-lanes:not(:has(.lsw-board-lane-action:not([hidden]))) .lsw-board-lane-heading {
-    padding-bottom: 2.833px;
+    min-height: 63.75px;
   }
+}
 
-  .lsw-board-lane-title,
-  .lsw-board-lane-action {
-    flex-basis: 100%;
-  }
-
-  .lsw-board-lane-create {
-    margin-left: auto;
-    margin-right: 2px;
-  }
-
-  .lsw-board-lane-heading:has(.lsw-board-lane-action:not([hidden])) .lsw-board-lane-create {
-    width: 26px;
-  }
-
-  .lsw-board-lane-action {
-    padding: 3px 0 0 4px;
+@container (width < 165px) {
+  @media (width > 1433px) {
+    .lsw-board-lane[data-role="needs_input"]:has(.lsw-board-lane-create[hidden])
+      .lsw-board-lane-title {
+      padding-inline-end: 1px;
+    }
   }
 }
 
@@ -475,16 +515,11 @@
   }
 }
 
-@container (150.5px < width <= 170px) {
-  .lsw-board-lane[data-role="needs_input"] .lsw-board-lane-title {
-    flex: 0 0 min(107px, calc(100cqw - 57.65px));
-    margin-right: auto;
-  }
-}
-
-@container (150.5px < width < 164.65px) {
-  .lsw-board-lane[data-role="needs_input"] .lsw-board-lane-title {
-    padding-right: clamp(0px, calc(100cqw - 151.65px), 13px);
+@media (width > 1433px) {
+  @container (130px < width <= 131px) {
+    .lsw-board-lane[data-role="needs_input"] .lsw-board-lane-title {
+      padding-right: 0;
+    }
   }
 }
 

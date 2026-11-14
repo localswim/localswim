@@ -33,9 +33,18 @@ That build adds header markup and layout only. The final lane-heading sweep
 used `t6-review.exe` (SHA-256
 `2df80117b28fd07095b1a19cc385e67f6e5962da6f7e1487360da9af57e57ef8`).
 It adds the measured board title CSS. The final transitional comparison
-and release audit used `t6-candidate-final.exe` (SHA-256
+used `t6-candidate-final.exe` (SHA-256
 `a1064acfdb55319c6a334fd8066b243aa7c670fb9d7fe3e1e3a4e1da2f74924b`).
-Its only product delta is the transitional header and search layout.
+The shared lane comparison used
+`t6-lanes-reviewed.exe` (SHA-256
+`cd6652f83f3f578e1faf0b53cbe818ec93d8265366154c2916c17e8980942d5a`).
+The scroll and card-position comparison used
+`t6-lanes-publish.exe` (SHA-256
+`6437f7be6220d08ea6b7f7d61e8e1f07b769868b12c2f05cf22ade269aca22b1`).
+The final custom-title comparison and release audit used
+`t6-lane-acceptance.exe` (SHA-256
+`e670f9d815fda2539b8d2e67ae8fe9af0d50bda3bfa2edf5bbd32409b7cbaa6d`).
+These builds change only shared board layout CSS.
 The manifest maps captures and readback to their corresponding executables.
 
 ## Scoped corrections
@@ -52,6 +61,32 @@ The final empty Beta sweep at 900 pixels high matched line count at all 13
 sampled widths from 1280 through 1600, including the second two-line interval
 verified at 1434, 1440, 1500 and 1532 pixels. Independent source review
 verified scope and generated CSS.
+
+Architect review of initial PR #6 identified shared lane header differences.
+The expanded #0602 moves all lane titles and controls to their desktop rows
+above the observed viewport and lane-width thresholds. The paired Alpha and
+Beta runs match title line counts, count and action rows, and grant-row
+position at 1440 and 1706×900. The viewport override measured 1706 CSS pixels
+as the nearest sample to the earlier 1707-pixel Chrome capture. At 1432 and
+1434 there is the same stacked-to-side-by-side switch. At 1708, keyboard End
+narrows Alpha's lanes to 118 pixels and stacks controls in both versions.
+Home restores the 165-pixel side-by-side state. The stacked count differs by
+2 pixels vertically in the resize case. Alpha's unrelated card counts differ,
+which affects the horizontal width of a count and controls to its right.
+
+At matched zero scroll, the follow-up matched desktop horizontal scroll
+extent in both fixtures. At 1706, populated Alpha's client and scroll widths
+are both 1394 pixels in V1 and V2. Its first Backlog card begins at y177.6
+and y176.9 respectively. At 1440, both widths are 1128 pixels and cards
+begin at y201.6 and y201.3. On mobile both preserve the horizontal board
+scroll. The partially clipped Backlog reorder action retains its keyboard
+tab stop in both versions.
+
+With the same long unbroken title on disposable Beta, both browsers wrapped
+the title across four lines at 1432 with the count and Add card visible.
+At 1434, 1440 and 1706, both showed one clipped line and clipped the count
+and Add card completely. Enter on the keyboard action opened New card in
+both browsers without creating a card.
 
 #0603 matched the two desktop header breaks with the search empty and with
 results visible. At measured widths of 1280, 1282, 1366, 1400, 1402, 1440 and

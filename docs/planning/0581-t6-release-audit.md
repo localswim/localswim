@@ -154,7 +154,7 @@ in the [qualification handoff](0581-t6-handoff.md).
 | `index.html` | 381 | 242 |
 | `app.mjs` | 192721 | 61926 |
 | `app.css` | 30219 | 6522 |
-| `board.css` | 7605 | 2178 |
+| `board.css` | 7944 | 2271 |
 | `inter-variable.woff2` | 352240 | 351777 |
 | `OFL.txt` | 4380 | 1969 |
 

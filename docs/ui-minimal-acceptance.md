@@ -82,7 +82,7 @@ within the corresponding operation checks.
 | --- | --- | --- | --- |
 | MAT-01 | Open the demo. Switch between Alpha and Beta, return to Alpha, and refresh. | Correct board and lanes appear, both pins remain, and the connection returns to `CONNECTED` without errors. Each board retains the same GUID in its URL across repeated selections. | Passed by Terry, 2026-11-14. |
 | MAT-02 | Create a card. Edit its title and multiline description, change owner and priority, and post a comment. Refresh. Start another edit and cancel it. | Saved values and comment persist exactly. Cancel preserves the previous saved value. | Passed by Terry, 2026-11-14; reported changes persisted, including a lane change. |
-| MAT-03 | Move the card through its allowed workflow into RFR, then approve it as Terry. | The card reaches Completed with the configured approval comment. Bot cannot perform Terry's reserved approval. | Pending. |
+| MAT-03 | Move the card through its allowed workflow into RFR, then approve it as Terry. | The card reaches Completed with the configured approval comment. Bot cannot perform Terry's reserved approval. | Passed by Terry and Bot, 2026-11-14. |
 | MAT-04 | Add a blocking relationship between two cards, inspect both ends, follow the link, then remove it. | Both cards show the correct directional labels, navigation opens the right card, and removal clears the link. | Pending. |
 | MAT-05 | Upload an image, preview it, select it as cover, download it, then detach it. Also paste an image. | Original downloaded bytes match, cover and preview display correctly, and removal updates the card. Paste creates one attachment. | Pending. |
 | MAT-06 | Find a card by title and comment text, open the result, clear search, and toggle older Completed cards. | Results and opened cards are correct. Clearing search restores the board. The toggle changes older Completed visibility. | Pending. |
@@ -98,7 +98,11 @@ within the corresponding operation checks.
   consistent every time he returns to it.
 - MAT-02 passed by Terry in the Web UI. He reported that all changes appeared
   to persist, including a lane change.
-- MAT-03 through MAT-07 await the walkthrough.
+- MAT-03 passed. Terry reported successful Web approval. Bot moved Alpha
+  ticket `0002` through Ready for Work, In Progress and Ready for Review.
+  Bot's attempted move to Completed returned HTTP 403 and exit 1. Readback
+  retained RFR, revision 14 and zero comments, matching the pre-attempt state.
+- MAT-04 through MAT-07 await the walkthrough.
 - MAT-02 CLI creation passed on 2026-11-14. Using the Bot credential, created
   Alpha ticket `0002`, `Bot CLI creation test`, in Backlog at revision 3.
   `card get` returned the same UUID, title and exact multiline description,

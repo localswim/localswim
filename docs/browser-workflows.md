@@ -15,8 +15,9 @@ retrying it.
 
 T2 was accepted into `ui/v1-clean-room` and passed Terry's visual checkpoint.
 T3, T4 and T5 were accepted and merged into `ui/v1-clean-room` in PRs #3,
-#4 and #5. T6 integrated qualification is in progress. Final demo, cutover
-and merge to `main` still require Terry's approval.
+#4 and #5. T6 integrated qualification and Terry's seven minimal acceptance
+checks passed. Terry approved the v2.0.0 release. See the
+[release checkpoint](releases/v2.0.0.md) for acceptance and deployment status.
 
 | User workflow | Status | API sequence |
 | --- | --- | --- |

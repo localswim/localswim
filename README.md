@@ -5,6 +5,8 @@ through one loopback service and port.
 
 **[Roadmap and scope](ROADMAP.md)**
 
+[v2.0.0 release and acceptance](docs/releases/v2.0.0.md)
+
 ## Getting started
 
 Use Go 1.27 to build the service and CLI.

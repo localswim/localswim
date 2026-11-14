@@ -4,6 +4,14 @@
   align-items: center;
 }
 
+.lsw-workspace-search-entry {
+  display: grid;
+  position: relative;
+  grid-area: 1 / 1;
+  min-width: 0;
+  height: 26px;
+}
+
 .lsw-workspace-card-query {
   grid-area: 1 / 1;
   min-width: 0;
@@ -49,12 +57,13 @@
   white-space: nowrap;
 }
 
-@media (min-width: 561px) and (max-width: 1400px) {
+@media (680px < width <= 1440px) {
   .lsw-workspace-header:has(.lsw-workspace-card-found:not([hidden])) {
     grid-template-columns: 21px 118px minmax(0, 1fr) max-content 120px;
-    padding-bottom: 13px;
   }
+}
 
+@media (680px < width <= 1280px) {
   .lsw-workspace-card-search:has(.lsw-workspace-card-found:not([hidden])) {
     grid-template-columns: 120px auto;
   }
@@ -65,16 +74,80 @@
   }
 }
 
-@media (min-width: 1401px) {
+@media (width > 1440px) {
   .lsw-workspace-header:has(.lsw-workspace-card-found:not([hidden])) {
     grid-template-columns: 21px 118px minmax(0, 1fr) max-content 76px 188px 74px 120px;
   }
+}
 
+@media (width > 1280px) {
   .lsw-workspace-card-search:has(.lsw-workspace-card-found:not([hidden])) {
     grid-template-columns: 190px auto;
   }
 
   .lsw-workspace-card-found {
     margin-right: -14px;
+  }
+}
+
+@media (442px < width <= 680px) {
+  .lsw-workspace-card-search {
+    display: contents;
+  }
+
+  .lsw-workspace-search-entry {
+    flex: 0 0 120px;
+    margin-left: auto;
+  }
+
+  .lsw-workspace-card-search:not(:has(.lsw-workspace-card-found:not([hidden])))
+    .lsw-workspace-search-entry {
+    margin-right: clamp(0px, calc(100vw - 444px), 10px);
+  }
+
+  .lsw-workspace-card-found {
+    min-width: 45.333px;
+    margin: 0;
+    letter-spacing: 0.05px;
+  }
+
+  .lsw-workspace-card-search:has(.lsw-workspace-card-found:not([hidden]))
+    + .lsw-workspace-connection {
+    margin-right: 1px;
+  }
+}
+
+@media (442px < width < 454px) {
+  .lsw-workspace-header:not(:has(.lsw-workspace-card-found:not([hidden])))
+    .lsw-workspace-connection {
+    margin-left: 10px;
+  }
+}
+
+@media (442px < width < 500px) {
+  .lsw-workspace-card-found {
+    margin-right: 1px;
+  }
+}
+
+@media (454px <= width < 584px) {
+  .lsw-workspace-header:not(:has(.lsw-workspace-card-found:not([hidden])))
+    .lsw-workspace-connection {
+    margin-right: 3px;
+  }
+}
+
+@media (max-width: 442px) {
+  .lsw-workspace-header-controls:has(.lsw-workspace-card-found:not([hidden])) {
+    column-gap: 13px;
+  }
+
+  .lsw-workspace-card-search:has(.lsw-workspace-card-found:not([hidden])) {
+    flex-basis: auto;
+    grid-template-columns: 120px auto;
+  }
+
+  .lsw-workspace-card-found {
+    margin-left: 10px;
   }
 }

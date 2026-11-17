@@ -18,9 +18,10 @@ tests continue to exercise its retained source. The fresh build inputs are
 `clean-room/main.ts`, `clean-room/entry.css`, `clean-room/board/board.css`, the
 HTML entry, the font files, and the favicon. The favicon,
 `clean-room/icons/favicon.svg`, draws the workspace header's three-bar
-localswim mark, snapped to a 16-pixel grid, and is served at
-`/assets/favicon.svg`. The build links it with a content hash in the query
-string, so a browser fetches a changed icon instead of reusing its stored one.
+localswim mark on a rounded tile in the header's near-black. Its edges land
+on whole pixels at 16 and 32 pixels. It is served at `/assets/favicon.svg`.
+The build links it with a content hash in the query string, so a browser
+fetches a changed icon instead of reusing its stored one.
 
 The browser page and its local assets are embedded in the V2 executable. Open
 the service's loopback URL or a board link at `/boards/{board_id}`. The page opens

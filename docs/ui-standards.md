@@ -46,6 +46,22 @@ sized thumbnail derivatives for card and drawer previews, preserving the ability
 to inspect the original. Choose compression and image format to suit the content
 and preserve the required visual quality.
 
+## Logo
+
+RFC 2119 keywords; the capitals are load-bearing.
+
+The localswim mark is three bottom-aligned rounded bars in blue `#92abf1`,
+amber `#e3ac39` and green `#85b79e`. Terry made these the standard logo colors
+on 2026-11-17. The workspace header and the favicon draw the mark today.
+
+- Every rendering of the mark MUST use these colors.
+- The mark MUST be shown on the near-black `#1e2126`.
+- Each bar MUST meet the WCAG AAA text-contrast ratio, 7:1, against the
+  near-black. WCAG sets no AAA level for non-text contrast, so this rule
+  borrows the text ratio.
+- `TestLogoColorsMeetAAAAndMatchHeader` checks that the favicon and the
+  workspace header use exactly these colors and that each bar meets 7:1.
+
 ## Packaging and acceptance
 
 The Go executable embeds the optimized browser assets. `dist/` contains release

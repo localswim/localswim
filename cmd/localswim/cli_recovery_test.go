@@ -77,6 +77,13 @@ func TestCLIBoardRecoverUsesVerifiedFailureAndSingleWrite(t *testing.T) {
 			if reads != 1 || writes != 1 || (code == 0) != (status == 201) {
 				t.Fatalf("reads=%d writes=%d code=%d: %s", reads, writes, code, &stderr)
 			}
+			notice := "INFO Publishing is off for recovered board " + t03Board
+			if got := strings.Contains(stderr.String(), notice); got != (status == 201) {
+				t.Fatalf("publishing-off notice present=%t for status %d: %s", got, status, &stderr)
+			}
+			if status == 201 && !strings.Contains(stderr.String(), "localswim board publishing enable "+t03Board+"\n") {
+				t.Fatalf("notice does not name the enable command: %s", &stderr)
+			}
 		})
 	}
 }

@@ -397,7 +397,11 @@ workspace writer lease. The reference contains the creation identity, committed
 revision, update timestamp, canonical snapshot digest, and restore actor IDs and
 kinds. It is local continuity evidence. Keep it with the workspace data. Backup
 and Git publication inventories continue to contain the snapshot and audited
-attachments.
+attachments. A data directory that publishes to Git MUST ignore
+`/boards/*.recovery`. Publication never updates a tracked reference, so Git
+would pair newer snapshots with an older reference, and restoring that commit
+would quarantine the board. A healthy snapshot without a reference establishes
+a new one at startup.
 
 Before replacing an existing snapshot, the writer durably marks the prior
 reference pending and records the proposed commit. It settles the reference
@@ -526,7 +530,12 @@ Enable automatic publication independently with
 the data directory's enclosing Git worktree, local branch, and Git push defaults.
 The publishing setting `repository: "origin"` explicitly selects the origin remote.
 An enabled board publishes a coherent committed snapshot and its exact audited
-attachment paths after five seconds of quiet. Enabled workspace publishing
+attachment paths after five seconds of quiet. Each edit restarts the quiet window,
+but a capture is never later than 60 seconds after the first unpublished change,
+so a board edited more often than every five seconds still publishes. An edit that
+arrives during an attempt does not cancel it; the newer change publishes on the
+next window. Preparing a commit runs Git once per changed file, so the unchanged
+attachments of a large board cost nothing. Enabled workspace publishing
 captures only `localswim-workspace.json`, including saved pin order. Both use
 the manual publisher's destination resolution, Git safety checks and common-directory lock.
 

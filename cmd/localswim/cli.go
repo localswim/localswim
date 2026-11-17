@@ -493,7 +493,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return err
 	}
 	if command.recoveryMode != "" {
-		return executeBoardRecovery(api, command, stdin, stdout)
+		return executeBoardRecovery(api, command, stdin, stdout, stderr)
 	}
 	if command.nativeRead == "activity" {
 		_, rawQuery, _ := strings.Cut(command.resource, "?")

@@ -52,19 +52,35 @@ Development work is tracked on the **localswim V2 Dev** board
 
 ## Production state
 
+- Production serves Terry and the architect, and nobody else.
 - The production service runs the repo-root `localswim.exe`. The service
   receipt at `%LOCALAPPDATA%\localswim-v2\service.json` points at
-  `C:\Projects\localswim\localswim.exe`, whose SHA-2-256 matches the v2.0.0
-  release.
+  `C:\Projects\localswim\localswim.exe`.
 - A development build MUST NOT write to the repo-root `localswim.exe`. Build to
   a scratch path instead, for example
-  `go build -o $env:TEMP\localswim-dev.exe ./cmd/localswim`. Otherwise the next
-  cold start runs an unreleased build in production.
+  `go build -o $env:TEMP\localswim-dev.exe ./cmd/localswim`. Only a deploy
+  replaces the repo-root executable.
 - Production data lives in `C:\Projects\localswim-state-store`. Tests and demos
   MUST use fresh disposable data directories and their own ports. They MUST NOT
   read or write the production store or port 8811.
-- Starting, stopping or replacing the production service MUST have Terry's
-  authorization.
+
+## Deploys
+
+- A deploy is pre-approved once the architect's squash merge lands on `main`
+  (Terry, 2026-11-16). The architect SHOULD deploy each merged code change
+  promptly, without asking, because a rollback is cheap.
+- A deploy MUST build from the merged `main` commit, stage it, and switch to it
+  with `service activate` as described in
+  [Activate a staged Windows build](docs/windows-operations.md#activate-a-staged-windows-build).
+  It MUST also install the same build at the repo-root `localswim.exe`, so a
+  cold start runs it.
+- Before installing, the architect MUST keep a copy of the executable being
+  replaced, so a rollback is one more activation.
+- After a deploy, the architect MUST confirm the service reports the new build
+  and that a board write and readback succeed. A failed check MUST be rolled
+  back and reported to Terry.
+- Starting, stopping or replacing the production service for any other reason
+  MUST have Terry's authorization.
 
 ## Repository housekeeping
 

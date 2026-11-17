@@ -58,7 +58,13 @@ Development work is tracked on the **localswim V2 Dev** board
 - A change that touches only documentation MAY be committed and pushed straight
   to `main` (Terry, 2026-11-16).
 - Any other change MUST branch from `main` and land through a pull request to
-  `localswim/localswim`.
+  `localswim/localswim` (Terry, 2026-11-16). Before it merges, the pull request
+  MUST pass both of these:
+  - The lead's own review.
+  - An independent `Opus/high` review that the lead commissions, by a reviewer
+    that did not write the change.
+- The lead MUST squash-merge an approved pull request to `main` and delete its
+  branch.
 
 ## V1 UI and UX remain the specification
 

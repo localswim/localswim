@@ -451,7 +451,9 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 	}
 	// A board can carry thousands of immutable attachments. Git runs once per
 	// changed file, not once per captured file: an entry whose inherited mode,
-	// object and stage already match is left as read-tree placed it.
+	// object and stage already match is left as read-tree placed it. In a SHA-1
+	// repository a skipped file misses Git's sha1dc collision detection; that
+	// risk is accepted for immutable, server-named attachments.
 	want := make(map[string]string, len(capture.files))
 	var updates bytes.Buffer
 	for position, file := range capture.files {

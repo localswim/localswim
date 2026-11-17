@@ -132,8 +132,14 @@ func (p *automaticPublisher) schedule(config publishing) {
 	if p.closed {
 		return
 	}
+	repository := snapshotString(config.Repository)
+	if !p.enabled || repository != p.repository {
+		// A new destination cancels an attempt still bound to the old one, as
+		// disabling does. An ordinary edit does not.
+		p.epoch++
+	}
 	p.enabled = true
-	p.repository = snapshotString(config.Repository)
+	p.repository = repository
 	p.generation++
 	now := time.Now()
 	if !p.dirty {
@@ -159,6 +165,7 @@ func (p *automaticPublisher) disable() {
 	p.firstDirty = time.Time{}
 	p.retryAt = time.Time{}
 	p.backoff = 0
+	p.errorCode = nil
 	p.signal()
 }
 
@@ -324,9 +331,14 @@ func (p *automaticPublisher) recordAttempt(ticket publicationTicket, captured bo
 			p.firstDirty = time.Time{}
 		} else if captured && p.dirty {
 			// Writes during the attempt are newer than its capture. Bound their
-			// wait from the attempt's start, which precedes the capture.
+			// wait from the attempt's start, which precedes the capture, but
+			// leave at least one quiet window before the next attempt so a
+			// slow push cannot run attempts back to back.
 			p.firstDirty = ticket.started
 			p.quietUntil = p.timing.due(p.firstDirty, p.lastWrite)
+			if gap := time.Now().Add(p.timing.quiet); p.quietUntil.Before(gap) {
+				p.quietUntil = gap
+			}
 		}
 		p.backoff = 0
 		p.retryAt = time.Time{}

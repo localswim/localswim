@@ -64,16 +64,58 @@ func TestAutomaticPublicationRestartsBoundAfterOvertakenCapture(t *testing.T) {
 	p.lastWrite = now
 	p.quietUntil = p.firstDirty.Add(timing.maxDelay)
 	p.recordAttempt(publicationTicket{generation: 6, started: started}, true, nil)
+	after := time.Now()
 	if !p.dirty || !p.firstDirty.Equal(started) {
 		t.Fatalf("overtaken capture: dirty=%t firstDirty=%s", p.dirty, p.firstDirty)
 	}
-	if want := now.Add(timing.quiet); !p.quietUntil.Equal(want) {
-		t.Fatalf("next deadline %s, want %s", p.quietUntil, want)
+	// One quiet window from the latest write, and never sooner than one quiet
+	// window from the end of the attempt.
+	if p.quietUntil.Before(now.Add(timing.quiet)) || p.quietUntil.After(after.Add(timing.quiet)) {
+		t.Fatalf("next deadline %s, want one quiet window after %s", p.quietUntil, now)
+	}
+
+	// A slow attempt that outlived the maximum still leaves a quiet window.
+	p.dirty, p.lastWrite = true, time.Now()
+	p.recordAttempt(publicationTicket{generation: 6, started: time.Now().Add(-2 * timing.maxDelay)}, true, nil)
+	if p.quietUntil.Before(time.Now().Add(timing.quiet - time.Second)) {
+		t.Fatalf("attempts would run back to back: next deadline %s", p.quietUntil)
 	}
 
 	p.recordAttempt(publicationTicket{generation: 7, started: now}, true, nil)
 	if p.dirty || !p.firstDirty.IsZero() {
 		t.Fatalf("current capture left dirty=%t firstDirty=%s", p.dirty, p.firstDirty)
+	}
+}
+
+// An ordinary edit never cancels an attempt under way. A new destination does,
+// as disabling does, so no attempt pushes to a remote the owner switched away
+// from. Disabling also clears a failure that no longer applies.
+func TestAutomaticPublicationEpochFollowsDestinationAndDisable(t *testing.T) {
+	origin := "origin"
+	p := &automaticPublisher{timing: automaticPublicationTiming, started: true, wake: make(chan struct{}, 1)}
+	p.schedule(publishing{Enabled: true})
+	enabled := p.epoch
+	if enabled == 0 {
+		t.Fatal("enabling did not start a new epoch")
+	}
+	p.schedule(publishing{Enabled: true})
+	if p.epoch != enabled || !p.current(enabled) {
+		t.Fatal("an ordinary edit cancelled the attempt under way")
+	}
+	p.schedule(publishing{Enabled: true, Repository: &origin})
+	if p.epoch == enabled || p.current(enabled) {
+		t.Fatal("a destination change left the old attempt current")
+	}
+	retargeted := p.epoch
+	code := "git_push_failed"
+	p.errorCode = &code
+	p.disable()
+	if p.current(retargeted) || p.errorCode != nil || p.dirty {
+		t.Fatalf("disable: current=%t error=%v dirty=%t", p.current(retargeted), p.errorCode, p.dirty)
+	}
+	p.schedule(publishing{Enabled: true, Repository: &origin})
+	if p.current(retargeted) || !p.dirty {
+		t.Fatal("re-enabling revived an attempt from before the disable")
 	}
 }
 

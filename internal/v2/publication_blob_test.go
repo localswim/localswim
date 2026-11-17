@@ -42,6 +42,7 @@ func TestPathConflictFindsFileDirectoryCollisions(t *testing.T) {
 	}{
 		{"disjoint", []string{"boards/a.json"}, []string{"boards/b.json", "attachments/c"}, false},
 		{"same file", []string{"boards/a.json"}, []string{"boards/a.json"}, false},
+		{"sibling prefix", []string{"a"}, []string{"a.b", "ab/c"}, false},
 		{"under inherited file", []string{"boards"}, []string{"boards/a.json"}, true},
 		{"over inherited directory", []string{"boards/a.json/x"}, []string{"boards/a.json"}, true},
 		{"captured pair", nil, []string{"attachments/a", "attachments/a/b"}, true},

@@ -16,7 +16,9 @@ obtained from its official release, with the SIL Open Font License in
 The sections below describe the prior browser implementation, whose regression
 tests continue to exercise its retained source. The fresh build inputs are
 `clean-room/main.ts`, `clean-room/entry.css`, `clean-room/board/board.css`, the
-HTML entry, and the font files.
+HTML entry, the font files, and the favicon. The favicon,
+`clean-room/icons/favicon.svg`, is an SVG drawing of the localswim logo, served
+at `/assets/favicon.svg`.
 
 The browser page and its local assets are embedded in the V2 executable. Open
 the service's loopback URL or a board link at `/boards/{board_id}`. The page opens

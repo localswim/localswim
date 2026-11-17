@@ -50,6 +50,7 @@ try {
   for (const file of ["inter-variable.woff2", "OFL.txt"]) {
     writeFileSync(join(output, file), readFileSync(join("clean-room/fonts", file)));
   }
+  writeFileSync(join(output, "favicon.svg"), readFileSync("clean-room/icons/favicon.svg"));
   if (!check) {
     mkdirSync("generated", { recursive: true });
     mkdirSync("dist", { recursive: true });
@@ -61,6 +62,7 @@ try {
     "board.css",
     "inter-variable.woff2",
     "OFL.txt",
+    "favicon.svg",
   ]) {
     const fresh = readFileSync(join(output, file));
     const embedded = join("generated", file);

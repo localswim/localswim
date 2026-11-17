@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 
@@ -45,12 +46,21 @@ try {
     sourcemap: "external",
     legalComments: "eof",
   });
-  const html = readFileSync("clean-room/index.html", "utf8").replace(/^[ \t]+(?=<)/gmu, "");
+  // Browsers keep favicons in their own store, keyed by icon URL, so the
+  // link carries a content hash and a changed icon is fetched again.
+  const favicon = readFileSync("clean-room/icons/favicon.svg");
+  const faviconVersion = createHash("sha256").update(favicon).digest("hex").slice(0, 12);
+  const html = readFileSync("clean-room/index.html", "utf8")
+    .replace(/^[ \t]+(?=<)/gmu, "")
+    .replace('href="/assets/favicon.svg"', `href="/assets/favicon.svg?v=${faviconVersion}"`);
+  if (!html.includes(`href="/assets/favicon.svg?v=${faviconVersion}"`)) {
+    throw new Error("The HTML entry does not link the favicon.");
+  }
   writeFileSync(join(output, "index.html"), html);
   for (const file of ["inter-variable.woff2", "OFL.txt"]) {
     writeFileSync(join(output, file), readFileSync(join("clean-room/fonts", file)));
   }
-  writeFileSync(join(output, "favicon.svg"), readFileSync("clean-room/icons/favicon.svg"));
+  writeFileSync(join(output, "favicon.svg"), favicon);
   if (!check) {
     mkdirSync("generated", { recursive: true });
     mkdirSync("dist", { recursive: true });

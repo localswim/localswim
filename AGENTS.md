@@ -55,7 +55,9 @@ Development work is tracked on the **localswim V2 Dev** board
 - `.worktrees/` holds about 60 worktrees on `codex/0514-*` branches, left from
   the archived #0514 plan. An agent MUST NOT remove a worktree or delete a branch
   without Terry's approval.
-- New work SHOULD branch from `main` and land through a pull request to
+- A change that touches only documentation MAY be committed and pushed straight
+  to `main` (Terry, 2026-11-16).
+- Any other change MUST branch from `main` and land through a pull request to
   `localswim/localswim`.
 
 ## V1 UI and UX remain the specification

@@ -106,7 +106,8 @@ identity and keeps the original failure available. Whole-board mutations print
 an INFO summary and prompt `Continue? [Y/n]`. Press Enter to confirm or use
 `-f`/`--force` to skip confirmation for automation. For `FILE` set to `-`,
 `--force` is required so the prompt cannot consume binary stdin. Both recovery
-modes leave publishing disabled until explicitly enabled. Inspect `board list` and
+modes leave publishing disabled until explicitly enabled, and a successful recovery
+prints an INFO line naming the `board publishing enable` command. Inspect `board list` and
 verification after an uncertain reply before another attempt.
 
 After an uncertain snapshot commit on an existing board, inspect the saved outcome

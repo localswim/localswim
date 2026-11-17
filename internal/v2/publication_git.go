@@ -3,13 +3,18 @@ package v2
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"hash"
 	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -436,24 +441,60 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 	if _, err := repo.git(index, nil, "read-tree", previous); err != nil {
 		return "", gitPublicationError("git_index_failed")
 	}
+	format, err := repo.gitText("rev-parse", "--show-object-format")
+	if err != nil {
+		return "", gitPublicationError("git_object_failed")
+	}
+	inherited, err := repo.stagedEntries(index)
+	if err != nil {
+		return "", err
+	}
+	// A board can carry thousands of immutable attachments. Git runs once per
+	// changed file, not once per captured file: an entry whose inherited mode,
+	// object and stage already match is left as read-tree placed it. In a SHA-1
+	// repository a skipped file misses Git's sha1dc collision detection; that
+	// risk is accepted for immutable, server-named attachments.
+	want := make(map[string]string, len(capture.files))
+	var updates bytes.Buffer
 	for position, file := range capture.files {
 		data, err := file.read()
 		if err != nil {
 			return "", gitPublicationError("backup_integrity")
 		}
-		hash, err := repo.git(index, data, "hash-object", "-w", "--stdin")
+		oid, err := gitBlobID(format, data)
 		if err != nil {
 			return "", gitPublicationError("git_object_failed")
 		}
-		oid := strings.TrimSpace(string(hash))
 		name := names[position]
-		// --cacheinfo without --replace refuses file/directory conflicts with
-		// inherited entries. Verify exact mode, path, and object before writing.
-		if _, err := repo.git(index, nil, "update-index", "--add", "--cacheinfo", "100644,"+oid+","+name); err != nil {
+		entry := "100644 " + oid + " 0"
+		want[name] = entry
+		if inherited[name] == entry {
+			continue
+		}
+		written, err := repo.git(index, data, "hash-object", "-w", "--stdin")
+		if err != nil || strings.TrimSpace(string(written)) != oid {
+			return "", gitPublicationError("git_object_failed")
+		}
+		updates.WriteString("100644 " + oid + "\t" + name + "\x00")
+	}
+	// --index-info replaces a file/directory conflict instead of refusing it,
+	// so refuse one here: a captured path MUST NOT sit under an existing file
+	// or over an existing directory, inherited or captured. Then verify the
+	// exact mode, path, and object of every capture.
+	if pathConflict(inherited, want) {
+		return "", gitPublicationError("git_index_failed")
+	}
+	if updates.Len() > 0 {
+		if _, err := repo.git(index, updates.Bytes(), "update-index", "--add", "-z", "--index-info"); err != nil {
 			return "", gitPublicationError("git_index_failed")
 		}
-		staged, err := repo.git(index, nil, "--literal-pathspecs", "ls-files", "--stage", "-z", "--", name)
-		if err != nil || string(staged) != "100644 "+oid+" 0\t"+name+"\x00" {
+	}
+	staged, err := repo.stagedEntries(index)
+	if err != nil {
+		return "", err
+	}
+	for name, entry := range want {
+		if staged[name] != entry {
 			return "", gitPublicationError("git_index_failed")
 		}
 	}
@@ -473,6 +514,68 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 		return "", gitPublicationError("git_commit_failed")
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+// stagedEntries reads a whole index as "mode object stage" by path.
+func (repo publicationRepository) stagedEntries(index string) (map[string]string, error) {
+	output := boundedGitOutput{limit: 64 << 20}
+	if err := repo.gitOutput(index, nil, nil, &output, io.Discard, "ls-files", "--stage", "-z"); err != nil {
+		return nil, gitPublicationError("git_index_failed")
+	}
+	entries := make(map[string]string)
+	for record := range strings.SplitSeq(strings.TrimSuffix(output.data.String(), "\x00"), "\x00") {
+		if record == "" {
+			continue
+		}
+		entry, name, ok := strings.Cut(record, "\t")
+		if !ok {
+			return nil, gitPublicationError("git_index_failed")
+		}
+		entries[name] = entry
+	}
+	return entries, nil
+}
+
+// pathConflict reports whether any captured path is a file where the combined
+// tree needs a directory, or a directory where it needs a file.
+func pathConflict(inherited, captured map[string]string) bool {
+	files := make(map[string]bool, len(inherited)+len(captured))
+	directories := make(map[string]bool)
+	for _, entries := range []map[string]string{inherited, captured} {
+		for name := range entries {
+			files[name] = true
+			for parent := path.Dir(name); parent != "."; parent = path.Dir(parent) {
+				directories[parent] = true
+			}
+		}
+	}
+	for name := range captured {
+		if directories[name] {
+			return true
+		}
+		for parent := path.Dir(name); parent != "."; parent = path.Dir(parent) {
+			if files[parent] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// gitBlobID returns the object ID Git assigns to data as a blob.
+func gitBlobID(format string, data []byte) (string, error) {
+	var sum hash.Hash
+	switch format {
+	case "sha1":
+		sum = sha1.New()
+	case "sha256":
+		sum = sha256.New()
+	default:
+		return "", errors.New("unsupported Git object format")
+	}
+	sum.Write([]byte("blob " + strconv.Itoa(len(data)) + "\x00"))
+	sum.Write(data)
+	return hex.EncodeToString(sum.Sum(nil)), nil
 }
 
 func publishVerifiedBackup(dataRoot string, item backup, selection publicationSelection, record func(error) error) error {

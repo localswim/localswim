@@ -35,7 +35,7 @@ func parseBoardRecovery(args []string) (cliCommand, error) {
 	return command, nil
 }
 
-func executeBoardRecovery(api *client.Client, command cliCommand, stdin io.Reader, stdout io.Writer) error {
+func executeBoardRecovery(api *client.Client, command cliCommand, stdin io.Reader, stdout, stderr io.Writer) error {
 	file, contentType, err := prepareRestoreInput(command.inputPath, stdin)
 	if err != nil {
 		return err
@@ -86,5 +86,9 @@ func executeBoardRecovery(api *client.Client, command cliCommand, stdin io.Reade
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		return fmt.Errorf("recovery response could not be written; inspect board list before another recovery: %w", client.ErrMutationOutcomeUnknown)
 	}
+	// Recovery always leaves publishing off, so Git backups stop for this board
+	// until someone turns them back on. Say so where a person will see it.
+	_, _ = fmt.Fprintf(stderr, "INFO Publishing is off for recovered board %s, so its Git backups have stopped. "+
+		"Turn them back on with: localswim board publishing enable %s\n", recovered.ID, recovered.ID)
 	return nil
 }

@@ -8,10 +8,46 @@ import (
 )
 
 const (
-	automaticPublicationQuiet = 5 * time.Second
-	publicationFirstRetry     = time.Second
-	publicationMaxRetry       = 30 * time.Second
+	automaticPublicationQuiet    = 5 * time.Second
+	automaticPublicationMaxDelay = 60 * time.Second
+	publicationFirstRetry        = time.Second
+	publicationMaxRetry          = 30 * time.Second
 )
+
+// publicationTiming bounds when automatic publication captures a change. Each
+// write restarts the quiet window, but the capture is never later than
+// maxDelay after the first unpublished change, so a board written more often
+// than the quiet window still publishes.
+type publicationTiming struct {
+	quiet    time.Duration
+	maxDelay time.Duration
+}
+
+// Tests MAY shorten these timings. A publisher copies them when it is created.
+var automaticPublicationTiming = publicationTiming{automaticPublicationQuiet, automaticPublicationMaxDelay}
+
+// due returns the capture deadline for a write at now, given the time of the
+// first change not yet captured.
+func (timing publicationTiming) due(firstDirty, now time.Time) time.Time {
+	return earliest(now.Add(timing.quiet), firstDirty.Add(timing.maxDelay))
+}
+
+func earliest(a, b time.Time) time.Time {
+	if b.Before(a) {
+		return b
+	}
+	return a
+}
+
+// publicationTicket identifies one attempt. Generation advances on every
+// write and decides whether a capture covered the latest change. Epoch advances
+// only when publishing is disabled, so a newer write never abandons an attempt
+// already under way; only disabling or closing the publisher does.
+type publicationTicket struct {
+	generation uint64
+	epoch      uint64
+	started    time.Time
+}
 
 func samePublishingSettings(a, b publishing) bool {
 	return a.Enabled == b.Enabled && sameText(a.Repository, b.Repository)
@@ -56,6 +92,7 @@ type automaticPublisher struct {
 	root    string
 	ref     string
 	capture func() (publicationCapture, error)
+	timing  publicationTiming
 
 	mu         sync.Mutex
 	wake       chan struct{}
@@ -66,7 +103,10 @@ type automaticPublisher struct {
 	enabled    bool
 	repository string
 	generation uint64
+	epoch      uint64
 	dirty      bool
+	firstDirty time.Time
+	lastWrite  time.Time
 	quietUntil time.Time
 	retryAt    time.Time
 	backoff    time.Duration
@@ -76,7 +116,7 @@ type automaticPublisher struct {
 
 func newAutomaticPublisher(root, key string, capture func() (publicationCapture, error)) *automaticPublisher {
 	return &automaticPublisher{root: root, ref: publicationCheckpointRef(root, key), capture: capture,
-		wake: make(chan struct{}, 1), done: make(chan struct{}), flushes: make(chan chan error)}
+		timing: automaticPublicationTiming, wake: make(chan struct{}, 1), done: make(chan struct{}), flushes: make(chan chan error)}
 }
 
 func (p *automaticPublisher) signal() {
@@ -92,11 +132,22 @@ func (p *automaticPublisher) schedule(config publishing) {
 	if p.closed {
 		return
 	}
+	repository := snapshotString(config.Repository)
+	if !p.enabled || repository != p.repository {
+		// A new destination cancels an attempt still bound to the old one, as
+		// disabling does. An ordinary edit does not.
+		p.epoch++
+	}
 	p.enabled = true
-	p.repository = snapshotString(config.Repository)
+	p.repository = repository
 	p.generation++
+	now := time.Now()
+	if !p.dirty {
+		p.firstDirty = now
+	}
 	p.dirty = true
-	p.quietUntil = time.Now().Add(automaticPublicationQuiet)
+	p.lastWrite = now
+	p.quietUntil = p.timing.due(p.firstDirty, now)
 	if !p.started {
 		p.started = true
 		go p.run()
@@ -109,9 +160,12 @@ func (p *automaticPublisher) disable() {
 	defer p.mu.Unlock()
 	p.enabled = false
 	p.generation++
+	p.epoch++
 	p.dirty = false
+	p.firstDirty = time.Time{}
 	p.retryAt = time.Time{}
 	p.backoff = 0
+	p.errorCode = nil
 	p.signal()
 }
 
@@ -153,10 +207,15 @@ func (p *automaticPublisher) enabledSelection() (publicationSelection, bool) {
 	return publicationSelection{remote: p.repository}, p.enabled && !p.closed
 }
 
-func (p *automaticPublisher) current(generation uint64) bool {
+func (p *automaticPublisher) current(epoch uint64) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.enabled && !p.closed && generation == p.generation
+	return p.enabled && !p.closed && epoch == p.epoch
+}
+
+// Called with p.mu held.
+func (p *automaticPublisher) ticket() publicationTicket {
+	return publicationTicket{generation: p.generation, epoch: p.epoch, started: time.Now()}
 }
 
 func (p *automaticPublisher) flushEnabled() error {
@@ -218,10 +277,10 @@ func (p *automaticPublisher) run() {
 			timer.Stop()
 			continue
 		}
-		generation := p.generation
+		ticket := p.ticket()
 		capture := p.dirty && !now.Before(p.quietUntil)
 		p.mu.Unlock()
-		_ = p.runAttempt(generation, capture, false)
+		_ = p.runAttempt(ticket, capture, false)
 	}
 }
 
@@ -236,7 +295,7 @@ func (p *automaticPublisher) wait(timer <-chan time.Time) {
 
 func (p *automaticPublisher) flushCurrent() error {
 	p.mu.Lock()
-	generation, dirty := p.generation, p.dirty
+	ticket, dirty := p.ticket(), p.dirty
 	pending := p.checkpoint.Pending != nil || !p.retryAt.IsZero()
 	enabled := p.enabled && !p.closed
 	p.mu.Unlock()
@@ -246,29 +305,40 @@ func (p *automaticPublisher) flushCurrent() error {
 	if !dirty && !pending {
 		return nil
 	}
-	return p.runAttempt(generation, dirty, true)
+	return p.runAttempt(ticket, dirty, true)
 }
 
-func (p *automaticPublisher) runAttempt(generation uint64, capture, flush bool) error {
-	checkpoint, loaded, captured, err := p.attempt(generation, capture, flush)
+func (p *automaticPublisher) runAttempt(ticket publicationTicket, capture, flush bool) error {
+	checkpoint, loaded, captured, err := p.attempt(ticket.epoch, capture, flush)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if loaded {
 		p.checkpoint = checkpoint
 	}
-	if p.enabled && !p.closed {
-		p.recordAttempt(generation, captured, err)
+	if p.enabled && !p.closed && p.epoch == ticket.epoch {
+		p.recordAttempt(ticket, captured, err)
 	}
-	if flush && (!p.enabled || p.closed || p.generation != generation) {
+	if flush && (!p.enabled || p.closed || p.generation != ticket.generation) {
 		return gitPublicationError("publication_failed")
 	}
 	return err
 }
 
-func (p *automaticPublisher) recordAttempt(generation uint64, captured bool, err error) {
+func (p *automaticPublisher) recordAttempt(ticket publicationTicket, captured bool, err error) {
 	if err == nil {
-		if captured && generation == p.generation {
+		if captured && ticket.generation == p.generation {
 			p.dirty = false
+			p.firstDirty = time.Time{}
+		} else if captured && p.dirty {
+			// Writes during the attempt are newer than its capture. Bound their
+			// wait from the attempt's start, which precedes the capture, but
+			// leave at least one quiet window before the next attempt so a
+			// slow push cannot run attempts back to back.
+			p.firstDirty = ticket.started
+			p.quietUntil = p.timing.due(p.firstDirty, p.lastWrite)
+			if gap := time.Now().Add(p.timing.quiet); p.quietUntil.Before(gap) {
+				p.quietUntil = gap
+			}
 		}
 		p.backoff = 0
 		p.retryAt = time.Time{}
@@ -285,7 +355,7 @@ func (p *automaticPublisher) recordAttempt(generation uint64, captured bool, err
 	p.retryAt = time.Now().Add(p.backoff)
 }
 
-func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (_ publicationCheckpoint, _, _ bool, resultErr error) {
+func (p *automaticPublisher) attempt(epoch uint64, capture, flush bool) (_ publicationCheckpoint, _, _ bool, resultErr error) {
 	repo, err := lockPublication(p.root)
 	if err != nil {
 		return publicationCheckpoint{}, false, false, err
@@ -312,7 +382,7 @@ func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (_ 
 			return publicationCheckpoint{}, false, false, err
 		}
 	}
-	if !capture || !p.current(generation) {
+	if !capture || !p.current(epoch) {
 		return checkpoint, true, false, nil
 	}
 	value, err := p.capture()
@@ -322,7 +392,7 @@ func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (_ 
 	if value.close != nil {
 		defer value.close()
 	}
-	current := func() bool { return p.current(generation) }
+	current := func() bool { return p.current(epoch) }
 	if !current() {
 		return checkpoint, true, false, nil
 	}

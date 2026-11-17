@@ -18,7 +18,7 @@ tests continue to exercise its retained source. The fresh build inputs are
 `clean-room/main.ts`, `clean-room/entry.css`, `clean-room/board/board.css`, the
 HTML entry, the font files, and the favicon. The favicon,
 `clean-room/icons/favicon.svg`, draws the workspace header's three-bar
-localswim mark, snapped to a 16-pixel grid, and is served at
+localswim mark on a black rounded tile, snapped to a 16-pixel grid, and is served at
 `/assets/favicon.svg`. The build links it with a content hash in the query
 string, so a browser fetches a changed icon instead of reusing its stored one.
 

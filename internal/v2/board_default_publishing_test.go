@@ -2,6 +2,7 @@ package v2
 
 import (
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,8 @@ func TestNewBoardInheritsWorkspacePublishing(t *testing.T) {
 	editor.call("PATCH", "/workspace", `{"publishing":{"enabled":true,"repository":"origin"}}`, headers.Get("ETag"), 200)
 	raw, _ = editor.call("POST", "/boards", `{"name":"Backed up from birth"}`, "", 201)
 	created := turnOneDecode[board](t, raw)
-	if created.Revision != 2 || !created.Publishing.Enabled || snapshotString(created.Publishing.Repository) != "origin" {
+	if created.Revision != 2 || !created.Publishing.Enabled || !created.Publishing.Pending ||
+		snapshotString(created.Publishing.Repository) != "origin" {
 		t.Fatalf("new board did not inherit publishing: revision %d, %+v", created.Revision, created.Publishing)
 	}
 
@@ -70,6 +72,8 @@ func TestNewBoardInheritsWorkspacePublishing(t *testing.T) {
 	editor.call("PATCH", "/boards/"+created.ID, `{"publishing":{"enabled":false}}`, current.entityTag(), 200)
 }
 
+// The creator needs read and publish, as for a publishing patch, and every
+// outcome MUST still pass snapshot verification.
 func TestInheritPublishingNeedsPreferenceAndCapability(t *testing.T) {
 	now := canonicalTime(time.Now())
 	id := newID()
@@ -77,29 +81,37 @@ func TestInheritPublishingNeedsPreferenceAndCapability(t *testing.T) {
 		{ID: humanID, Revision: 1, CreatedAt: now, Kind: "human", Label: "Human"},
 		{ID: botID, Revision: 1, CreatedAt: now, Kind: "bot", Label: "Bot"},
 	}
-	fresh := func() snapshot {
-		return freshSnapshot(id, "Board", defaultWorkflow(id, now, principals), humanID, now)
-	}
 	origin := "origin"
 	for _, check := range []struct {
 		name       string
 		preference publishing
-		actor      string
+		without    string
 		enabled    bool
 	}{
-		{"workspace off", publishing{}, humanID, false},
-		{"creator may publish", publishing{Enabled: true}, humanID, true},
-		{"creator may not publish", publishing{Enabled: true, Repository: &origin}, newID(), false},
+		{"workspace off", publishing{}, "", false},
+		{"creator may publish", publishing{Enabled: true}, "", true},
+		{"creator may publish to origin", publishing{Enabled: true, Repository: &origin}, "", true},
+		{"creator may not publish", publishing{Enabled: true}, "publish", false},
+		{"creator may publish but not read", publishing{Enabled: true, Repository: &origin}, "read", false},
 	} {
-		s := fresh()
+		s := freshSnapshot(id, "Board", defaultWorkflow(id, now, principals), humanID, now)
+		for i, grant := range s.Policy.ResourceGrants {
+			if grant.UserID == humanID {
+				s.Policy.ResourceGrants[i].Capabilities = slices.DeleteFunc(slices.Clone(grant.Capabilities),
+					func(capability string) bool { return capability == check.without })
+			}
+		}
 		events := len(s.Activity)
-		inheritPublishing(&s, check.preference, check.actor, now)
+		inheritPublishing(&s, check.preference, humanID, now)
 		if s.Board.Publishing.Enabled != check.enabled || (s.Board.Revision == 2) != check.enabled ||
 			(len(s.Activity) > events) != check.enabled {
 			t.Errorf("%s: enabled=%t revision=%d events=%d", check.name, s.Board.Publishing.Enabled, s.Board.Revision, len(s.Activity)-events)
 		}
-		if check.enabled && s.Board.Publishing.Repository != nil {
-			t.Errorf("%s: repository %q was not inherited from the preference", check.name, *s.Board.Publishing.Repository)
+		if check.enabled && !sameText(s.Board.Publishing.Repository, check.preference.Repository) {
+			t.Errorf("%s: repository %v was not inherited from the preference", check.name, s.Board.Publishing.Repository)
+		}
+		if err := validateSnapshot(s, id); err != nil {
+			t.Errorf("%s: verification refused the new board: %v", check.name, err)
 		}
 	}
 }

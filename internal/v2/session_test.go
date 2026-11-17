@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"bytes"
 	"encoding/base64"
 	"io"
 	"net"
@@ -9,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/localswim/localswim/web"
 )
 
 func TestM04BrowserBootstrapAndSession(t *testing.T) {
@@ -151,8 +154,11 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 			!strings.Contains(string(body), `<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"`)) {
 			t.Fatal("optimized browser entry was not served with its favicon")
 		}
-		if tc.path == "/assets/favicon.svg" && !strings.HasPrefix(string(body), "<svg ") {
-			t.Fatal("favicon is not the embedded SVG")
+		if tc.path == "/assets/favicon.svg" {
+			embedded, err := web.Assets.ReadFile("generated/favicon.svg")
+			if err != nil || !bytes.Equal(body, embedded) || !bytes.HasPrefix(body, []byte("<svg ")) {
+				t.Fatal("favicon is not the embedded SVG")
+			}
 		}
 		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), tc.media) ||
 			res.Header.Get("Content-Security-Policy") != browserCSP || res.Header.Get("Cache-Control") != "no-store" ||

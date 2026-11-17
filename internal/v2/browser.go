@@ -28,6 +28,8 @@ func (x *request) serveBrowser() bool {
 		file, media = "inter-variable.woff2", "font/woff2"
 	case "/assets/OFL.txt":
 		file, media = "OFL.txt", "text/plain; charset=utf-8"
+	case "/assets/favicon.svg":
+		file, media = "favicon.svg", "image/svg+xml"
 	default:
 		if key, ok := strings.CutPrefix(x.r.URL.Path, "/board/"); ok {
 			if !browserBoardKey(key) {

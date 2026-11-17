@@ -136,6 +136,7 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 		{"/assets/board.css", "text/css"},
 		{"/assets/inter-variable.woff2", "font/woff2"},
 		{"/assets/OFL.txt", "text/plain"},
+		{"/assets/favicon.svg", "image/svg+xml"},
 	} {
 		res, err := c.client.Get(c.url + tc.path)
 		if err != nil {
@@ -146,8 +147,12 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		if strings.HasPrefix(tc.media, "text/html") && !strings.Contains(string(body), "/assets/app.mjs") {
-			t.Fatal("optimized browser entry was not served")
+		if strings.HasPrefix(tc.media, "text/html") && (!strings.Contains(string(body), "/assets/app.mjs") ||
+			!strings.Contains(string(body), `<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"`)) {
+			t.Fatal("optimized browser entry was not served with its favicon")
+		}
+		if tc.path == "/assets/favicon.svg" && !strings.HasPrefix(string(body), "<svg ") {
+			t.Fatal("favicon is not the embedded SVG")
 		}
 		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), tc.media) ||
 			res.Header.Get("Content-Security-Policy") != browserCSP || res.Header.Get("Cache-Control") != "no-store" ||

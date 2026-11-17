@@ -2,7 +2,9 @@ package v2
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"io"
 	"net"
 	"net/http"
@@ -127,6 +129,17 @@ func TestM04BrowserCapabilityExpiresOnServiceReplacement(t *testing.T) {
 	}
 }
 
+// faviconVersion is the content hash the build appends to the favicon link.
+func faviconVersion(t *testing.T) string {
+	t.Helper()
+	data, err := web.Assets.ReadFile("generated/favicon.svg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])[:12]
+}
+
 func TestM04BrowserShellHeaders(t *testing.T) {
 	_, c := eventHTTPServer(t)
 	for _, tc := range []struct{ path, media string }{
@@ -151,8 +164,8 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 			t.Fatal(readErr)
 		}
 		if strings.HasPrefix(tc.media, "text/html") && (!strings.Contains(string(body), "/assets/app.mjs") ||
-			!strings.Contains(string(body), `<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"`)) {
-			t.Fatal("optimized browser entry was not served with its favicon")
+			!strings.Contains(string(body), `<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg?v=`+faviconVersion(t)+`"`)) {
+			t.Fatal("optimized browser entry was not served with its versioned favicon")
 		}
 		if tc.path == "/assets/favicon.svg" {
 			embedded, err := web.Assets.ReadFile("generated/favicon.svg")

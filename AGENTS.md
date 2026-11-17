@@ -151,6 +151,10 @@ Development work is tracked on the **localswim V2 Dev** board
   scope and ask `Continue? [Y/n]`, with `-f`/`--force` as the explicit bypass.
   Explicit `--lane UUID` selection and explicit card UUID or ticket lists SHOULD
   NOT prompt beyond the normal guards.
+- Documentation, code, comments, identifiers, commit messages, pull requests,
+  card comments and program output MUST use US English spelling: "color",
+  "behavior", "normalize", not "colour", "behaviour", "normalise" (Terry,
+  2026-11-17). User-supplied text is exempt and MUST be preserved as written.
 - “String” means UTF-8 unless explicitly stated otherwise. User-supplied text
   MUST be preserved exactly, without silent replacement, trimming or
   normalization.

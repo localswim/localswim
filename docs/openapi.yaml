@@ -957,6 +957,10 @@ paths:
         An existing global UUID must have the same immutable kind and compatible definition.
         The resolved workflow must satisfy x-workflow-validation after shorthand expansion.
         The CLI board create name form sends name and, when selected, preset to this operation.
+        While workspace publishing is enabled and the creator holds the publish capability, the new board
+        inherits the workspace publishing enabled and repository settings. The response then reports
+        revision 2, whose audit records the creator's publishing.enabled change and any publishing.repository
+        change. Otherwise the board starts at revision 1 with publishing disabled.
       requestBody:
         required: true
         content:

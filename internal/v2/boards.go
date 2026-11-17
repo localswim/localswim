@@ -103,12 +103,42 @@ func (x *request) createBoard() {
 		x.fail(invalid("default_owner_id", "Expected a user on this board."))
 		return
 	}
+	// An unreadable workspace preference leaves the new board off rather than
+	// refusing the board.
+	if current, err := x.service.workspace.read(); err == nil {
+		inheritPublishing(&s, current.Publishing, x.actor, now)
+	}
 	if err = x.service.store.create(s); err != nil {
 		x.fail(err)
 		return
 	}
 	x.w.Header().Set("Location", Prefix+"/boards/"+id)
-	x.respond(http.StatusCreated, s.Board, s.Board.entityTag())
+	value := x.service.store.boardPublishingStatus(s.Board)
+	x.respond(http.StatusCreated, value, value.entityTag())
+}
+
+// inheritPublishing turns Git publishing on for a new board when the workspace
+// publishes, so a board is backed up from its creation. Verification requires
+// every board to start with publishing off, so the enable is the creator's own
+// audited settings change at revision 2, committed with the board in one write.
+// The creator needs read and publish, as for a publishing patch, or the board
+// stays off.
+func inheritPublishing(s *snapshot, preference publishing, actorID string, now time.Time) {
+	if !preference.Enabled || !s.can(actorID, "read") || !s.can(actorID, "publish") {
+		return
+	}
+	s.Board.Revision = 2
+	record := func(field string, before, after *string) {
+		s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: s.Board.ID, Revision: 2, At: now,
+			ActorID: actorID, Operation: "patch", ResourceType: "board", ResourceID: s.Board.ID, Field: &field, Before: before, After: after})
+	}
+	disabled, enabled := "false", "true"
+	record("publishing.enabled", &disabled, &enabled)
+	if preference.Repository != nil {
+		repository := *preference.Repository
+		record("publishing.repository", nil, &repository)
+	}
+	s.Board.Publishing = publishing{Enabled: true, Repository: cloneSnapshotPointer(preference.Repository)}
 }
 
 func (x *request) boardResource(id string) {

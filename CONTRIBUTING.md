@@ -528,6 +528,13 @@ Enable automatic publication independently with
 `board publishing enable [--revision N] BOARD_ID` or
 `workspace publishing enable [--revision N]`. Both default to disabled and use
 the data directory's enclosing Git worktree, local branch, and Git push defaults.
+A board created while workspace publishing is enabled inherits the workspace
+setting, so it is backed up without a separate enable. Verification requires a
+board to start with publishing disabled, so creation records the enable as the
+creator's own audited change at revision 2, committed together with the board.
+A creator without both the read and publish capabilities leaves the new board
+disabled, and so does a workspace preference that cannot be read. A V1 import
+and a recovered board stay disabled.
 The publishing setting `repository: "origin"` explicitly selects the origin remote.
 An enabled board publishes a coherent committed snapshot and its exact audited
 attachment paths after five seconds of quiet. Each edit restarts the quiet window,

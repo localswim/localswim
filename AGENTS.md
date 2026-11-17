@@ -9,11 +9,28 @@ enhancement cards on the localswim V2 Dev board.
 
 ## Agents
 
-- A parent agent SHOULD run `Opus/high`: the latest Claude Opus at high effort.
+- The lead Claude session is the **localswim architect**, and is also Terry's
+  developer (Terry, 2026-11-16). The architect does the card work itself.
+- The architect SHOULD run `Opus/high`: the latest Claude Opus at high effort.
+- The architect MAY start dev subagents when code work can safely overlap, but
+  only while the architect is busy and needs extra hands. The architect MUST
+  NOT hand work to a single subagent while it sits idle and could do that work
+  itself.
 - A subagent MAY use a cheaper model or lower effort for read-only work.
-- The agent that does the work owns project documentation and the clarity of
-  the OpenAPI contract. Examples, terminology and schemas MUST match the
-  behavior as shipped. Documentation is maintained in the same PR as the change.
+- The architect owns project documentation and the clarity of the OpenAPI
+  contract. Examples, terminology and schemas MUST match the behavior as
+  shipped. Documentation is maintained in the same PR as the change.
+
+## Card workflow
+
+- When the architect starts a card from Ready For Work, it MUST move the card to
+  In progress first.
+- A card that needs a code change MUST NOT move to Ready for review until its
+  pull request has passed the review and merge steps under
+  [Repository housekeeping](#repository-housekeeping).
+- A card that needs only documentation MAY move to Ready for review once its
+  commit is on `main`.
+- Only Terry moves a card to Completed.
 
 ## The board
 
@@ -32,7 +49,6 @@ Development work is tracked on the **localswim V2 Dev** board
   `C:\Projects\claude-localswim-watcher\lib\env.ps1` (`Set-LocalswimEnv`, then
   `Clear-LocalswimEnv` in a `finally` block). A token value MUST NOT be printed,
   logged or committed.
-- Only Terry moves a card to Completed. Finished work goes to Ready for review.
 
 ## Production state
 
@@ -60,11 +76,11 @@ Development work is tracked on the **localswim V2 Dev** board
 - Any other change MUST branch from `main` and land through a pull request to
   `localswim/localswim` (Terry, 2026-11-16). Before it merges, the pull request
   MUST pass both of these:
-  - The lead's own review.
-  - An independent `Opus/high` review that the lead commissions, by a reviewer
-    that did not write the change.
-- The lead MUST squash-merge an approved pull request to `main` and delete its
-  branch.
+  - The architect's own review.
+  - An independent `Opus/high` review that the architect commissions, by a
+    reviewer that did not write the change.
+- The architect MUST squash-merge an approved pull request to `main` and delete
+  its branch.
 
 ## V1 UI and UX remain the specification
 

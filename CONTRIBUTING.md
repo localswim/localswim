@@ -531,7 +531,8 @@ the data directory's enclosing Git worktree, local branch, and Git push defaults
 The publishing setting `repository: "origin"` explicitly selects the origin remote.
 An enabled board publishes a coherent committed snapshot and its exact audited
 attachment paths after five seconds of quiet. Each edit restarts the quiet window,
-but a capture is never later than 60 seconds after the first unpublished change,
+but a capture starts within 60 seconds of the first unpublished change, plus at
+most one quiet window after an attempt that newer edits overtook,
 so a board edited more often than every five seconds still publishes. An edit that
 arrives during an attempt does not cancel it; the newer change publishes on the
 next window. Preparing a commit runs Git once per changed file, so the unchanged

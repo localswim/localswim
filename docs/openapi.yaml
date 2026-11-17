@@ -19155,7 +19155,8 @@ x-notification-worker:
     no owner notice.
 x-publishing-worker:
   trigger: An opt-in board edit or enabled workspace preference edit schedules work after five seconds of quiet,
-    and never later than 60 seconds after the first unpublished change. A newer edit does not cancel an attempt
+    and within 60 seconds of the first unpublished change, plus at most one quiet window after an attempt that newer
+    edits overtook. A newer edit does not cancel an attempt
     already under way; it publishes on the next window.
   capture: Capture a coherent board snapshot with exact audited immutable attachments, or the exact committed
     workspace preference file alone. Git runs outside command admission. Board recovery preserves explicit

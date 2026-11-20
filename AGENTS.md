@@ -56,8 +56,8 @@ Development work is tracked on the **localswim V2 Dev** board
 - The production service runs the repo-root `localswim.exe`. The service
   receipt at `%LOCALAPPDATA%\localswim-v2\service.json` points at
   `C:\Projects\localswim\localswim.exe`.
-- The receipt and the launch credential files are an interface that agentspace
-  and the board watcher read.
+- The receipt and the launch credential files are an interface that agentspace,
+  the board watcher and swimcoach read.
   [The service receipt and credential files](docs/windows-operations.md#the-service-receipt-and-credential-files)
   defines them. A cold start MUST rewrite the receipt as it says, and a breaking
   change MUST be announced as it says.
@@ -93,7 +93,10 @@ Development work is tracked on the **localswim V2 Dev** board
   the archived #0514 plan. An agent MUST NOT remove a worktree or delete a branch
   without Terry's approval.
 - A change that touches only documentation MAY be committed and pushed straight
-  to `main` (Terry, 2026-11-16).
+  to `main` (Terry, 2026-11-16). A breaking change to the
+  [receipt and credential interface](docs/windows-operations.md#the-service-receipt-and-credential-files)
+  is the exception: it MUST land through a pull request, even when it touches
+  only documentation.
 - Any other change MUST branch from `main` and land through a pull request to
   `localswim/localswim` (Terry, 2026-11-16). Before it merges, the pull request
   MUST pass both of these:

@@ -51,9 +51,13 @@ that loads a token. It reads a role's token from the credential folder:
 
 ```powershell
 function Read-LocalswimToken([string]$Role) {
+    $ErrorActionPreference = 'Stop'
     $file = Join-Path $credentialDirectory "$Role.json"
     $credential = [IO.File]::ReadAllText($file) | ConvertFrom-Json
-    if ($credential.format -ne 'localswim-credential' -or $credential.format_version -ne 1) {
+    $version = $credential.format_version
+    if ($credential -is [array] -or $credential.format -cne 'localswim-credential' -or
+        -not ($version -is [int] -or $version -is [long]) -or $version -ne 1 -or
+        $credential.role -cne $Role) {
         throw "Unsupported credential format in $file."
     }
     [Net.NetworkCredential]::new('', (ConvertTo-SecureString -String $credential.token_dpapi_hex)).Password
@@ -239,8 +243,13 @@ None of them writes these files.
   the JSON Schema
   [`docs/schemas/launch-credential.schema.json`](schemas/launch-credential.schema.json),
   which `check.ps1` tests against an example and a set of invalid documents.
-  The provisioning block writes the same format from PowerShell 7 and Windows
-  PowerShell 5.1. Whitespace, line breaks and member order carry no meaning.
+  A reader SHOULD also accept a UTF-8 byte order mark. The provisioning block
+  writes the same format from PowerShell 7 and Windows PowerShell 5.1, with
+  different indentation. Whitespace, line breaks and member order carry no
+  meaning.
+- It MUST contain exactly these four members, each once, and no others. A
+  member's name MUST NOT differ from another's only in ASCII case. `role` MUST
+  match the file name. A reader MUST refuse a file that breaks these rules.
 
   | Member | Value |
   | --- | --- |
@@ -249,8 +258,12 @@ None of them writes these files.
   | `role` | `"human"` or `"bot"`, matching the file name. |
   | `token_dpapi_hex` | The protected token as lowercase hexadecimal, as `ConvertFrom-SecureString` writes it. |
 
-- A reader MUST refuse a `format` or `format_version` it does not know. A
-  change to the format MUST raise `format_version`.
+- A reader MUST refuse a `format` or `format_version` it does not know,
+  comparing `format` exactly and `format_version` as an integer. A change to
+  the format MUST raise `format_version`.
+- The schema checks the members, their values and the blob's header and flags.
+  It cannot check duplicate or case-variant member names, `role` against the
+  file name, or the decrypted plaintext. A reader checks those itself.
 - `token_dpapi_hex` MUST decode to a Windows DPAPI blob made in user scope with
   no optional entropy, so `CryptUnprotectData`, run as the same Windows user on
   the same PC with no entropy, returns the token. In PowerShell,
@@ -262,8 +275,8 @@ None of them writes these files.
 - The token MUST be 32 random bytes in unpadded base64url: 43 characters from
   `A-Z`, `a-z`, `0-9`, `-` and `_`.
 - This document and the schema examples MUST NOT contain a real token or a real
-  protected blob. The example's `token_dpapi_hex` is a DPAPI header followed by
-  zeros, which decrypts to nothing.
+  protected blob. The examples' `token_dpapi_hex` values are a DPAPI header
+  followed by zero bytes, which `CryptUnprotectData` refuses.
 
 ## Recover after the service exits unexpectedly
 

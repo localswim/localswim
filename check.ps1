@@ -1,3 +1,4 @@
+#Requires -Version 7.4
 [CmdletBinding()]
 param()
 
@@ -41,6 +42,10 @@ try {
             throw "No invalid examples exercise $schema."
         }
         foreach ($file in $invalid) {
+            # An invalid example MUST be valid JSON, so the schema is what refuses it.
+            if (-not (Test-Json -LiteralPath $file.FullName -ErrorAction SilentlyContinue)) {
+                throw "$($file.Name) is not valid JSON."
+            }
             if (Test-Json -LiteralPath $file.FullName -SchemaFile $schema -ErrorAction SilentlyContinue) {
                 throw "$($file.Name) matches $schema but MUST NOT."
             }

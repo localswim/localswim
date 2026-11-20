@@ -1,0 +1,6 @@
+{
+  "executable": "C:\\x\\localswim.exe",
+  "data_directory": "C:\\x\\data",
+  "base": "http://127.0.0.1:8811\n",
+  "credential_directory": "C:\\x\\credentials"
+}

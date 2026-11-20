@@ -38,7 +38,8 @@ $credentialDirectory
 
 Keep the printed directory path for the CLI session. Load tokens directly into
 process-scoped environment variables. Keep token values out of terminal output,
-command arguments, and shell history.
+command arguments, and shell history. The folder, its file names and the file
+format are part of the [receipt and credential interface](#the-service-receipt-and-credential-files).
 
 ## Launch
 
@@ -64,6 +65,24 @@ finally {
 A successful launch prints the loopback URL and service PID after the child
 opens the data directory and binds the selected listener. Open that URL in
 your browser. It provisions its own browser session.
+
+After a confirmed launch, replace the
+[service receipt](#the-service-receipt-and-credential-files) so it names this
+cold start. Write it beside the receipt and rename it into place, so a reader
+never sees a partial file. Skip this step after an unconfirmed launch.
+
+```powershell
+$receiptFile = Join-Path $env:LOCALAPPDATA 'localswim-v2\service.json'
+$receipt = [ordered]@{
+    executable           = (Resolve-Path -LiteralPath $exe).Path
+    data_directory       = (Resolve-Path -LiteralPath $data).Path
+    base                 = "http://127.0.0.1:$port"
+    credential_directory = $credentialDirectory
+}
+New-Item -ItemType Directory -Path (Split-Path $receiptFile) -Force | Out-Null
+[IO.File]::WriteAllText("$receiptFile.new", ($receipt | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+Move-Item -LiteralPath "$receiptFile.new" -Destination $receiptFile -Force
+```
 
 An unconfirmed launch prints the child PID when available. Inspect that process
 and the selected port before attempting a new launch. If the child exited
@@ -91,6 +110,114 @@ and flushes enabled publishers. If it refuses or the outcome is uncertain,
 inspect `service status` and the affected publishing status before retrying.
 Clear `LOCALSWIM_TOKEN` and `LOCALSWIM_URL` when the CLI session is done.
 Discard the retired credential files after the service stops.
+
+## The service receipt and credential files
+
+RFC 2119 keywords; the capitals are load-bearing.
+
+The service receipt and the launch credential files are an interface. Another
+program running as the same Windows user on the same PC MAY rely on everything
+this section states. The known readers are agentspace's operator, which pushes
+the Bot token to its box, and the board watcher in
+`C:\Projects\claude-localswim-watcher`, whose `lib\env.ps1` loads the Bot token.
+Neither writes these files.
+
+### Announcing a change
+
+- A change that removes, renames or changes the meaning or format of anything
+  this section guarantees is a breaking change. It MUST land in a pull request
+  that updates this section.
+- Before that pull request merges, the architect MUST announce the change to
+  Terry and on the agentspace board, as a card that names the change and the
+  pull request, and MUST record it in the watcher's `README.md`.
+- Adding a receipt member is not a breaking change and needs no announcement.
+
+### The receipt
+
+- The receipt is `%LOCALAPPDATA%\localswim-v2\service.json`. There is one per
+  Windows user, naming the installation that user's tools reach.
+- The cold-start procedure in [Launch](#launch) writes it, after the service
+  confirms startup. The service itself never reads or writes it. A staged
+  activation leaves it unchanged, because activation keeps the port and the
+  credentials.
+- It MUST be replaced whole, by renaming a complete file into place, so a reader
+  sees either the previous receipt or the new one.
+- It MUST be one JSON object, encoded as UTF-8. The procedure writes it without a
+  byte order mark and with CRLF line breaks. A reader SHOULD also accept a UTF-8
+  byte order mark.
+- It MUST contain each of these members exactly once, each a JSON string.
+
+  | Member | Value |
+  | --- | --- |
+  | `base` | The service's base URL, `http://127.0.0.1:PORT`, with no trailing slash. |
+  | `credential_directory` | The absolute path of the folder that holds the current cold start's credentials. |
+  | `executable` | The absolute path of the executable a cold start runs. |
+  | `data_directory` | The absolute path of the service's data directory. |
+
+- New members MAY be added. A reader MUST ignore members it does not use.
+- A copy kept beside the receipt, such as `service.json.bak-*`, is an operator's
+  backup and not part of the interface.
+
+### The credential folder
+
+- Each cold start MUST generate new Human and Bot tokens in a new folder, and
+  the receipt's `credential_directory` MUST name that folder once the service
+  confirms startup. The tokens in that folder are the ones the running service
+  accepts, until its next cold start. A staged activation keeps them.
+- The receipt names the folder by its path. The folder's own name and location
+  are not part of the interface.
+- A reader SHOULD read the receipt and the credential file afresh for each use.
+  Between a cold start and the receipt's replacement, the receipt still names
+  the retired folder, whose tokens the new service refuses. A reader whose token
+  is refused SHOULD read the receipt again before it retries.
+- A retired folder is deleted after the service it belonged to stops. A reader
+  MUST NOT expect a retired folder to remain.
+
+### The credential files
+
+- The folder MUST hold exactly two files, `human.xml` and `bot.xml`. The role
+  names `human` and `bot`, and so the file names, are fixed.
+- Each file is PowerShell CLIXML for one `PSCredential`, as `Export-Clixml`
+  writes it. Either PowerShell 7 or Windows PowerShell 5.1 MAY write it, so a
+  reader MUST accept both encodings:
+
+  | Writer | Encoding |
+  | --- | --- |
+  | PowerShell 7 | UTF-8, no byte order mark |
+  | Windows PowerShell 5.1 | UTF-16LE, with the byte order mark `FF FE` |
+
+  Neither writes an XML declaration or a final line break. Lines end in CRLF.
+- Every element is in the default namespace
+  `http://schemas.microsoft.com/powershell/2004/04`. With the password shown as
+  `HEX`, the document is:
+
+  ```xml
+  <Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04">
+    <Obj RefId="0">
+      <TN RefId="0">
+        <T>System.Management.Automation.PSCredential</T>
+        <T>System.Object</T>
+      </TN>
+      <ToString>System.Management.Automation.PSCredential</ToString>
+      <Props>
+        <S N="UserName">bot</S>
+        <SS N="Password">HEX</SS>
+      </Props>
+    </Obj>
+  </Objs>
+  ```
+
+- `S N="UserName"` holds the role name. `SS N="Password"` holds the protected
+  token as lowercase hexadecimal with no whitespace. A reader SHOULD select
+  both elements by their `N` attribute, not by position.
+- The hexadecimal decodes to a Windows DPAPI blob made in user scope with no
+  optional entropy. `CryptUnprotectData`, run as the same Windows user on the
+  same PC with no entropy, returns the token. The blob's flags field is 0, which
+  marks user scope.
+- The decrypted token is UTF-16LE with no byte order mark and no terminator.
+  The token itself is 32 random bytes in unpadded base64url: 43 characters from
+  `A-Z`, `a-z`, `0-9`, `-` and `_`.
+- This document MUST NOT contain a real token or a real protected blob.
 
 ## Recover after the service exits unexpectedly
 

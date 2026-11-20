@@ -56,6 +56,11 @@ Development work is tracked on the **localswim V2 Dev** board
 - The production service runs the repo-root `localswim.exe`. The service
   receipt at `%LOCALAPPDATA%\localswim-v2\service.json` points at
   `C:\Projects\localswim\localswim.exe`.
+- The receipt and the launch credential files are an interface that agentspace
+  and the board watcher read.
+  [The service receipt and credential files](docs/windows-operations.md#the-service-receipt-and-credential-files)
+  defines them. A cold start MUST rewrite the receipt as it says, and a breaking
+  change MUST be announced as it says.
 - A development build MUST NOT write to the repo-root `localswim.exe`. Build to
   a scratch path instead, for example
   `go build -o $env:TEMP\localswim-dev.exe ./cmd/localswim`. Only a deploy

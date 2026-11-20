@@ -95,7 +95,9 @@ A successful launch prints the loopback URL and service PID after the child
 opens the data directory and binds the selected listener, and then replaces
 the [service receipt](#the-service-receipt-and-credential-files). Open that URL
 in your browser. It provisions its own browser session. An unconfirmed launch
-leaves the receipt unchanged.
+leaves the receipt unchanged. If the receipt step fails after a confirmed
+start, the service is running: rerun only the `if ($writeReceipt)` part of the
+block with the same variables.
 
 An unconfirmed launch prints the child PID when available. Inspect that process
 and the selected port before attempting a new launch. If the child exited
@@ -168,8 +170,9 @@ None of them writes these files.
   partial. Deleting it and then renaming the new file MUST NOT be used.
 - Opening it can still fail briefly with a sharing violation while it is
   replaced. A reader SHOULD retry such a failure after a short pause before it
-  treats the receipt as unreadable, and SHOULD open it sharing delete access so
-  it does not block the rename.
+  treats the receipt as unreadable. A reader SHOULD close the receipt as soon as
+  it has read it, because any open handle, whatever its sharing mode, makes the
+  Launch block's rename wait.
 - It MUST be one JSON object, in UTF-8 with no byte order mark. A reader SHOULD
   also accept a UTF-8 byte order mark. Whitespace, line breaks and member order
   carry no meaning.

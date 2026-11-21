@@ -1,3 +1,4 @@
+#Requires -Version 7.4
 [CmdletBinding()]
 param()
 
@@ -30,6 +31,30 @@ try {
     $npm = if ($env:OS -eq 'Windows_NT') { 'npm.cmd' } else { 'npm' }
     Invoke-Check $npm @('--prefix', 'web', 'run', 'check')
     Invoke-Check $npm @('--prefix', 'web', 'test')
+    # Each interface schema MUST accept its example and refuse every invalid one.
+    $schemas = @(Get-ChildItem -LiteralPath 'docs/schemas' -Filter '*.schema.json' -File)
+    if ($schemas.Count -eq 0) {
+        throw 'No interface schemas found in docs/schemas.'
+    }
+    foreach ($name in $schemas.Name -replace '\.schema\.json$', '') {
+        $schema = "docs/schemas/$name.schema.json"
+        if (-not (Test-Json -LiteralPath "docs/schemas/examples/$name.json" -SchemaFile $schema)) {
+            throw "docs/schemas/examples/$name.json does not match $schema."
+        }
+        $invalid = @(Get-ChildItem -LiteralPath 'docs/schemas/examples/invalid' -Filter "$name-*.json" -File)
+        if ($invalid.Count -eq 0) {
+            throw "No invalid examples exercise $schema."
+        }
+        foreach ($file in $invalid) {
+            # An invalid example MUST be valid JSON, so the schema is what refuses it.
+            if (-not (Test-Json -LiteralPath $file.FullName -ErrorAction SilentlyContinue)) {
+                throw "$($file.Name) is not valid JSON."
+            }
+            if (Test-Json -LiteralPath $file.FullName -SchemaFile $schema -ErrorAction SilentlyContinue) {
+                throw "$($file.Name) matches $schema but MUST NOT."
+            }
+        }
+    }
     Invoke-Check 'git' @('diff', '--check')
     Invoke-Check 'git' @('diff', '--cached', '--check')
     Write-Output 'All quality checks passed.'

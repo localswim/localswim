@@ -27,8 +27,14 @@ try {
         $rng.GetBytes($bytes)
         $token = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
         $secret = ConvertTo-SecureString -String $token -AsPlainText -Force
-        $credential = [PSCredential]::new($role, $secret)
-        $credential | Export-Clixml -LiteralPath (Join-Path $credentialDirectory "$role.xml")
+        $credential = [ordered]@{
+            format          = 'localswim-credential'
+            format_version  = 1
+            role            = $role
+            token_dpapi_hex = ConvertFrom-SecureString -SecureString $secret
+        }
+        [IO.File]::WriteAllText((Join-Path $credentialDirectory "$role.json"),
+            ($credential | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     }
 }
 finally {
@@ -40,7 +46,32 @@ $credentialDirectory
 
 Keep the printed directory path for the CLI session. Load tokens directly into
 process-scoped environment variables. Keep token values out of terminal output,
-command arguments, and shell history.
+command arguments, and shell history. Define this function in each terminal
+that loads a token. It reads a role's token from the credential folder:
+
+```powershell
+function Read-LocalswimToken([string]$Role) {
+    $ErrorActionPreference = 'Stop'
+    $file = Join-Path $credentialDirectory "$Role.json"
+    $text = [IO.File]::ReadAllText($file)
+    $credential = $text | ConvertFrom-Json
+    $names = @($credential.PSObject.Properties.Name)
+    $expected = 'format', 'format_version', 'role', 'token_dpapi_hex'
+    $version = $credential.format_version
+    if ($text -notmatch '^\s*\{' -or $names.Count -ne 4 -or
+        @($names | Where-Object { $_ -cnotin $expected }).Count -ne 0 -or
+        $credential.format -cne 'localswim-credential' -or
+        -not ($version -is [int] -or $version -is [long]) -or $version -ne 1 -or
+        $credential.role -cne $Role) {
+        throw "Unsupported credential format in $file."
+    }
+    $token = [Net.NetworkCredential]::new('', (ConvertTo-SecureString -String $credential.token_dpapi_hex)).Password
+    if ($token -cnotmatch '^[A-Za-z0-9_-]{43}\z') {
+        throw "The token in $file is not 43 base64url characters."
+    }
+    $token
+}
+```
 
 ## Launch
 
@@ -55,8 +86,8 @@ $port = 48126
 $writeReceipt = $true
 
 try {
-    $env:LOCALSWIM_HUMAN_TOKEN = (Import-Clixml -LiteralPath (Join-Path $credentialDirectory 'human.xml')).GetNetworkCredential().Password
-    $env:LOCALSWIM_BOT_TOKEN = (Import-Clixml -LiteralPath (Join-Path $credentialDirectory 'bot.xml')).GetNetworkCredential().Password
+    $env:LOCALSWIM_HUMAN_TOKEN = Read-LocalswimToken human
+    $env:LOCALSWIM_BOT_TOKEN = Read-LocalswimToken bot
     & $exe serve --background $data $port
     if ($LASTEXITCODE -ne 0) { throw 'Localswim did not confirm startup.' }
     if ($writeReceipt) {
@@ -107,15 +138,17 @@ startup errors.
 ## Connect and stop
 
 In a separate PowerShell terminal, set `$exe`, `$port`, and
-`$credentialDirectory` to the values for the confirmed launch. Use the Bot
-token for Bot CLI work. The Human credential authorizes service shutdown.
+`$credentialDirectory` to the values for the confirmed launch, and define
+`Read-LocalswimToken` from [Provision the launch credentials](#provision-the-launch-credentials).
+Use the Bot token for Bot CLI work. The Human credential authorizes service
+shutdown.
 
 ```powershell
 $env:LOCALSWIM_URL = "http://127.0.0.1:$port"
-$env:LOCALSWIM_TOKEN = (Import-Clixml -LiteralPath (Join-Path $credentialDirectory 'bot.xml')).GetNetworkCredential().Password
+$env:LOCALSWIM_TOKEN = Read-LocalswimToken bot
 & $exe board list
 
-$env:LOCALSWIM_TOKEN = (Import-Clixml -LiteralPath (Join-Path $credentialDirectory 'human.xml')).GetNetworkCredential().Password
+$env:LOCALSWIM_TOKEN = Read-LocalswimToken human
 & $exe service status
 & $exe service stop
 ```
@@ -150,11 +183,11 @@ None of them writes these files.
   pull request that updates this section, even when it touches only
   documentation.
 - Before that pull request merges, the architect MUST announce the change to
-  Terry in the session and in the pull request, and MUST post a card on the
-  agentspace board (`c74ddc68-9c3a-4434-8435-563c596d3229`) that names the
-  change and the pull request.
-- The pull request MUST NOT merge until Terry confirms that each known reader
-  handles the change.
+  Terry in the session and in the pull request. The architect MUST also file a
+  card for each known reader that names the change and the pull request: on
+  the reader's own board, or on the localswim board when it has none.
+- A breaking change MAY merge before its readers handle it. Terry coordinates
+  the readers separately (Terry, 2026-11-20).
 - Adding a receipt member is not a breaking change and needs no announcement.
 
 ### The receipt
@@ -176,6 +209,9 @@ None of them writes these files.
 - It MUST be one JSON object, in UTF-8 with no byte order mark. A reader SHOULD
   also accept a UTF-8 byte order mark. Whitespace, line breaks and member order
   carry no meaning.
+- It MUST match the JSON Schema
+  [`docs/schemas/service-receipt.schema.json`](schemas/service-receipt.schema.json),
+  which `check.ps1` tests against an example and a set of invalid documents.
 - It MUST contain each of these members exactly once, each a JSON string. A
   member's name MUST NOT differ from another's only in ASCII case.
 
@@ -209,54 +245,54 @@ None of them writes these files.
 
 ### The credential files
 
-- The folder MUST hold `human.xml` and `bot.xml`. The role names `human` and
+- The folder MUST hold `human.json` and `bot.json`. The role names `human` and
   `bot`, and so the file names, are fixed. A reader MUST ignore any other file
   in the folder.
-- Each file MUST be written by `Export-Clixml` as PowerShell CLIXML for one
-  `PSCredential`, from either PowerShell 7 or Windows PowerShell 5.1, so a
-  reader MUST accept both encodings:
+- Each file MUST be one JSON object in UTF-8 with no byte order mark, matching
+  the JSON Schema
+  [`docs/schemas/launch-credential.schema.json`](schemas/launch-credential.schema.json),
+  which `check.ps1` tests against an example and a set of invalid documents.
+  A reader SHOULD also accept a UTF-8 byte order mark. The provisioning block
+  writes the same format from PowerShell 7 and Windows PowerShell 5.1, with
+  different indentation. Whitespace, line breaks and member order carry no
+  meaning.
+- It MUST contain exactly these four members, each once, and no others. A
+  member's name MUST NOT differ from another's only in ASCII case. `role` MUST
+  match the file name. A reader MUST refuse a file that breaks these rules,
+  except that a reader SHOULD refuse duplicate member names when its JSON
+  parser reports them. PowerShell's `ConvertFrom-Json` keeps the last value and
+  does not report a duplicate.
 
-  | Writer | Encoding |
+  | Member | Value |
   | --- | --- |
-  | PowerShell 7 | UTF-8, no byte order mark |
-  | Windows PowerShell 5.1 | UTF-16LE, with the byte order mark `FF FE` |
+  | `format` | `"localswim-credential"` |
+  | `format_version` | `1` |
+  | `role` | `"human"` or `"bot"`, matching the file name. |
+  | `token_dpapi_hex` | The protected token as lowercase hexadecimal, as `ConvertFrom-SecureString` writes it. |
 
-- Every element MUST be in the namespace
-  `http://schemas.microsoft.com/powershell/2004/04`. A reader MUST select the
-  user name and password by element name and `N` attribute, not by position.
-  As PowerShell 7.6 and 5.1 write it today, with the password shown as `HEX`,
-  the document is the following. Whitespace and line breaks carry no meaning,
-  and today neither version writes an XML declaration or a final line break.
-
-  ```xml
-  <Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04">
-    <Obj RefId="0">
-      <TN RefId="0">
-        <T>System.Management.Automation.PSCredential</T>
-        <T>System.Object</T>
-      </TN>
-      <ToString>System.Management.Automation.PSCredential</ToString>
-      <Props>
-        <S N="UserName">bot</S>
-        <SS N="Password">HEX</SS>
-      </Props>
-    </Obj>
-  </Objs>
-  ```
-
-- `S N="UserName"` MUST hold the role name. `SS N="Password"` MUST hold the
-  protected token as hexadecimal with no whitespace. Today's writers use
-  lowercase. A reader SHOULD accept either case.
-- The hexadecimal MUST decode to a Windows DPAPI blob made in user scope with
+- `format_version` MUST be written as the integer `1`, with no fraction or
+  exponent. A reader MUST refuse a `format` or `format_version` it does not
+  know, comparing `format` exactly and `format_version` as an integer. A change
+  to the format MUST raise `format_version`.
+- The schema checks the members, their values and the blob's header and flags.
+  It cannot check duplicate or case-variant member names, `role` against the
+  file name, whether the blob was made with entropy, or the decrypted
+  plaintext. A reader MUST check the case-variant names, the role and the
+  plaintext itself, and SHOULD check duplicates as stated above. The schema
+  also accepts `1.0` for `format_version`. A reader MUST refuse it.
+- `token_dpapi_hex` MUST decode to a Windows DPAPI blob made in user scope with
   no optional entropy, so `CryptUnprotectData`, run as the same Windows user on
-  the same PC with no entropy, returns the token. The blob starts with DPAPI
-  version 1 and the provider GUID `df9d8cd0-1501-11d1-8c7a-00c04fc297eb`, and
-  its flags field is 0, which marks user scope.
+  the same PC with no entropy, returns the token. In PowerShell,
+  `ConvertTo-SecureString` does this. The blob starts with DPAPI version 1 and
+  the provider GUID `df9d8cd0-1501-11d1-8c7a-00c04fc297eb`, and its flags field
+  is 0, which marks user scope.
 - The decrypted plaintext MUST be the token in UTF-16LE, with no byte order mark
   and no terminator.
 - The token MUST be 32 random bytes in unpadded base64url: 43 characters from
   `A-Z`, `a-z`, `0-9`, `-` and `_`.
-- This document MUST NOT contain a real token or a real protected blob.
+- This document and the schema examples MUST NOT contain a real token or a real
+  protected blob. The examples' `token_dpapi_hex` values are a DPAPI header
+  followed by bytes of value zero, which `CryptUnprotectData` refuses.
 
 ## Recover after the service exits unexpectedly
 
@@ -268,7 +304,8 @@ None of them writes these files.
    directory, and the same port. The background launcher waits up to 10 seconds
    for the child to report readiness. On an unconfirmed result, inspect the
    reported process and listener before another launch attempt.
-3. Load the new credential file into each CLI terminal's `LOCALSWIM_TOKEN`.
+3. Load the new token into each CLI terminal's `LOCALSWIM_TOKEN` with
+   `Read-LocalswimToken`.
    Use `service status` to check the port and running state, and `board get`
    with the original board UUID to confirm the board identity. Inspect the last
    affected ticket with `card inspect --prose BOARD_ID TICKET`. If a write's

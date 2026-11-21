@@ -183,11 +183,11 @@ None of them writes these files.
   pull request that updates this section, even when it touches only
   documentation.
 - Before that pull request merges, the architect MUST announce the change to
-  Terry in the session and in the pull request, and MUST post a card on the
-  agentspace board (`c74ddc68-9c3a-4434-8435-563c596d3229`) that names the
-  change and the pull request.
-- The pull request MUST NOT merge until Terry confirms that each known reader
-  handles the change.
+  Terry in the session and in the pull request. The architect MUST also file a
+  card for each known reader that names the change and the pull request: on
+  the reader's own board, or on the localswim board when it has none.
+- A breaking change MAY merge before its readers handle it. Terry coordinates
+  the readers separately (Terry, 2026-11-20).
 - Adding a receipt member is not a breaking change and needs no announcement.
 
 ### The receipt

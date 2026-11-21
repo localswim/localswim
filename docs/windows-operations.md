@@ -279,7 +279,7 @@ None of them writes these files.
   file name, whether the blob was made with entropy, or the decrypted
   plaintext. A reader MUST check the case-variant names, the role and the
   plaintext itself, and SHOULD check duplicates as stated above. The schema
-  also accepts `1.0` for `format_version`, which a reader refuses.
+  also accepts `1.0` for `format_version`. A reader MUST refuse it.
 - `token_dpapi_hex` MUST decode to a Windows DPAPI blob made in user scope with
   no optional entropy, so `CryptUnprotectData`, run as the same Windows user on
   the same PC with no entropy, returns the token. In PowerShell,

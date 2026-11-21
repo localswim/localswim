@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/localswim/localswim/main/docs/schemas/service-receipt.schema.json",
   "title": "localswim service receipt",
-  "description": "%LOCALAPPDATA%\\localswim-v2\\service.json, written by the Launch block in docs/windows-operations.md. A reader MUST ignore members it does not use. Patterns end in (?![\\s\\S]) rather than $, so a trailing line break is refused in every regex dialect.",
+  "description": "%LOCALAPPDATA%\\localswim-v2\\service.json, written by the Launch block in docs/windows-operations.md. A reader MUST ignore members it does not use. Anchored patterns end in (?![\\s\\S]) rather than $, because .NET and PCRE let $ match before a final line break. They need an ECMA-262-compatible regex engine; RE2 has no lookahead.",
   "type": "object",
   "required": ["executable", "data_directory", "base", "credential_directory"],
   "properties": {

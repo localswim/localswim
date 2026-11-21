@@ -53,14 +53,23 @@ that loads a token. It reads a role's token from the credential folder:
 function Read-LocalswimToken([string]$Role) {
     $ErrorActionPreference = 'Stop'
     $file = Join-Path $credentialDirectory "$Role.json"
-    $credential = [IO.File]::ReadAllText($file) | ConvertFrom-Json
+    $text = [IO.File]::ReadAllText($file)
+    $credential = $text | ConvertFrom-Json
+    $names = @($credential.PSObject.Properties.Name)
+    $expected = 'format', 'format_version', 'role', 'token_dpapi_hex'
     $version = $credential.format_version
-    if ($credential -is [array] -or $credential.format -cne 'localswim-credential' -or
+    if ($text -notmatch '^\s*\{' -or $names.Count -ne 4 -or
+        @($names | Where-Object { $_ -cnotin $expected }).Count -ne 0 -or
+        $credential.format -cne 'localswim-credential' -or
         -not ($version -is [int] -or $version -is [long]) -or $version -ne 1 -or
         $credential.role -cne $Role) {
         throw "Unsupported credential format in $file."
     }
-    [Net.NetworkCredential]::new('', (ConvertTo-SecureString -String $credential.token_dpapi_hex)).Password
+    $token = [Net.NetworkCredential]::new('', (ConvertTo-SecureString -String $credential.token_dpapi_hex)).Password
+    if ($token -cnotmatch '^[A-Za-z0-9_-]{43}\z') {
+        throw "The token in $file is not 43 base64url characters."
+    }
+    $token
 }
 ```
 
@@ -249,7 +258,10 @@ None of them writes these files.
   meaning.
 - It MUST contain exactly these four members, each once, and no others. A
   member's name MUST NOT differ from another's only in ASCII case. `role` MUST
-  match the file name. A reader MUST refuse a file that breaks these rules.
+  match the file name. A reader MUST refuse a file that breaks these rules,
+  except that a reader SHOULD refuse duplicate member names when its JSON
+  parser reports them. PowerShell's `ConvertFrom-Json` keeps the last value and
+  does not report a duplicate.
 
   | Member | Value |
   | --- | --- |
@@ -258,12 +270,16 @@ None of them writes these files.
   | `role` | `"human"` or `"bot"`, matching the file name. |
   | `token_dpapi_hex` | The protected token as lowercase hexadecimal, as `ConvertFrom-SecureString` writes it. |
 
-- A reader MUST refuse a `format` or `format_version` it does not know,
-  comparing `format` exactly and `format_version` as an integer. A change to
-  the format MUST raise `format_version`.
+- `format_version` MUST be written as the integer `1`, with no fraction or
+  exponent. A reader MUST refuse a `format` or `format_version` it does not
+  know, comparing `format` exactly and `format_version` as an integer. A change
+  to the format MUST raise `format_version`.
 - The schema checks the members, their values and the blob's header and flags.
   It cannot check duplicate or case-variant member names, `role` against the
-  file name, or the decrypted plaintext. A reader checks those itself.
+  file name, whether the blob was made with entropy, or the decrypted
+  plaintext. A reader MUST check the case-variant names, the role and the
+  plaintext itself, and SHOULD check duplicates as stated above. The schema
+  also accepts `1.0` for `format_version`, which a reader refuses.
 - `token_dpapi_hex` MUST decode to a Windows DPAPI blob made in user scope with
   no optional entropy, so `CryptUnprotectData`, run as the same Windows user on
   the same PC with no entropy, returns the token. In PowerShell,
@@ -276,7 +292,7 @@ None of them writes these files.
   `A-Z`, `a-z`, `0-9`, `-` and `_`.
 - This document and the schema examples MUST NOT contain a real token or a real
   protected blob. The examples' `token_dpapi_hex` values are a DPAPI header
-  followed by zero bytes, which `CryptUnprotectData` refuses.
+  followed by bytes of value zero, which `CryptUnprotectData` refuses.
 
 ## Recover after the service exits unexpectedly
 
@@ -288,7 +304,8 @@ None of them writes these files.
    directory, and the same port. The background launcher waits up to 10 seconds
    for the child to report readiness. On an unconfirmed result, inspect the
    reported process and listener before another launch attempt.
-3. Load the new credential file into each CLI terminal's `LOCALSWIM_TOKEN`.
+3. Load the new token into each CLI terminal's `LOCALSWIM_TOKEN` with
+   `Read-LocalswimToken`.
    Use `service status` to check the port and running state, and `board get`
    with the original board UUID to confirm the board identity. Inspect the last
    affected ticket with `card inspect --prose BOARD_ID TICKET`. If a write's

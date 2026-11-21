@@ -32,7 +32,11 @@ try {
     Invoke-Check $npm @('--prefix', 'web', 'run', 'check')
     Invoke-Check $npm @('--prefix', 'web', 'test')
     # Each interface schema MUST accept its example and refuse every invalid one.
-    foreach ($name in 'service-receipt', 'launch-credential') {
+    $schemas = @(Get-ChildItem -LiteralPath 'docs/schemas' -Filter '*.schema.json' -File)
+    if ($schemas.Count -eq 0) {
+        throw 'No interface schemas found in docs/schemas.'
+    }
+    foreach ($name in $schemas.Name -replace '\.schema\.json$', '') {
         $schema = "docs/schemas/$name.schema.json"
         if (-not (Test-Json -LiteralPath "docs/schemas/examples/$name.json" -SchemaFile $schema)) {
             throw "docs/schemas/examples/$name.json does not match $schema."

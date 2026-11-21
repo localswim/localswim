@@ -17,6 +17,11 @@ enhancement cards on the localswim V2 Dev board.
   NOT hand work to a single subagent while it sits idle and could do that work
   itself.
 - A subagent MAY use a cheaper model or lower effort for read-only work.
+- The architect and its subagents MUST NOT change another project's
+  repository, even with Terry's approval of the overall work (Terry,
+  2026-11-20). They MAY read it. When another project needs a change, the
+  architect MUST file a card on that project's board, or on the localswim
+  board when the project has none, and leave the change to its owner.
 - The architect owns project documentation and the clarity of the OpenAPI
   contract. Examples, terminology and schemas MUST match the behavior as
   shipped. Documentation is maintained in the same PR as the change.

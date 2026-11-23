@@ -1,5 +1,8 @@
 # Run localswim V2 independently on Windows
 
+RFC 2119 keywords; the capitals are load-bearing. A sentence without one
+describes the procedure rather than stating a rule.
+
 Build or install the Windows executable as described in the [README](../README.md).
 Choose the installation's fixed loopback port and absolute native V2 data
 directory. Once the launcher confirms startup, the service runs without a
@@ -21,12 +24,15 @@ in PowerShell 7 and Windows PowerShell 5.1.
   [receipt and credential interface](#the-service-receipt-and-credential-files)
   forbids, and never includes the token in an error.
 
-Each cold start uses a new folder. Keep the credential folders private and
-outside the checkout and data root. Load tokens directly into process-scoped
-environment variables, and keep token values out of terminal output, command
-arguments and shell history. A cold start of the installation the receipt names
-MUST create its credentials with `New-LocalswimCredentialFolder`, because its
-output is part of the interface.
+Each cold start uses a new folder.
+
+- Credential folders MUST be kept private, outside the checkout and the data
+  root.
+- Tokens MUST be loaded straight into process-scoped environment variables, and
+  MUST NOT appear in terminal output, command arguments or shell history.
+- A cold start of the installation the receipt names MUST create its credentials
+  with `New-LocalswimCredentialFolder`, because its output is part of the
+  interface.
 
 ## Launch
 
@@ -39,57 +45,77 @@ pwsh -NoProfile -File C:\Projects\localswim\scripts\Start-Localswim.ps1
 ```
 
 It does the following, appending each step to
-`%LOCALAPPDATA%\localswim-v2\logs\start.log`:
+`%LOCALAPPDATA%\localswim-v2\logs\start.log`, with times in the laptop's time
+zone:
 
 1. It reads the executable, data directory and port from the receipt.
 2. If localswim already answers on that port, it stops there and changes
    nothing. If something else holds the port, it fails.
 3. It creates a new credential folder with `New-LocalswimCredentialFolder`.
 4. It starts `localswim serve --background DATA PORT` with the Human and Bot
-   tokens in process-scoped environment variables. If the service does not
-   confirm startup, it deletes the unused credential folder and fails.
+   tokens in process-scoped environment variables. If the service fails to
+   start, it deletes the unused credential folder and fails. If the start is
+   unconfirmed, the service may still be binding with those tokens, so it keeps
+   the folder, logs its path and fails.
 5. It replaces the receipt by renaming a complete file over it, so a reader
    never finds the receipt missing or partial. A reader holding the receipt
    open delays the rename; the script retries for up to about 5 seconds.
-6. It deletes the retired credential folder the old receipt named.
+6. It deletes the retired credential folder the old receipt named, when that
+   folder is under the credential root and belonged to this port. It logs any
+   folder it keeps.
 
-The first launch of a new installation has no receipt yet. Pass the
-installation's `-Executable`, `-DataDirectory` and `-Port`, and the script
-writes the first receipt. A disposable or test launch MUST pass `-Disposable`
-with its own `-Executable`, `-DataDirectory`, `-Port`, `-CredentialRoot` and
-`-LogFile`. It then leaves the receipt and every other credential folder alone.
+While a receipt exists, a run without `-Disposable` takes no paths, so it can
+only restart that installation. The first launch of a new installation has no
+receipt yet: pass its `-Executable`, `-DataDirectory` and `-Port`, and the
+script writes the first receipt. A disposable or test launch MUST pass
+`-Disposable` with its own `-Executable`, `-DataDirectory`, `-Port`,
+`-CredentialRoot` and `-LogFile`, which the script requires. It then leaves the
+receipt and every other credential folder alone.
+`scripts/Test-StartLocalswim.ps1` exercises these cases with disposable
+instances, and `check.ps1` runs it against a fresh scratch build.
 
 A successful launch logs the loopback URL and service PID after the child opens
 the data directory and binds the listener. Open that URL in your browser; it
 provisions its own browser session. An unconfirmed launch logs the child PID
-when available. Inspect that process and the port before another attempt. If
-the child exited before binding, run
-`localswim serve DATA PORT` in a terminal, without `--background`, with the
-tokens loaded, to see its startup errors.
+when available and the credential folder it kept. Inspect that process and the
+port before another attempt: if the service came up, stop it with that folder's
+Human token, as [Connect and stop](#connect-and-stop) shows with the folder in
+place of the receipt's. To see startup errors of a child that exited before
+binding, create a folder under a scratch root with
+`New-LocalswimCredentialFolder`, load its tokens, and run
+`localswim serve DATA PORT` in a terminal without `--background`.
 
 If the receipt step fails after the service starts, the log names the new
-credential folder. Stop the service with that folder's Human token, as
-[Connect and stop](#connect-and-stop) shows, and run the script again.
+credential folder. Stop the service with that folder's Human token, as above,
+and run the script again.
 
 ## Start at sign-in
 
 `scripts/Install-LocalswimLogonTask.ps1` registers the scheduled task
 `localswim service`, which runs `Start-Localswim.ps1` each time this Windows user
-signs in, including with a PIN. Run it once from a PowerShell 7 terminal; it
-replaces any earlier copy of the task and starts it at once, which does nothing
-while localswim is already running.
+signs in, with a PIN or any other method. Run it once from a PowerShell 7
+terminal. It replaces any earlier copy of the task and starts it at once, which
+does nothing while localswim is already running.
 
 ```powershell
 pwsh -NoProfile -File C:\Projects\localswim\scripts\Install-LocalswimLogonTask.ps1
 ```
 
 - The task runs at standard rights as an interactive principal, because the
-  credentials are protected with this user's DPAPI key.
-- It runs under `conhost.exe --headless`, so no window appears.
+  credentials are protected with this user's DPAPI key. It runs at normal
+  priority, which the service inherits.
+- It runs under `conhost.exe --headless`, so no window appears. That switch is
+  undocumented but present in current Windows 11 builds.
 - It has no time limit, ignores a second start while one runs, and runs on
   battery.
-- Check `%LOCALAPPDATA%\localswim-v2\logs\start.log` after a sign-in to see what
-  it did.
+- Task Scheduler always reports the task's Last Run Result as 0, because
+  `conhost.exe` exits 0 whatever the script does. `start.log` is the only record
+  of a failure, so check it after a sign-in.
+- Signing in after a shutdown or restart runs the task, including after a
+  Fast Startup shutdown. Unlocking the screen or waking from sleep does not, and
+  needs no launch, because the service keeps running. The task is not a
+  supervisor: if the service exits during a session, run `Start-Localswim.ps1`
+  by hand or sign in again.
 
 Remove the task with
 `Unregister-ScheduledTask -TaskName 'localswim service' -Confirm:$false`.
@@ -119,8 +145,6 @@ Clear `LOCALSWIM_TOKEN` and `LOCALSWIM_URL` when the CLI session is done. The
 next cold start deletes the stopped service's credential folder.
 
 ## The service receipt and credential files
-
-RFC 2119 keywords; the capitals are load-bearing.
 
 The service receipt and the launch credential files are an interface. Another
 program running as the same Windows user on the same PC MAY rely on everything
@@ -302,9 +326,8 @@ If the service starts but the board is unavailable, use the
    and confirm the last saved edit and a subsequent authorized write. Use
    `card inspect` for independent readback.
 
-Activation runs a private copy of the staged executable. A later cold launch
-uses the executable selected in the launch command. Use the approved installation
-path for the build you want to run on the next cold launch.
+Activation runs a private copy of the staged executable. A later cold start
+runs the executable the receipt names, so install the build you want there.
 
 The V1-equivalent browser UI has no service activation panel. Use the CLI for
 activation and the browser for the reconnect verification described below.

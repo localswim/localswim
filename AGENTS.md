@@ -61,6 +61,10 @@ Development work is tracked on the **localswim V2 Dev** board
 - The production service runs the repo-root `localswim.exe`. The service
   receipt at `%LOCALAPPDATA%\localswim-v2\service.json` points at
   `C:\Projects\localswim\localswim.exe`.
+- The scheduled task `localswim service` runs `scripts/Start-Localswim.ps1`
+  when Terry signs in to Windows, and that script is the way to cold-start
+  production. Its log is `%LOCALAPPDATA%\localswim-v2\logs\start.log`. See
+  [Start at sign-in](docs/windows-operations.md#start-at-sign-in).
 - The receipt and the launch credential files are an interface that agentspace,
   the board watcher and swimcoach read.
   [The service receipt and credential files](docs/windows-operations.md#the-service-receipt-and-credential-files)

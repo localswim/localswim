@@ -122,8 +122,14 @@ try {
 }
 finally {
     foreach ($instance in $running) {
-        if (Get-NetTCPConnection -LocalPort $instance[0] -State Listen -ErrorAction SilentlyContinue) {
-            Stop-Instance $instance[0] $instance[1]
+        try {
+            if (Get-NetTCPConnection -LocalPort $instance[0] -State Listen -ErrorAction SilentlyContinue) {
+                Stop-Instance $instance[0] $instance[1]
+            }
+        }
+        catch {
+            Write-Output "FAIL: Could not stop the instance on port $($instance[0]): $($_.Exception.Message)"
+            $failures.Add("Stop port $($instance[0])")
         }
     }
     Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue

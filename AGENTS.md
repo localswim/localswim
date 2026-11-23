@@ -62,8 +62,8 @@ Development work is tracked on the **localswim V2 Dev** board
   receipt at `%LOCALAPPDATA%\localswim-v2\service.json` points at
   `C:\Projects\localswim\localswim.exe`.
 - The scheduled task `localswim service` runs `scripts/Start-Localswim.ps1`
-  when Terry signs in to Windows, and that script is the way to cold-start
-  production. Its log is `%LOCALAPPDATA%\localswim-v2\logs\start.log`. See
+  when Terry signs in to Windows. A cold start of production MUST use that
+  script. Its log is `%LOCALAPPDATA%\localswim-v2\logs\start.log`. See
   [Start at sign-in](docs/windows-operations.md#start-at-sign-in).
 - The receipt and the launch credential files are an interface that agentspace,
   the board watcher and swimcoach read.
@@ -183,7 +183,9 @@ Development work is tracked on the **localswim V2 Dev** board
 - UI work MUST follow the approved [UI source and release standards](docs/ui-standards.md)
   for optimized assets, image sizing, debugging artifacts and release verification.
 - Application timestamps MUST use `YYYY-MM-DD HH:MM:SS+00:00`, normalized to UTC
-  and whole seconds. Revision ordering MUST be preserved for edits within the
+  and whole seconds. This covers data the service stores or exposes. A log
+  written for a person to read, such as `start.log`, MUST show times in the
+  laptop's local time zone as `h:mmam`, following Terry's global rule. Revision ordering MUST be preserved for edits within the
   same second.
 - Immutable comments and user records MUST store and expose only `created_at`.
   Mutable objects MUST keep `updated_at`, including when it equals `created_at`.

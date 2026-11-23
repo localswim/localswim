@@ -146,6 +146,8 @@ next cold start deletes the stopped service's credential folder.
 
 ## The service receipt and credential files
 
+This section uses RFC 2119 keywords, as the top of this document says.
+
 The service receipt and the launch credential files are an interface. Another
 program running as the same Windows user on the same PC MAY rely on everything
 this section states as a rule. The known readers are:

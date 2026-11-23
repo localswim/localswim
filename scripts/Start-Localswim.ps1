@@ -38,7 +38,6 @@ $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Localswim launches only on Windows.' }
 . (Join-Path $PSScriptRoot 'LocalswimCredential.ps1')
 
-New-Item -ItemType Directory -Path (Split-Path $LogFile) -Force | Out-Null
 # Times are in the laptop's own time zone, as h:mmam, because a person reads this log.
 function Write-StartLog([string]$Message) {
     $now = Get-Date
@@ -84,6 +83,7 @@ elseif (@($explicit).Count -ne 3) {
     throw "No service receipt at $receiptFile. For a first launch, pass -Executable, -DataDirectory and -Port."
 }
 
+New-Item -ItemType Directory -Path (Split-Path $LogFile) -Force | Out-Null
 try {
     # A listener on the port is either this localswim, already started, or something else.
     if (Test-Listening $Port) {

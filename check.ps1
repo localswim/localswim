@@ -28,6 +28,15 @@ try {
 
     Invoke-Check 'go' @('vet', './...')
     Invoke-Check 'go' @('test', './...')
+    # The launcher's disposable checks run against a fresh scratch build, never the repo-root executable.
+    $launcherExe = Join-Path ([IO.Path]::GetTempPath()) "localswim-check-$PID.exe"
+    Invoke-Check 'go' @('build', '-o', $launcherExe, './cmd/localswim')
+    try {
+        Invoke-Check 'pwsh' @('-NoProfile', '-NonInteractive', '-File', 'scripts/Test-StartLocalswim.ps1', '-Executable', $launcherExe)
+    }
+    finally {
+        Remove-Item -LiteralPath $launcherExe -ErrorAction SilentlyContinue
+    }
     $npm = if ($env:OS -eq 'Windows_NT') { 'npm.cmd' } else { 'npm' }
     Invoke-Check $npm @('--prefix', 'web', 'run', 'check')
     Invoke-Check $npm @('--prefix', 'web', 'test')

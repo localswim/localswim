@@ -2,153 +2,112 @@
 
 Build or install the Windows executable as described in the [README](../README.md).
 Choose the installation's fixed loopback port and absolute native V2 data
-directory. Run the launcher from a PowerShell 7 or Windows PowerShell 5.1
-terminal.
-Once it confirms startup, the service runs without a console and you can close
-that terminal. It runs as the Windows user who launched it, for the current
-Windows session.
+directory. Once the launcher confirms startup, the service runs without a
+console. It runs as the Windows user who launched it, for the current Windows
+session. The launcher needs PowerShell 7.3 or newer.
 
-## Provision the launch credentials
+## Launch credentials
 
-Generate two fresh, distinct base64url tokens from 32 random bytes each for
-each cold start with this block, which saves them using Windows DPAPI. The files
-are decryptable by the same Windows user on the same PC. Keep the credential
-directory private and outside the checkout and data root. Its output is part of
-the [receipt and credential interface](#the-service-receipt-and-credential-files),
-so a cold start of the installation the receipt names MUST use this block.
+`scripts/LocalswimCredential.ps1` defines the two functions that write and read
+the launch credentials. Dot-source it; it defines functions only, and it works
+in PowerShell 7 and Windows PowerShell 5.1.
 
-```powershell
-$credentialDirectory = Join-Path $env:LOCALAPPDATA "localswim-v2\credentials\$([guid]::NewGuid())"
-New-Item -ItemType Directory -Path $credentialDirectory -Force | Out-Null
-$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-try {
-    foreach ($role in 'human', 'bot') {
-        $bytes = [byte[]]::new(32)
-        $rng.GetBytes($bytes)
-        $token = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-        $secret = ConvertTo-SecureString -String $token -AsPlainText -Force
-        $credential = [ordered]@{
-            format          = 'localswim-credential'
-            format_version  = 1
-            role            = $role
-            token_dpapi_hex = ConvertFrom-SecureString -SecureString $secret
-        }
-        [IO.File]::WriteAllText((Join-Path $credentialDirectory "$role.json"),
-            ($credential | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-    }
-}
-finally {
-    $rng.Dispose()
-    Remove-Variable token, secret, credential -ErrorAction SilentlyContinue
-}
-$credentialDirectory
-```
+- `New-LocalswimCredentialFolder -Root ROOT` creates a new folder under `ROOT`
+  holding `human.json` and `bot.json`, with two fresh, distinct base64url tokens
+  of 32 random bytes each, saved with Windows DPAPI. Only the same Windows user
+  on the same PC can decrypt them. It returns the folder's path.
+- `Read-LocalswimToken -CredentialDirectory FOLDER -Role human|bot` returns a
+  role's token. It refuses any file the
+  [receipt and credential interface](#the-service-receipt-and-credential-files)
+  forbids, and never includes the token in an error.
 
-Keep the printed directory path for the CLI session. Load tokens directly into
-process-scoped environment variables. Keep token values out of terminal output,
-command arguments, and shell history. Define this function in each terminal
-that loads a token. It reads a role's token from the credential folder:
-
-```powershell
-function Read-LocalswimToken([string]$Role) {
-    $ErrorActionPreference = 'Stop'
-    $file = Join-Path $credentialDirectory "$Role.json"
-    $text = [IO.File]::ReadAllText($file)
-    $credential = $text | ConvertFrom-Json
-    $names = @($credential.PSObject.Properties.Name)
-    $expected = 'format', 'format_version', 'role', 'token_dpapi_hex'
-    $version = $credential.format_version
-    if ($text -notmatch '^\s*\{' -or $names.Count -ne 4 -or
-        @($names | Where-Object { $_ -cnotin $expected }).Count -ne 0 -or
-        $credential.format -cne 'localswim-credential' -or
-        -not ($version -is [int] -or $version -is [long]) -or $version -ne 1 -or
-        $credential.role -cne $Role) {
-        throw "Unsupported credential format in $file."
-    }
-    $token = [Net.NetworkCredential]::new('', (ConvertTo-SecureString -String $credential.token_dpapi_hex)).Password
-    if ($token -cnotmatch '^[A-Za-z0-9_-]{43}\z') {
-        throw "The token in $file is not 43 base64url characters."
-    }
-    $token
-}
-```
+Each cold start uses a new folder. Keep the credential folders private and
+outside the checkout and data root. Load tokens directly into process-scoped
+environment variables, and keep token values out of terminal output, command
+arguments and shell history. A cold start of the installation the receipt names
+MUST create its credentials with `New-LocalswimCredentialFolder`, because its
+output is part of the interface.
 
 ## Launch
 
-Replace these example settings with the selected executable, native V2 data
-directory and fixed port. Set `$writeReceipt` to `$false` for a disposable or
-test launch, which MUST NOT write the receipt.
+`scripts/Start-Localswim.ps1` cold-starts localswim. With no arguments it starts
+the installation the [service receipt](#the-service-receipt-and-credential-files)
+names, which is what the [sign-in task](#start-at-sign-in) runs:
 
 ```powershell
-$exe = 'C:\LocalSwim V2\localswim.exe'
-$data = 'C:\LocalSwim V2\data'
-$port = 48126
-$writeReceipt = $true
-
-try {
-    $env:LOCALSWIM_HUMAN_TOKEN = Read-LocalswimToken human
-    $env:LOCALSWIM_BOT_TOKEN = Read-LocalswimToken bot
-    & $exe serve --background $data $port
-    if ($LASTEXITCODE -ne 0) { throw 'Localswim did not confirm startup.' }
-    if ($writeReceipt) {
-        # Name this cold start in the receipt. A rename that replaces the old
-        # file means a reader never finds the receipt missing or partial.
-        $receiptFile = Join-Path $env:LOCALAPPDATA 'localswim-v2\service.json'
-        $newFile = "$receiptFile.new"
-        $receipt = [ordered]@{
-            executable           = Convert-Path -LiteralPath $exe
-            data_directory       = Convert-Path -LiteralPath $data
-            base                 = "http://127.0.0.1:$port"
-            credential_directory = Convert-Path -LiteralPath $credentialDirectory
-        }
-        New-Item -ItemType Directory -Path (Split-Path $receiptFile) -Force -ErrorAction Stop | Out-Null
-        [IO.File]::WriteAllText($newFile, ($receipt | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-        if ($PSVersionTable.PSVersion.Major -ge 7) {
-            $replace = { [IO.File]::Move($newFile, $receiptFile, $true) }
-        }
-        else {
-            Add-Type -AssemblyName Microsoft.VisualBasic
-            $replace = { [Microsoft.VisualBasic.FileIO.FileSystem]::MoveFile($newFile, $receiptFile, $true) }
-        }
-        # A reader holding the receipt open blocks the rename briefly.
-        for ($try = 1; ; $try++) {
-            try { & $replace; break }
-            catch { if ($try -ge 50) { throw }; Start-Sleep -Milliseconds 100 }
-        }
-    }
-}
-finally {
-    Remove-Item Env:LOCALSWIM_HUMAN_TOKEN, Env:LOCALSWIM_BOT_TOKEN -ErrorAction SilentlyContinue
-}
+pwsh -NoProfile -File C:\Projects\localswim\scripts\Start-Localswim.ps1
 ```
 
-A successful launch prints the loopback URL and service PID after the child
-opens the data directory and binds the selected listener, and then replaces
-the [service receipt](#the-service-receipt-and-credential-files). Open that URL
-in your browser. It provisions its own browser session. An unconfirmed launch
-leaves the receipt unchanged. If the receipt step fails after a confirmed
-start, the service is running: rerun only the `if ($writeReceipt)` part of the
-block with the same variables.
+It does the following, appending each step to
+`%LOCALAPPDATA%\localswim-v2\logs\start.log`:
 
-An unconfirmed launch prints the child PID when available. Inspect that process
-and the selected port before attempting a new launch. If the child exited
-before binding, repeat the launch block with `--background` removed to inspect
-startup errors.
+1. It reads the executable, data directory and port from the receipt.
+2. If localswim already answers on that port, it stops there and changes
+   nothing. If something else holds the port, it fails.
+3. It creates a new credential folder with `New-LocalswimCredentialFolder`.
+4. It starts `localswim serve --background DATA PORT` with the Human and Bot
+   tokens in process-scoped environment variables. If the service does not
+   confirm startup, it deletes the unused credential folder and fails.
+5. It replaces the receipt by renaming a complete file over it, so a reader
+   never finds the receipt missing or partial. A reader holding the receipt
+   open delays the rename; the script retries for up to about 5 seconds.
+6. It deletes the retired credential folder the old receipt named.
+
+The first launch of a new installation has no receipt yet. Pass the
+installation's `-Executable`, `-DataDirectory` and `-Port`, and the script
+writes the first receipt. A disposable or test launch MUST pass `-Disposable`
+with its own `-Executable`, `-DataDirectory`, `-Port`, `-CredentialRoot` and
+`-LogFile`. It then leaves the receipt and every other credential folder alone.
+
+A successful launch logs the loopback URL and service PID after the child opens
+the data directory and binds the listener. Open that URL in your browser; it
+provisions its own browser session. An unconfirmed launch logs the child PID
+when available. Inspect that process and the port before another attempt. If
+the child exited before binding, run
+`localswim serve DATA PORT` in a terminal, without `--background`, with the
+tokens loaded, to see its startup errors.
+
+If the receipt step fails after the service starts, the log names the new
+credential folder. Stop the service with that folder's Human token, as
+[Connect and stop](#connect-and-stop) shows, and run the script again.
+
+## Start at sign-in
+
+`scripts/Install-LocalswimLogonTask.ps1` registers the scheduled task
+`localswim service`, which runs `Start-Localswim.ps1` each time this Windows user
+signs in, including with a PIN. Run it once from a PowerShell 7 terminal; it
+replaces any earlier copy of the task and starts it at once, which does nothing
+while localswim is already running.
+
+```powershell
+pwsh -NoProfile -File C:\Projects\localswim\scripts\Install-LocalswimLogonTask.ps1
+```
+
+- The task runs at standard rights as an interactive principal, because the
+  credentials are protected with this user's DPAPI key.
+- It runs under `conhost.exe --headless`, so no window appears.
+- It has no time limit, ignores a second start while one runs, and runs on
+  battery.
+- Check `%LOCALAPPDATA%\localswim-v2\logs\start.log` after a sign-in to see what
+  it did.
+
+Remove the task with
+`Unregister-ScheduledTask -TaskName 'localswim service' -Confirm:$false`.
 
 ## Connect and stop
 
-In a separate PowerShell terminal, set `$exe`, `$port`, and
-`$credentialDirectory` to the values for the confirmed launch, and define
-`Read-LocalswimToken` from [Provision the launch credentials](#provision-the-launch-credentials).
-Use the Bot token for Bot CLI work. The Human credential authorizes service
-shutdown.
+In a PowerShell terminal, load the receipt and the credential functions. Use the
+Bot token for Bot CLI work. The Human credential authorizes service shutdown.
 
 ```powershell
-$env:LOCALSWIM_URL = "http://127.0.0.1:$port"
-$env:LOCALSWIM_TOKEN = Read-LocalswimToken bot
+. C:\Projects\localswim\scripts\LocalswimCredential.ps1
+$receipt = Get-Content -Raw (Join-Path $env:LOCALAPPDATA 'localswim-v2\service.json') | ConvertFrom-Json
+$exe = $receipt.executable
+$env:LOCALSWIM_URL = $receipt.base
+$env:LOCALSWIM_TOKEN = Read-LocalswimToken -CredentialDirectory $receipt.credential_directory -Role bot
 & $exe board list
 
-$env:LOCALSWIM_TOKEN = Read-LocalswimToken human
+$env:LOCALSWIM_TOKEN = Read-LocalswimToken -CredentialDirectory $receipt.credential_directory -Role human
 & $exe service status
 & $exe service stop
 ```
@@ -156,8 +115,8 @@ $env:LOCALSWIM_TOKEN = Read-LocalswimToken human
 Wait for the process and listener to exit. `service stop` drains admitted work
 and flushes enabled publishers. If it refuses or the outcome is uncertain,
 inspect `service status` and the affected publishing status before retrying.
-Clear `LOCALSWIM_TOKEN` and `LOCALSWIM_URL` when the CLI session is done.
-Delete the retired credential folder after the service stops.
+Clear `LOCALSWIM_TOKEN` and `LOCALSWIM_URL` when the CLI session is done. The
+next cold start deletes the stopped service's credential folder.
 
 ## The service receipt and credential files
 
@@ -194,7 +153,7 @@ None of them writes these files.
 
 - The receipt is `%LOCALAPPDATA%\localswim-v2\service.json`. There is one per
   Windows user, naming the installation that user's tools reach.
-- The [Launch](#launch) block writes it after the service confirms startup. The
+- [`Start-Localswim.ps1`](#launch) writes it after the service confirms startup. The
   service itself never reads or writes it. A staged activation leaves it
   unchanged, because activation keeps the port and the credentials. A
   disposable or test cold start MUST NOT write it.
@@ -205,7 +164,7 @@ None of them writes these files.
   replaced. A reader SHOULD retry such a failure after a short pause before it
   treats the receipt as unreadable. A reader SHOULD close the receipt as soon as
   it has read it, because any open handle, whatever its sharing mode, makes the
-  Launch block's rename wait.
+  launcher's rename wait.
 - It MUST be one JSON object, in UTF-8 with no byte order mark. A reader SHOULD
   also accept a UTF-8 byte order mark. Whitespace, line breaks and member order
   carry no meaning.
@@ -236,8 +195,8 @@ None of them writes these files.
 - The receipt names the folder by its path. The folder's own name and location
   are not part of the interface.
 - A reader SHOULD read the receipt and the credential file afresh for each use.
-  Between a confirmed start and the receipt's replacement, which the Launch
-  block does at once, the receipt still names the retired folder, whose tokens
+  Between a confirmed start and the receipt's replacement, which the launcher
+  does at once, the receipt still names the retired folder, whose tokens
   the new service refuses. A reader whose token is refused SHOULD read the
   receipt again before it retries.
 - A retired folder MAY be deleted at any time after its service stops, so a
@@ -252,8 +211,9 @@ None of them writes these files.
   the JSON Schema
   [`docs/schemas/launch-credential.schema.json`](schemas/launch-credential.schema.json),
   which `check.ps1` tests against an example and a set of invalid documents.
-  A reader SHOULD also accept a UTF-8 byte order mark. The provisioning block
-  writes the same format from PowerShell 7 and Windows PowerShell 5.1, with
+  A reader SHOULD also accept a UTF-8 byte order mark.
+  `New-LocalswimCredentialFolder` writes the same format from PowerShell 7 and
+  Windows PowerShell 5.1, with
   different indentation. Whitespace, line breaks and member order carry no
   meaning.
 - It MUST contain exactly these four members, each once, and no others. A
@@ -299,13 +259,13 @@ None of them writes these files.
 1. Confirm the service process has exited and the configured port has no
    listener. If a process still owns the port, identify it before taking
    action. Keep the data directory and its writer lock files in place.
-2. Use the [credential provisioning](#provision-the-launch-credentials) and
-   [launch](#launch) steps with the installed executable, the same absolute data
-   directory, and the same port. The background launcher waits up to 10 seconds
-   for the child to report readiness. On an unconfirmed result, inspect the
-   reported process and listener before another launch attempt.
-3. Load the new token into each CLI terminal's `LOCALSWIM_TOKEN` with
-   `Read-LocalswimToken`.
+2. Run [`Start-Localswim.ps1`](#launch). It reuses the receipt's executable,
+   data directory and port with fresh credentials. The background launcher
+   waits up to 10 seconds for the child to report readiness. On an unconfirmed
+   result, inspect the reported process and listener before another launch
+   attempt.
+3. Load the new token into each CLI terminal's `LOCALSWIM_TOKEN`, as
+   [Connect and stop](#connect-and-stop) shows.
    Use `service status` to check the port and running state, and `board get`
    with the original board UUID to confirm the board identity. Inspect the last
    affected ticket with `card inspect --prose BOARD_ID TICKET`. If a write's
